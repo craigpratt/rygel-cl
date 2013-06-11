@@ -190,6 +190,7 @@ AM_CONDITIONAL([BUILD_EXAMPLE_PLUGINS], [test "x$[]enable_example_plugins" = "xy
 dnl Explicitly add stamp files for targets that are not plugins
 RYGEL_ADD_STAMP([src/librygel-core/librygel_core_2_0_la_vala.stamp])
 RYGEL_ADD_STAMP([src/librygel-server/librygel_server_2_0_la_vala.stamp])
+RYGEL_ADD_STAMP([src/librygel-ruih/librygel_ruih_2_0_la_vala.stamp])
 RYGEL_ADD_STAMP([src/librygel-renderer/librygel_renderer_2_0_la_vala.stamp])
 RYGEL_ADD_STAMP([src/rygel/rygel_vala.stamp])
 RYGEL_ADD_STAMP([src/ui/rygel_preferences_vala.stamp])
@@ -390,6 +391,7 @@ src/librygel-core/Makefile
 src/librygel-renderer/Makefile
 src/librygel-renderer-gst/Makefile
 src/librygel-server/Makefile
+src/librygel-ruih/Makefile
 src/rygel/Makefile
 src/ui/Makefile
 src/media-engines/Makefile
@@ -401,6 +403,7 @@ src/plugins/Makefile
 data/Makefile
 data/xml/Makefile
 data/xml/MediaServer3.xml.in
+data/xml/RuihServer2.xml.in
 data/xml/MediaRenderer2.xml.in
 data/icons/Makefile
 data/icons/32x32/Makefile
@@ -421,6 +424,7 @@ rygel-core-2.0.pc
 rygel-renderer-2.0.pc
 rygel-server-2.0.pc
 rygel-renderer-gst-2.0.pc
+rygel-ruih-1.0.pc
 tests/Makefile
 examples/Makefile
 examples/renderer-plugins/Makefile
