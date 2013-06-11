@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0" xmlns:dlna="urn:schemas-dlna-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:RemoteUIServerDevice:1</deviceType>
+    <UDN></UDN>
+    <friendlyName></friendlyName>
+    <manufacturer>Rygel Developers.</manufacturer>
+    <manufacturerURL>@PACKAGE_URL@</manufacturerURL>
+    <modelName>Rygel</modelName>
+    <modelNumber>@VERSION@</modelNumber>
+    <serialNumber>0000001</serialNumber>
+    <serviceList>
+    </serviceList>
+  </device>
+</root>
