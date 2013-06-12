@@ -140,6 +140,16 @@ AS_IF([test "x$enable_mediathek_plugin" = "xyes"],
                        libxml-2.0 >= $LIBXML_REQUIRED])
   ])
 
+RYGEL_ADD_PLUGIN([ruih],[Ruih],[yes])
+AS_IF([test "x$enable_ruih_plugin" = "xyes"],
+  [
+    PKG_CHECK_MODULES([RYGEL_PLUGIN_RUIH_DEPS],
+                      [$RYGEL_COMMON_MODULES
+                       gio-2.0 >= $GIO_REQUIRED
+                       libsoup-2.4 >= $LIBSOUP_REQUIRED
+                       libxml-2.0 >= $LIBXML_REQUIRED])
+  ])
+
 AS_IF([test "x$with_media_engine" = "xgstreamer"],
       [
         RYGEL_ADD_PLUGIN([playbin],[GStreamer playbin],[yes])
