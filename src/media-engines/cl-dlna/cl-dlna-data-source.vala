@@ -1,7 +1,13 @@
 /*
  * Copyright (C) 2013 CableLabs
  */
-
+ 
+/*
+ * Based on Rygel SimpleDataSource
+ * Copyright (C) 2012 Intel Corporation.
+ *
+ */
+ 
 /**
  * A simple data source for use with the CableLabs DLNA media engine.
  */
@@ -16,13 +22,14 @@ internal class Rygel.CableLabsDLNADataSource : DataSource, Object {
     private bool stop_thread = false;
     private HTTPSeek offsets = null;
 
-    public CableLabsDLNADataSource (string uri) {
-        debug ("Creating new data source for %s", uri);
+    public CableLabsDLNADataSource(string uri) {
+        message ("Creating a data source for URI %s", uri);
         this.uri = uri;
     }
 
-    ~CableLabsDLNADataSource () {
+    ~CableLabsDLNADataSource() {
         this.stop ();
+        message ("Stopped data source");
     }
 
     public void start (HTTPSeek? offsets) throws Error {
@@ -36,10 +43,9 @@ internal class Rygel.CableLabsDLNADataSource : DataSource, Object {
 
         this.offsets = offsets;
 
-        debug ("Starting data source for uri %s", this.uri);
+        message ("Starting data source for uri %s", this.uri);
 
-        // TODO: Convert to use a thread pool
-        this.thread = new Thread<void*> ("Rygel Serving thread",
+        this.thread = new Thread<void*>("CableLabsDLNADataSource Serving thread",
                                          this.thread_func);
     }
 
@@ -48,39 +54,41 @@ internal class Rygel.CableLabsDLNADataSource : DataSource, Object {
             return;
         }
 
-        this.mutex.lock ();
+        this.mutex.lock();
         this.frozen = true;
         this.mutex.unlock ();
     }
 
-    public void thaw () {
+    public void thaw() {
         if (!this.frozen) {
             return;
         }
 
-        this.mutex.lock ();
+        this.mutex.lock();
         this.frozen = false;
-        this.cond.broadcast ();
-        this.mutex.unlock ();
+        this.cond.broadcast();
+        this.mutex.unlock();
     }
 
-    public void stop () {
-        if (this.stop_thread) {
+    public void stop() 
+    {
+        if (this.stop_thread) 
+        {
             return;
         }
 
-        this.mutex.lock ();
+        this.mutex.lock();
         this.frozen = false;
         this.stop_thread = true;
-        this.cond.broadcast ();
-        this.mutex.unlock ();
+        this.cond.broadcast();
+        this.mutex.unlock();
     }
 
-    private void* thread_func () {
+    private void* thread_func() {
         var file = File.new_for_commandline_arg (this.uri);
-        debug ("Spawning new thread for streaming file %s", this.uri);
+        message ("Spawning new thread for streaming file %s", this.uri);
         try {
-            var mapped = new MappedFile (file.get_path (), false);
+            var mapped = new MappedFile(file.get_path (), false);
             if (this.offsets != null) {
                 this.first_byte = this.offsets.start;
                 this.last_byte = this.offsets.stop + 1;
@@ -99,8 +107,7 @@ internal class Rygel.CableLabsDLNADataSource : DataSource, Object {
                 this.mutex.unlock ();
 
                 if (exit || this.first_byte == this.last_byte) {
-                    debug ("Done streaming!");
-
+                    message ("Done streaming!");
                     break;
                 }
 
