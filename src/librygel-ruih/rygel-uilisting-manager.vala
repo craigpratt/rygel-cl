@@ -56,7 +56,6 @@ internal class Rygel.UIListingManager : GLib.Object {
 
     public string getUIListing(string path) {
 
-        Parser.init();
         Xml.Doc* uilistingdoc = Parser.parse_file (path);
         if (uilistingdoc == null) {
             return "";
