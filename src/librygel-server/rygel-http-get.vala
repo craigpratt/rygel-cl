@@ -138,9 +138,12 @@ internal class Rygel.HTTPGet : HTTPRequest {
         var need_byte_seek = HTTPByteSeek.needed (this);
         var requested_byte_seek = HTTPByteSeek.requested (this);
 
-        if ((requested_time_seek && !need_time_seek) ||
-            (requested_byte_seek && !need_byte_seek)) {
-            throw new HTTPRequestError.UNACCEPTABLE ("Invalid seek request");
+        if (requested_time_seek && !need_time_seek) {
+            throw new HTTPRequestError.UNACCEPTABLE ("Invalid time seek request");
+        }
+
+        if (requested_byte_seek && !need_byte_seek) {
+            throw new HTTPRequestError.UNACCEPTABLE ("Invalid byte seek request");
         }
 
         try {

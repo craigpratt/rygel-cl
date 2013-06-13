@@ -68,11 +68,10 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
             force_seek = hack.force_seek ();
         } catch (Error error) { }
 
-        return force_seek || (!(request.object is MediaContainer) && ((request.object as MediaItem).size > 0 &&
-                request.handler is HTTPIdentityHandler) ||
-               (request.thumbnail != null &&
-                request.thumbnail.size > 0) ||
-               (request.subtitle != null && request.subtitle.size > 0));
+        return force_seek
+               || (!(request.object is MediaContainer) && (request.object as MediaItem).size > 0)
+               || (request.thumbnail != null && request.thumbnail.size > 0)
+               || (request.subtitle != null && request.subtitle.size > 0);
     }
 
     public static bool requested (HTTPGet request) {
