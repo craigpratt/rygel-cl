@@ -142,18 +142,19 @@ public class Rygel.DescriptionFile : Object {
                 allow_delete = config.get_allow_deletion ();
             } catch (GLib.Error error) { }
 
+            // Disabling Audio and Image Upload
             if (allow_upload) {
-                if (PluginCapabilities.IMAGE_UPLOAD in capabilities) {
-                    flags += "image-upload";
-                }
+                // if (PluginCapabilities.IMAGE_UPLOAD in capabilities) {
+                //     flags += "image-upload";
+                // }
 
                 if (PluginCapabilities.VIDEO_UPLOAD in capabilities) {
                     flags += "av-upload";
                 }
 
-                if (PluginCapabilities.AUDIO_UPLOAD in capabilities) {
-                    flags += "audio-upload";
-                }
+                //if (PluginCapabilities.AUDIO_UPLOAD in capabilities) {
+                //    flags += "audio-upload";
+                //}
             }
 
             if (allow_delete) {
