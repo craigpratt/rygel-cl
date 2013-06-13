@@ -11,7 +11,8 @@ using Gee;
 
 /**
  * This media engine is intended to be the basis for the CL 
- * reference DMS.
+ * reference DMS. Long-term, this could be moved outside the Rygel
+ * source tree and built stand-alone.
  */
 internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
     private  GLib.List<DLNAProfile> profiles 
