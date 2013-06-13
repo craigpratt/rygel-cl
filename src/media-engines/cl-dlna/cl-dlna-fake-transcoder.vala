@@ -63,13 +63,15 @@ internal class Rygel.FakeTranscoder : Rygel.Transcoder
         message("add_resource");
         DIDLLiteResource resource = base.add_resource (didl_item, item, manager);
 
-        // Here's our opportunity to tweak the resource...
+        // Here's our opportunity to tweak the resource
+        
+        // We want to be able to set these in a content-specific fashion,
+        // for various test scenarios. But this is probably a temporary solution anyway...
         
         // base.add_resource() will set the MIME type and DLNA profile
         //  according to what's passed in the base constructor
 
         resource.size64 = item.size;
-        
         var protocol_info = resource.protocol_info;
         protocol_info.dlna_conversion = DLNAConversion.NONE;
         protocol_info.dlna_flags = DLNAFlags.STREAMING_TRANSFER_MODE |

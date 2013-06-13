@@ -7,31 +7,59 @@
  * Copyright (C) 2012 Intel Corporation.
  */
 
+using Gee;
+
 /**
  * This media engine is intended to be the basis for the CL 
  * reference DMS.
  */
 internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
-    // For now, this engine will assume all content is AVC_MP4_MP_SD
-    private List<DLNAProfile> profiles 
-        = new List<DLNAProfile>();
+    private  GLib.List<DLNAProfile> profiles 
+        = new  GLib.List<DLNAProfile>();
+        
     private GLib.List<Transcoder> transcoders = null;
 
     public CableLabsDLNAMediaEngine() {
         message("constructing");
-        profiles.append(new DLNAProfile("AVC_MP4_MP_SD","video/mp4"));
-        // Note: This won't affect what profiles are included in the 
-        //       primary res block
-        this.transcoders.prepend(
-                new FakeTranscoder("video/mp4","AVC_MP4_MP_SD","mp4") );
+
+        var profiles_config = new Gee.ArrayList<string>();
+        
+        var config = MetaConfig.get_default();
+        try {
+            profiles_config = config.get_string_list( "CL-DLNAMediaEngine", "profiles");
+        } catch (Error err) {
+            error("Error reading CL-DLNAMediaEngine profiles: " + err.message);
+        }
+
+        foreach (var row in profiles_config) {
+            var columns = row.split(",");
+            if (columns.length < 3)
+            {
+                message( "CL-DLNAMediaEngine profile entry \""
+                         + row + "\" is malformed: Expected 3 entries and found "
+                         + columns.length.to_string() );
+                break;
+            }
+            string profile = columns[0];
+            string mimetype = columns[1];
+            string extension = columns[2];
+
+            message( "CL-DLNAMediaEngine: configuring profile entry: " + row);
+            // Note: This profile list won't affect what profiles are included in the 
+            //       primary res block
+            profiles.append(new DLNAProfile(profile,mimetype));
+            // The transcoders will become secondary res blocks
+            this.transcoders.prepend(
+                    new FakeTranscoder(mimetype,profile,extension) );
+        }
     }
 	
-    public override unowned List<DLNAProfile> get_dlna_profiles() {
+    public override unowned GLib.List<DLNAProfile> get_dlna_profiles() {
         message("get_dlna_profiles");
         return this.profiles;
     }
 
-    public override unowned List<Transcoder>? get_transcoders() {
+    public override unowned GLib.List<Transcoder>? get_transcoders() {
         message("get_transcoders");
         return this.transcoders;
     }
