@@ -204,6 +204,11 @@ public abstract class Rygel.MediaObject : GLib.Object {
             var writer = new Serializer (SerializerType.GENERIC_DIDL);
             var didl_object = this.serialize (writer, http_server);
 
+            // Drop dlna:dlnaManaged attribute since it fails XSD validation
+            // in gupnp-av. bgo#701637
+            var node = didl_object.xml_node;
+            node->unset_ns_prop (didl_object.dlna_namespace, "dlnaManaged");
+
             result = didl_object.apply_fragments
                                         (current_fragments.to_array (),
                                          new_fragments.to_array ());
