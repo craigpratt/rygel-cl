@@ -42,7 +42,7 @@ internal class Rygel.UIListingManager : GLib.Object {
 
         string lastevent = ""; 
         while(true) {
-            // Check every 30 secs
+            // Check every 5 secs
             Thread.usleep(5000000);
             string xmlstr = getUIListing(RuihService.UIISTING_PATH);
             if ( xmlstr != lastevent) {
@@ -56,7 +56,6 @@ internal class Rygel.UIListingManager : GLib.Object {
 
     public string getUIListing(string path) {
 
-        Parser.init();
         Xml.Doc* uilistingdoc = Parser.parse_file (path);
         if (uilistingdoc == null) {
             return "";
@@ -65,7 +64,6 @@ internal class Rygel.UIListingManager : GLib.Object {
         string xmlstr;
         uilistingdoc->dump_memory (out xmlstr);
         delete uilistingdoc; 
-        Parser.cleanup();
         return xmlstr;
 
     }
