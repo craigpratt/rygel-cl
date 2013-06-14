@@ -23,7 +23,7 @@
 /**
  * This is the base class for every Rygel UPnP Ruih plugin.
  *
- * This class is useful when implementing Rygel renderer plugins.
+ * This class is useful when implementing Rygel Ruih Server plugins.
  *
  */
 public class Rygel.RuihServerPlugin : Rygel.Plugin {
@@ -36,7 +36,7 @@ public class Rygel.RuihServerPlugin : Rygel.Plugin {
     /**
      * Create an instance of the plugin.
      *
-     * @param name The non-human-readable name for the plugin and its renderer, used in UPnP messages and in the Rygel configuration file.
+     * @param name The non-human-readable name for the plugin, used in UPnP messages and in the Rygel configuration file.
      * @param title An optional human-readable name (friendlyName) of the UPnP renderer provided by the plugin. If the title is empty then the name will be used.
      * @param description An optional human-readable description (modelDescription) of the UPnP renderer provided by the plugin.
      */

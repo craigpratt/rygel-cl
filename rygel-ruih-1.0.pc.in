@@ -6,7 +6,7 @@ includedir=@includedir@
 enginedir=@RYGEL_MEDIA_ENGINE_DIR@
 
 Name: rygel-ruih-1.0
-Description: GNOME (Mobile) UPnP/DLNA Media server library
+Description: GNOME (Mobile) UPnP/DLNA RUIH server library
 Version: @VERSION@
 Libs: -L${libdir} -lrygel-ruih-1.0
 Cflags: -I${includedir}/rygel-2.0
