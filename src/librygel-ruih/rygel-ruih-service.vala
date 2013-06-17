@@ -1,5 +1,7 @@
 /*
- * Copyright (C) 2013 cablelabs 
+ * Copyright (C) 2008 Zeeshan Ali <zeenix@gmail.com>.
+ * Copyright (C) 2007 OpenedHand Ltd.
+ * Copyright (C) 2012 Intel Corporation.
  *
  * Author: Cablelabs 
  *
@@ -22,6 +24,7 @@
 
 using GUPnP;
 using Gee;
+using Xml;
 
 /**
  * Errors used by RemoteUIService and deriving classes.
@@ -52,10 +55,12 @@ internal class Rygel.RuihService: Service {
                     "urn:schemas-upnp-org:service:RemoteUIServer:1";
     public const string DESCRIPTION_PATH = "xml/RemoteUIServerService.xml";
     public const string UIISTING_PATH = BuildConfig.DATA_DIR + "/xml/UIList.xml";
+    public const string MULTIPLE_UIISTING_PATH = BuildConfig.DATA_DIR + "/xml/MultipleUIList.xml";
 
     internal Cancellable cancellable;
 
     private UIListingManager uiMan; 
+    private RuihServiceManager ruiManager;
 
     public override void constructed () {
         base.constructed ();
@@ -63,14 +68,18 @@ internal class Rygel.RuihService: Service {
         this.cancellable = new Cancellable ();
 
         this.uiMan = new UIListingManager(this, UIISTING_PATH);
+        this.ruiManager = new RuihServiceManager();
 
         new Thread<int> ("UIListingManager thread", uiMan.run);
+
+        //this.initialUIList = uiMan.getUIListing(UIISTING_PATH);
 
         this.root_device.resource_factory as RuihServerPlugin;
 
         this.query_variable["UIListingUpdate"].connect (
                                         this.query_uilisting);
 
+        stdout.printf("Here\n");
         this.action_invoked["GetCompatibleUIs"].connect (this.getcompatibleuis_cb);
 
     }
@@ -84,6 +93,31 @@ internal class Rygel.RuihService: Service {
     private void getcompatibleuis_cb (Service       content_dir,
                             ServiceAction action) {
 
+        string xmlstr;
+        xmlstr = this.uiMan.getUIListing (UIISTING_PATH);
+        //No InputDeviceProfile or UIFilter entered, Return all possible UI's
+        
+        if (action.get_argument_count () == 0) {
+            action.set ("UIListing", typeof (string), xmlstr);
+            action.return ();
+            return;
+        }
+
+        string inputDeviceProfile, inputUIFilter;
+        action.get ("InputDeviceProfile", typeof (string), out inputDeviceProfile);
+        action.get ("UIFilter", typeof (string), out inputUIFilter);
+        try
+        {
+            ruiManager.setUIList(UIISTING_PATH);
+        }
+        catch (GLib.Error e)
+        {
+            stdout.printf("setUIList() threw an error %s, EXIT\n", e.message);
+            return;
+        }
+        string compatUI = ruiManager.getCompatibleUIs(xmlstr, inputDeviceProfile, inputUIFilter);
+        action.set ("UIListing", typeof (string), compatUI);
+        action.return ();
     }
 
     private void query_uilisting(Service   ruih_service,
@@ -92,6 +126,5 @@ internal class Rygel.RuihService: Service {
         value.init (typeof (string));
         value.set_string (uiMan.getUIListing(UIISTING_PATH));
     }
-
 
 }
