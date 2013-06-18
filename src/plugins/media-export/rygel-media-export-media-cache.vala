@@ -631,7 +631,8 @@ public class Rygel.MediaExport.MediaCache : Object {
                                 item.id,
                                 item.dlna_profile,
                                 Database.null (),
-                                -1};
+                                -1,
+                                Database.null ()};
 
         if (item is AudioItem) {
             var audio_item = item as AudioItem;
@@ -657,6 +658,7 @@ public class Rygel.MediaExport.MediaCache : Object {
             values[13] = visual_item.color_depth;
             if (item is VideoItem) {
                 var video_item = item as VideoItem;
+                values[20] = video_item.creator;
                 values[5] = video_item.author;
             }
         }
@@ -880,7 +882,7 @@ public class Rygel.MediaExport.MediaCache : Object {
                                         (DetailColumn.COLOR_DEPTH);
             if (item is VideoItem) {
                 var video_item = item as VideoItem;
-                video_item.author = statement.column_text (DetailColumn.AUTHOR);
+                video_item.creator = statement.column_text (DetailColumn.CREATOR);
             }
         }
     }
@@ -969,8 +971,12 @@ public class Rygel.MediaExport.MediaCache : Object {
                 use_collation = true;
                 break;
             case "upnp:artist":
-            case "dc:creator":
+            case "upnp:author":
                 column = "m.author";
+                use_collation = true;
+                break;
+            case "dc:creator":
+                column = "m.creator";
                 use_collation = true;
                 break;
             case "dc:date":

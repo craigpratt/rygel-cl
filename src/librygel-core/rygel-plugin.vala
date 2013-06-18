@@ -32,18 +32,22 @@ using GUPnP;
 public enum Rygel.PluginCapabilities {
     NONE = 0,
     /* Server caps */
+    
+    // Diasbling Audio and Image Upload Caps
 
     /// Server plugin supports upload of images
-    IMAGE_UPLOAD,
+    //IMAGE_UPLOAD,
 
     /// Server plugin supports upload of video files
     VIDEO_UPLOAD,
 
     /// Server plugin supports upload of audio files
-    AUDIO_UPLOAD,
+    //AUDIO_UPLOAD,
 
-    /// Server supports upload of all kind of items
-    UPLOAD = IMAGE_UPLOAD | VIDEO_UPLOAD | AUDIO_UPLOAD,
+    /// Disabling Server supports upload of all kind of items.
+    /// Enabling only av-upload
+    //UPLOAD = IMAGE_UPLOAD | VIDEO_UPLOAD | AUDIO_UPLOAD,
+    UPLOAD = VIDEO_UPLOAD,
 
     /// Server supports tracking changes
     TRACK_CHANGES,
