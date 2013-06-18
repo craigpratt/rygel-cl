@@ -620,7 +620,6 @@ public class Rygel.MediaExport.MediaCache : Object {
                                 item.upnp_class,
                                 Database.null (),
                                 Database.null (),
-                                Database.null (),
                                 item.date,
                                 -1,
                                 -1,
@@ -632,22 +631,23 @@ public class Rygel.MediaExport.MediaCache : Object {
                                 item.id,
                                 item.dlna_profile,
                                 Database.null (),
-                                -1};
+                                -1,
+                                Database.null ()};
 
         if (item is AudioItem) {
             var audio_item = item as AudioItem;
-            values[15] = audio_item.duration;
-            values[9] = audio_item.bitrate;
-            values[10] = audio_item.sample_freq;
-            values[11] = audio_item.bits_per_sample;
-            values[12] = audio_item.channels;
+            values[14] = audio_item.duration;
+            values[8] = audio_item.bitrate;
+            values[9] = audio_item.sample_freq;
+            values[10] = audio_item.bits_per_sample;
+            values[11] = audio_item.channels;
             if (item is MusicItem) {
                 var music_item = item as MusicItem;
-                values[6] = music_item.artist;
-                values[7] = music_item.album;
-                values[18] = music_item.genre;
-                values[13] = music_item.track_number;
-                values[19] = music_item.disc;
+                values[5] = music_item.artist;
+                values[6] = music_item.album;
+                values[17] = music_item.genre;
+                values[12] = music_item.track_number;
+                values[18] = music_item.disc;
             }
         }
 
@@ -655,11 +655,11 @@ public class Rygel.MediaExport.MediaCache : Object {
             var visual_item = item as VisualItem;
             values[2] = visual_item.width;
             values[3] = visual_item.height;
-            values[14] = visual_item.color_depth;
+            values[13] = visual_item.color_depth;
             if (item is VideoItem) {
                 var video_item = item as VideoItem;
-                values[5] = video_item.creator;
-                values[6] = video_item.author;
+                values[20] = video_item.creator;
+                values[5] = video_item.author;
             }
         }
 

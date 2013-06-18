@@ -141,7 +141,6 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
         switch (property) {
         case "dc:creator":
             return this.compare_string_props (this.creator, item.creator);
-        // Replaced dc:author with upnp:author
         case "upnp:author":
             return this.compare_string_props (this.author, item.author);
         default:

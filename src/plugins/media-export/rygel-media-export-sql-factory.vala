@@ -85,11 +85,11 @@ internal enum Rygel.MediaExport.SQLString {
 internal class Rygel.MediaExport.SQLFactory : Object {
     private const string SAVE_META_DATA_STRING =
     "INSERT OR REPLACE INTO meta_data " +
-        "(size, mime_type, width, height, class, creator, " +
+        "(size, mime_type, width, height, class, " +
          "author, album, date, bitrate, " +
          "sample_freq, bits_per_sample, channels, " +
          "track, color_depth, duration, object_fk, " +
-         "dlna_profile, genre, disc) VALUES " +
+         "dlna_profile, genre, disc, creator) VALUES " +
          "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private const string INSERT_OBJECT_STRING =
@@ -116,11 +116,11 @@ internal class Rygel.MediaExport.SQLFactory : Object {
 
     private const string ALL_DETAILS_STRING =
     "o.type_fk, o.title, m.size, m.mime_type, m.width, " +
-    "m.height, m.class, m.creator, m.author, m.album, m.date, m.bitrate, " +
+    "m.height, m.class, m.author, m.album, m.date, m.bitrate, " +
     "m.sample_freq, m.bits_per_sample, m.channels, m.track, " +
     "m.color_depth, m.duration, o.upnp_id, o.parent, o.timestamp, " +
     "o.uri, m.dlna_profile, m.genre, m.disc, o.object_update_id, " +
-    "o.deleted_child_count, o.container_update_id, o.reference_id ";
+    "o.deleted_child_count, o.container_update_id, o.reference_id, m.creator ";
 
     private const string GET_OBJECT_WITH_PATH =
     "SELECT DISTINCT " + ALL_DETAILS_STRING +
