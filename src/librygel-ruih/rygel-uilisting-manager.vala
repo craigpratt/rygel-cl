@@ -20,6 +20,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+using Gee;
 using GUPnP;
 using Xml;
 
@@ -46,9 +47,10 @@ internal class Rygel.UIListingManager : GLib.Object {
             Thread.usleep(5000000);
             string xmlstr = getUIListing(RuihService.UIISTING_PATH);
             if ( xmlstr != lastevent) {
+                string event = createUIListingUpdate(xmlstr, lastevent);
                 lastevent = xmlstr;
-                debug("Sending new event to subscribers\n" + xmlstr);
-                ruih.notify("UIListingUpdate", typeof (string), xmlstr);
+                debug("Sending new event to subscribers  " + event);
+                ruih.notify("UIListingUpdate", typeof (string), event);
             }
         }
 
@@ -56,6 +58,7 @@ internal class Rygel.UIListingManager : GLib.Object {
 
     public string getUIListing(string path) {
 
+        // Parse XML and put in string
         Xml.Doc* uilistingdoc = Parser.parse_file (path);
         if (uilistingdoc == null) {
             return "";
@@ -67,5 +70,39 @@ internal class Rygel.UIListingManager : GLib.Object {
         return xmlstr;
 
     }
+
+    private string createUIListingUpdate(string xmlstr, string lastevent) {
+        // parse out the uiID from both strings 
+        string [] strArray = xmlstr.split("</ui>");
+        string [] nextArray = lastevent.split("</ui>");
+
+        // create HashSet to avoid dups
+        var uiIDs = new HashSet<string> ();
+        foreach( unowned string str in strArray ) {
+            // find <ui>
+            int index = str.index_of("<ui>");
+            if (index != -1) {
+                uiIDs.add(str.substring(index));
+            }
+        }
+        foreach( unowned string str in nextArray ) {
+            // find <ui>
+            int index = str.index_of("<ui>");
+            if (index != -1) {
+                uiIDs.add(str.substring(index));
+            }
+        }
+
+        string event = "";
+        foreach (string ui in uiIDs) {
+            int index = ui.index_of("<uiID>");
+            int endIndex = ui.index_of("</uiID>") + "</uiID>".length;
+            event = ui.substring(index,endIndex - index) + "\n";
+        }
+
+        return event;
+
+    }
+
 
 }
