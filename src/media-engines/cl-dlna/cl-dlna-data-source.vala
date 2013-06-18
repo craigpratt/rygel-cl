@@ -86,7 +86,7 @@ internal class Rygel.CableLabsDLNADataSource : DataSource, Object {
 
     private void* thread_func() {
         var file = File.new_for_commandline_arg (this.uri);
-        message ("Spawning new thread for streaming file %s", this.uri);
+        message ("Spawned new thread for streaming file %s", this.uri );
         try {
             var mapped = new MappedFile(file.get_path (), false);
             if (this.offsets != null) {
@@ -121,6 +121,9 @@ internal class Rygel.CableLabsDLNADataSource : DataSource, Object {
                 data.length = (int) mapped.get_length ();
                 uint8[] slice = data[start:stop];
                 this.first_byte = stop;
+                
+                // message ( "Sending range %lld-%lld (%ld bytes of %ld)",
+                //           start, stop, slice.length, data.length );
 
                 // There's a potential race condition here.
                 Idle.add ( () => {
