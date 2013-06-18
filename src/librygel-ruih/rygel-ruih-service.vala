@@ -90,7 +90,7 @@ internal class Rygel.RuihService: Service {
                                  string    variable,
                                  ref GLib.Value   value) {
         value.init (typeof (string));
-        value.set_string (uiMan.getUIListing(UIISTING_PATH));
+        value.set_string ("");
     }
 
 
