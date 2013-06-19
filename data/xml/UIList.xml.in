@@ -18,6 +18,7 @@ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:sc
    <lifetime>-1</lifetime>
    <protocol shortName="DLNA-HTML5-1.0">
      <uri>DLNA-HTML5-1.0://2.3.6.5:5910</uri>
+     <protocolInfo>...opaque...</protocolInfo>
    </protocol>
  </ui>
  <ui>
@@ -89,5 +90,25 @@ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:sc
     <uri>RDP://1.8.7.2:555</uri>
    </protocol>
   </ui>
+  <ui>
+   <uiID>1111-1111-1111-1111</uiID>
+   <name>DVD player</name>
+   <description>DVDpplication</description>
+   <iconList>
+     <icon>
+        <mimetype>image/png</mimetype>
+        <width>60</width>
+        <height>60</height>
+        <depth>10</depth>
+        <url>/icon50.png</url>
+     </icon>
+   </iconList>
+   <fork>true</fork>
+   <lifetime>-1</lifetime>
+   <protocol shortName="DLNA-HTML5-1.0">
+     <uri>DLNA-HTML5-1.0://2.3.5.5:5910</uri>
+     <protocolInfo>...opaque...</protocolInfo>
+   </protocol>
+ </ui>
 </uilist>
 

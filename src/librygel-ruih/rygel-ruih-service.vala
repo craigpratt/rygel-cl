@@ -55,7 +55,7 @@ internal class Rygel.RuihService: Service {
                     "urn:schemas-upnp-org:service:RemoteUIServer:1";
     public const string DESCRIPTION_PATH = "xml/RemoteUIServerService.xml";
     public const string UIISTING_PATH = BuildConfig.DATA_DIR + "/xml/UIList.xml";
-    public const string MULTIPLE_UIISTING_PATH = BuildConfig.DATA_DIR + "/xml/MultipleUIList.xml";
+    public const string DEVICEPROFILE_PATH = BuildConfig.DATA_DIR + "/xml/DeviceProfile.xml";
 
     internal Cancellable cancellable;
 
@@ -79,7 +79,6 @@ internal class Rygel.RuihService: Service {
         this.query_variable["UIListingUpdate"].connect (
                                         this.query_uilisting);
 
-        stdout.printf("Here\n");
         this.action_invoked["GetCompatibleUIs"].connect (this.getcompatibleuis_cb);
 
     }
@@ -106,18 +105,27 @@ internal class Rygel.RuihService: Service {
         string inputDeviceProfile, inputUIFilter;
         action.get ("InputDeviceProfile", typeof (string), out inputDeviceProfile);
         action.get ("UIFilter", typeof (string), out inputUIFilter);
+        
         try
         {
+            var file = File.new_for_path (DEVICEPROFILE_PATH);
+            // Create a new file with this name
+            var file_stream = file.create (FileCreateFlags.NONE);
+
+            // Write text data to file
+            var data_stream = new DataOutputStream (file_stream);
+            data_stream.put_string (inputDeviceProfile);
             ruiManager.setUIList(UIISTING_PATH);
+            string compatUI = ruiManager.getCompatibleUIs(xmlstr, DEVICEPROFILE_PATH, inputUIFilter);
+            action.set ("UIListing", typeof (string), compatUI);
+            file.trash();
+            action.return ();
         }
         catch (GLib.Error e)
         {
             stdout.printf("setUIList() threw an error %s, EXIT\n", e.message);
             return;
         }
-        string compatUI = ruiManager.getCompatibleUIs(xmlstr, inputDeviceProfile, inputUIFilter);
-        action.set ("UIListing", typeof (string), compatUI);
-        action.return ();
     }
 
     private void query_uilisting(Service   ruih_service,

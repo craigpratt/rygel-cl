@@ -34,6 +34,9 @@ public class Rygel.RuihServiceManager
     protected static string LIFETIME      = "lifetime";
     protected static string PROTOCOL      = "protocol";
     protected static string DEVICEPROFILE = "deviceprofile";
+    protected static string PROTOCOL_INFO   = "protocolInfo";
+    protected static string URI             = "uri";
+    protected static string SHORT_NAME      = "shortName";
   
     private static string PRE_RESULT =
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -43,11 +46,12 @@ public class Rygel.RuihServiceManager
     
     private static string POST_RESULT = "</" + UILIST + ">\n";
     private ArrayList<UIElem> m_uiList;
-
+    protected ArrayList<FilterEntry> filterEntries;
     private static ArrayList<UIElem> oldList;
- 
+    protected static bool inputsBlank = false; 
+    protected static bool protoPresent = false; 
     public void setUIList(string uiList) throws GLib.Error //synchronized??
-    { 
+    {
         this.m_uiList = new ArrayList<UIElem> ();
         // Empty internal data
         if(uiList == null)
@@ -65,7 +69,7 @@ public class Rygel.RuihServiceManager
             {
                 if(UI == childNode->name)
                 {
-                    m_uiList.add(new UIElem(childNode));
+                    this.m_uiList.add(new UIElem(childNode));
                 }
             }
          }
@@ -74,21 +78,41 @@ public class Rygel.RuihServiceManager
 
     public string getCompatibleUIs(string xmlStr, string deviceInfo, string filter) //no synchronized?
     {
-        Xml.Node* node = null;
-        ArrayList<FilterEntry> filterEntries = new ArrayList<FilterEntry> ();
+        Xml.Node* deviceProfileNode = null;
         ArrayList<ProtocolElem> protocols = new ArrayList<ProtocolElem> ();
+        filterEntries = new ArrayList<FilterEntry> ();
 
         // Parse if there is device info
-        if(deviceInfo != null && deviceInfo._strip().length > 0)
+        if(deviceInfo != null && deviceInfo.length > 0)
         {
-            Xml.Doc* doc = Parser.parse_file(deviceInfo);
-            node = doc->get_root_element();
+            try
+            {
+                var file = File.new_for_path(deviceInfo);
+                var file_info = file.query_info ("*", FileQueryInfoFlags.NONE);
+                if (file_info.get_size() != 0)
+                {
+                    Xml.Doc* doc = Parser.parse_file(deviceInfo);
+                    deviceProfileNode = doc->get_root_element();
+                }
+            }
+            catch (GLib.Error e)
+            {
+                stdout.printf("getCompatibleUI's threw an error while doing File I/:O%s\n", e.message);
+            }
+
+        }
+
+        // If inputDeviceProfile and filter are empty
+        // just display all HTML5 UI elements.
+        if(deviceProfileNode == null && filter == "")
+        {
+            inputsBlank = true;
+            filterEntries.add(new FilterEntry(SHORT_NAME, "*HTML5*"));
         }
 
         // Parse device info to create protocols
-        if(node != null)
+        if(deviceProfileNode != null)
         {
-            Xml.Node* deviceProfileNode = node->children;
             if(deviceProfileNode != null && 
                     DEVICEPROFILE == deviceProfileNode->name)
             {
@@ -96,18 +120,32 @@ public class Rygel.RuihServiceManager
                 {
                     if(PROTOCOL == childNode->name)
                     {
+                        // Get shortName attribute
+                        for (Xml.Attr* prop = childNode->properties; prop != null; prop = prop->next) 
+                        {
+                            if (prop->name == SHORT_NAME)
+                            {
+                                filterEntries.add(new FilterEntry(SHORT_NAME, prop->children->content));
+                            }
+                        }
+
                         try
                         {
                             protocols.add(new ProtocolElem(childNode));
+                            filterEntries.add(new FilterEntry(PROTOCOL, childNode->content));
                         }
                         catch (GLib.Error e)
                         {
                             stdout.printf("getCompatibleUI's threw an error %s\n", e.message);
                         }
-                    }
-                }
-            }
-        }
+                    }    
+                    if(PROTOCOL_INFO == childNode->name)
+                    {
+                        filterEntries.add(new FilterEntry(PROTOCOL_INFO, childNode->content));
+                    }                
+                }//for
+            }//if
+        } //outer if
 
         string[] entries = {};
         if (filter != null)
@@ -142,7 +180,7 @@ public class Rygel.RuihServiceManager
         }
         // Generate result XML with or without protocols       
         StringBuilder result = new StringBuilder(PRE_RESULT);
-        bool atleastOne = false;
+        //bool atleastOne = false;
         
         if(m_uiList != null && m_uiList.size > 0)
         {
@@ -151,16 +189,16 @@ public class Rygel.RuihServiceManager
                 UIElem ui = (UIElem)i;
                 if(ui.match(protocols , filterEntries))
                 {
-                    atleastOne = true;
+                    //atleastOne = true;
                     result.append(ui.toUIListing(filterEntries));
                 }
             }
         }
         result.append(POST_RESULT);
         return result.str; 
-}
+    }
    
-    internal class FilterEntry
+    protected class FilterEntry
     {
 
         string m_name = null;
@@ -174,7 +212,6 @@ public class Rygel.RuihServiceManager
         
         public bool matches(string name, string value)
         {
-        
             string value1 = null;
             // Get rid of extra " left in m_value
             while (m_value.contains("\""))
@@ -201,7 +238,7 @@ public class Rygel.RuihServiceManager
             
             if(m_name != null && m_value != null)
             {
-                if(m_name == name)
+                if(m_name == name || m_name == "*") // Wildcard entry "*"
                 {
                     if(m_value != null)
                     {
@@ -216,7 +253,7 @@ public class Rygel.RuihServiceManager
                                 return false;
                             }
                         }     
-                        if((m_value == "*") || (m_value == value) || value.contains(m_value)) 
+                        if((m_value == "*") || (m_value == value) || value.contains(m_value)) // Wildcard entry "*"
                         {
                             return true;
                         }
@@ -227,7 +264,7 @@ public class Rygel.RuihServiceManager
         }
     }
     
-    internal class WildCardFilterEntry : FilterEntry 
+    protected class WildCardFilterEntry : FilterEntry 
     {
         public WildCardFilterEntry()
         {
@@ -235,10 +272,10 @@ public class Rygel.RuihServiceManager
         }
        
         // might need this later 
-        /*public new bool matches(string name, string value)
+        public new bool matches(string name, string value)
         {
             return true;
-        }*/
+        }
     }
 
     // Convenience method to avoid a lot of inline loops
@@ -258,13 +295,13 @@ public class Rygel.RuihServiceManager
         return false;
     }
     
-    internal abstract class UIListing
+    public abstract class UIListing
     {
         public abstract bool match(Gee.ArrayList protocols, Gee.ArrayList filters);
         public abstract string toUIListing(Gee.ArrayList filters);
     }
 
-    internal class IconElem : UIListing
+    protected class IconElem : UIListing
     {
         // final???
         private string m_mimeType = null;
@@ -372,15 +409,11 @@ public class Rygel.RuihServiceManager
 
     }
 
-internal class ProtocolElem : UIListing
+    protected class ProtocolElem : UIListing
     {
         private string m_shortName = null;
         private string m_protocolInfo = null;
         private Gee.ArrayList<string> m_uris;
-        
-        private static string PROTOCOL_INFO   = "protocolInfo";
-        private static string URI             = "uri";
-        private static string SHORT_NAME      = "shortName";
         
         public ProtocolElem(Xml.Node* node) throws GLib.Error
         {
@@ -395,8 +428,6 @@ internal class ProtocolElem : UIListing
                 string attr_name = prop->name;
                 if (attr_name == SHORT_NAME)
                 {
-                    // Notice the ->children which points to a Node*
-                    // (Attr doesn't feature content)
                     m_shortName = prop->children->content;
                     break;
                 }
@@ -464,29 +495,38 @@ internal class ProtocolElem : UIListing
         public override string toUIListing(Gee.ArrayList filters)
         {
             XMLFragment elements = new XMLFragment();
+            if(filtersMatch(filters, SHORT_NAME, m_shortName))
+            {
+                protoPresent = true;
+            }
+
             if(filtersMatch(filters, PROTOCOL_INFO, m_protocolInfo))
             {
                 elements.addElement(PROTOCOL_INFO, m_protocolInfo);
+                protoPresent = true;
             }
             
             StringBuilder sb = new StringBuilder("<" + PROTOCOL + " " + SHORT_NAME + "=\""  + m_shortName + "\">\n");
-            if(m_uris.size > 0)
+            if (protoPresent)
             {
-                foreach (string i in m_uris) {
-                    sb.append("<").append(URI).append(">")
-                    .append(i)
-                    .append("</").append(URI).append(">\n");
+                // This needs to be inside for DeviceProfile to work right.
+                if(m_uris.size > 0)
+                {
+                    foreach (string i in m_uris) 
+                    {
+                        sb.append("<").append(URI).append(">")
+                        .append(i)
+                        .append("</").append(URI).append(">\n");
+                    }
                 }
+                sb.append(elements.toXML());
             }
-            
-            sb.append(elements.toXML());
-            sb.append("</" + PROTOCOL + ">");
-            return sb.str;        
+            sb.append("</" + PROTOCOL + ">\n");
+            return sb.str;
         }
-
     }
 
-    internal class UIElem : UIListing
+    protected class UIElem : UIListing
     {
         private string m_uiId = null;
         private string m_name = null;
@@ -629,20 +669,19 @@ internal class ProtocolElem : UIListing
                     sb.append("</" + ICONLIST + ">\n");
                 }
             }
-            
-            stdout.printf("Before atleastOne, sb.str after protocolElem is %s\n", sb.str);
-            if (atleastOne)
+            if(m_protocols.size > 0)
             {
-                // Include protocols
-                if(m_protocols.size > 0)
+                foreach(ProtocolElem i in m_protocols)
                 {
-                    foreach(ProtocolElem i in m_protocols)
-                    {
-                        ProtocolElem p = (ProtocolElem)i;
-                        sb.append(p.toUIListing(filters)).append("\n");
-                    }
+                    ProtocolElem p = (ProtocolElem)i;
+                    sb.append(p.toUIListing(filters));
                 }
-                sb.append("</" + UI + ">\n");
+            }
+            
+            sb.append("</" + UI + ">\n");
+            if ((atleastOne == true) || (inputsBlank == true) || (protoPresent == true))
+            {
+                protoPresent = false;
                 return sb.str;
             }
             else
@@ -650,7 +689,6 @@ internal class ProtocolElem : UIListing
                 return "";
             }
         }
- 
     }
     
     internal class XMLFragment
