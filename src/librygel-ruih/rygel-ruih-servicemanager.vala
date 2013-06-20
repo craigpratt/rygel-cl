@@ -48,7 +48,6 @@ public class Rygel.RuihServiceManager
     private ArrayList<UIElem> m_uiList;
     protected ArrayList<FilterEntry> filterEntries;
     private static ArrayList<UIElem> oldList;
-    protected static bool inputsBlank = false; 
     protected static bool protoPresent = false; 
     public void setUIList(string uiList) throws GLib.Error //synchronized??
     {
@@ -106,7 +105,6 @@ public class Rygel.RuihServiceManager
         // just display all HTML5 UI elements.
         if(deviceProfileNode == null && filter == "")
         {
-            inputsBlank = true;
             filterEntries.add(new FilterEntry(SHORT_NAME, "*HTML5*"));
         }
 
@@ -128,7 +126,6 @@ public class Rygel.RuihServiceManager
                                 filterEntries.add(new FilterEntry(SHORT_NAME, prop->children->content));
                             }
                         }
-
                         try
                         {
                             protocols.add(new ProtocolElem(childNode));
@@ -180,7 +177,6 @@ public class Rygel.RuihServiceManager
         }
         // Generate result XML with or without protocols       
         StringBuilder result = new StringBuilder(PRE_RESULT);
-        //bool atleastOne = false;
         
         if(m_uiList != null && m_uiList.size > 0)
         {
@@ -189,7 +185,6 @@ public class Rygel.RuihServiceManager
                 UIElem ui = (UIElem)i;
                 if(ui.match(protocols , filterEntries))
                 {
-                    //atleastOne = true;
                     result.append(ui.toUIListing(filterEntries));
                 }
             }
@@ -417,6 +412,7 @@ public class Rygel.RuihServiceManager
         
         public ProtocolElem(Xml.Node* node) throws GLib.Error
         {
+            this.m_uris = new ArrayList<string>();
             if(node == null)
             {
                 throw new GLib.Error(0, 0, "Node is Null");
@@ -507,20 +503,16 @@ public class Rygel.RuihServiceManager
             }
             
             StringBuilder sb = new StringBuilder("<" + PROTOCOL + " " + SHORT_NAME + "=\""  + m_shortName + "\">\n");
-            if (protoPresent)
+            if(m_uris.size > 0)
             {
-                // This needs to be inside for DeviceProfile to work right.
-                if(m_uris.size > 0)
+                foreach (string i in m_uris) 
                 {
-                    foreach (string i in m_uris) 
-                    {
-                        sb.append("<").append(URI).append(">")
-                        .append(i)
-                        .append("</").append(URI).append(">\n");
-                    }
+                    sb.append("<").append(URI).append(">")
+                    .append(i)
+                    .append("</").append(URI).append(">\n");
                 }
-                sb.append(elements.toXML());
             }
+            sb.append(elements.toXML());
             sb.append("</" + PROTOCOL + ">\n");
             return sb.str;
         }
@@ -679,7 +671,7 @@ public class Rygel.RuihServiceManager
             }
             
             sb.append("</" + UI + ">\n");
-            if ((atleastOne == true) || (inputsBlank == true) || (protoPresent == true))
+            if ((atleastOne == true) || (protoPresent == true))
             {
                 protoPresent = false;
                 return sb.str;
