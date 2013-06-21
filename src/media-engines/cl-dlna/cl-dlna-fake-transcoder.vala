@@ -75,7 +75,11 @@ internal class Rygel.FakeTranscoder : Rygel.Transcoder
         var protocol_info = resource.protocol_info;
         //message("protocol_info:" + protocol_info.to_string());
         protocol_info.dlna_conversion = DLNAConversion.NONE;
-        protocol_info.dlna_flags = DLNAFlags.STREAMING_TRANSFER_MODE;
+        protocol_info.dlna_flags = DLNAFlags.DLNA_V15 |
+                                   DLNAFlags.STREAMING_TRANSFER_MODE |
+                                   DLNAFlags.INTERACTIVE_TRANSFER_MODE |
+                                   DLNAFlags.BACKGROUND_TRANSFER_MODE |
+                                   DLNAFlags.CONNECTION_STALL;
         protocol_info.dlna_operation = DLNAOperation.RANGE;
         
         return resource;
