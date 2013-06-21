@@ -3,8 +3,8 @@
 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:schemas-upnp-org:remoteui:uilist-1-0 CompatibleUIs.xsd">
   <ui>
    <uiID>1234-9876-1265-8758</uiID>
-   <name>Music player</name>
-   <description>Music browsing and playback application</description>
+   <name>Program Guide</name>
+   <description>Program Guide application</description>
    <iconList>
      <icon>
         <mimetype>image/png</mimetype>
