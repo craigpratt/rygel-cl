@@ -48,7 +48,7 @@ public class Rygel.RuihServiceManager
     private ArrayList<UIElem> m_uiList;
     protected ArrayList<FilterEntry> filterEntries;
     private static ArrayList<UIElem> oldList;
-    protected static bool protoPresent = false; 
+    protected static bool protoPresent = false;
     public void setUIList(string uiList) throws GLib.Error //synchronized??
     {
         this.m_uiList = new ArrayList<UIElem> ();
@@ -79,7 +79,7 @@ public class Rygel.RuihServiceManager
     {
         Xml.Node* deviceProfileNode = null;
         ArrayList<ProtocolElem> protocols = new ArrayList<ProtocolElem> ();
-        filterEntries = new ArrayList<FilterEntry> ();
+        this.filterEntries = new ArrayList<FilterEntry> ();
 
         // Parse if there is device info
         if(deviceInfo != null && deviceInfo.length > 0)
@@ -201,38 +201,44 @@ public class Rygel.RuihServiceManager
         
         public FilterEntry(string name, string value)
         {
-            m_name = name;
-            m_value = value;
+            if (name != null)
+            {
+                m_name = name;
+            }
+            if (value != null)
+            {
+                m_value = value;
+            }
         }
         
         public bool matches(string name, string value)
         {
-            string value1 = null;
-            // Get rid of extra " left in m_value
-            while (m_value.contains("\""))
-            {
-                value1 = m_value.replace("\"", "");
-                m_value = value1;
-            }
-
-            // Get rid of any * left
-            if (m_value.length > 1)
-            {
-                while (m_value.contains("*"))
-                {
-                    value1 = m_value.replace("*", "");
-                    m_value = value1;
-                }
-            }
-            // Get rid of extra " left in m_name
-            while (m_name.contains("\""))
-            {
-                value1 = m_name.replace("\"", "");
-                m_name = value1;
-            }
-            
             if(m_name != null && m_value != null)
             {
+                string value1 = null;
+                // Get rid of extra " left in m_value
+                while (m_value.contains("\""))
+                {
+                    value1 = m_value.replace("\"", "");
+                    m_value = value1;
+                }
+
+                // Get rid of any * left
+                if (m_value.length > 1)
+                {
+                    while (m_value.contains("*"))
+                    {
+                        value1 = m_value.replace("*", "");
+                        m_value = value1;
+                    }
+                }
+                // Get rid of extra " left in m_name
+                while (m_name.contains("\""))
+                {
+                    value1 = m_name.replace("\"", "");
+                    m_name = value1;
+                }
+
                 if(m_name == name || m_name == "*") // Wildcard entry "*"
                 {
                     if(m_value != null)
@@ -266,7 +272,6 @@ public class Rygel.RuihServiceManager
             base("*","*");
         }
        
-        // might need this later 
         public new bool matches(string name, string value)
         {
             return true;
@@ -281,7 +286,8 @@ public class Rygel.RuihServiceManager
             foreach (FilterEntry fil in filters)
             {
                 FilterEntry entry = (FilterEntry)fil;
-                if(entry.matches(name, value))
+                
+                if((entry != null) && (entry.matches(name, value)))
                 {
                     return true;
                 }
@@ -292,8 +298,8 @@ public class Rygel.RuihServiceManager
     
     public abstract class UIListing
     {
-        public abstract bool match(Gee.ArrayList protocols, Gee.ArrayList filters);
-        public abstract string toUIListing(Gee.ArrayList filters);
+        public abstract bool match(Gee.ArrayList<ProtocolElem> protocols, Gee.ArrayList<FilterEntry> filters);
+        public abstract string toUIListing(Gee.ArrayList<FilterEntry> filters);
     }
 
     protected class IconElem : UIListing
@@ -348,38 +354,38 @@ public class Rygel.RuihServiceManager
             }
         }
 
-        public override bool match(Gee.ArrayList protocols, Gee.ArrayList filters)
+        public override bool match(Gee.ArrayList<ProtocolElem> protocols, Gee.ArrayList<FilterEntry> filters)
         {
             return true;
         }
 
-        public override string toUIListing(Gee.ArrayList filters)
+        public override string toUIListing(Gee.ArrayList<FilterEntry> filters)
         {
             StringBuilder sb = new StringBuilder();
             bool atleastOne = false;
 
             XMLFragment elements = new XMLFragment();
-            if(filtersMatch(filters, ICON + "@" + MIMETYPE, m_mimeType))
+            if((m_mimeType != null) && (filtersMatch(filters, ICON + "@" + MIMETYPE, m_mimeType)))
             {
                 elements.addElement(MIMETYPE, m_mimeType);
                 atleastOne = true;
             }
-            if(filtersMatch(filters, ICON + "@" + WIDTH, m_width))
+            if((m_width != null) && (filtersMatch(filters, ICON + "@" + WIDTH, m_width)))
             {
                 elements.addElement(WIDTH, m_width);
                 atleastOne = true;
             }
-            if(filtersMatch(filters, ICON + "@" + HEIGHT, m_height))
+            if((m_height != null) && (filtersMatch(filters, ICON + "@" + HEIGHT, m_height)))
             {
                 elements.addElement(HEIGHT, m_height);
                 atleastOne = true;
             }
-            if(filtersMatch(filters, ICON + "@" + DEPTH, m_depth))
+            if((m_depth != null) && (filtersMatch(filters, ICON + "@" + DEPTH, m_depth)))
             {
                 elements.addElement(DEPTH, m_depth);
                 atleastOne = true;
             }
-            if(filtersMatch(filters, ICON + "@" + URL, m_url))
+            if((m_url != null) && (filtersMatch(filters, ICON + "@" + URL, m_url)))
             {
                 elements.addElement(URL, m_url);
                 atleastOne = true;
@@ -488,15 +494,15 @@ public class Rygel.RuihServiceManager
             return result;
         }
 
-        public override string toUIListing(Gee.ArrayList filters)
+        public override string toUIListing(Gee.ArrayList<FilterEntry> filters)
         {
             XMLFragment elements = new XMLFragment();
-            if(filtersMatch(filters, SHORT_NAME, m_shortName))
+            if((m_shortName != null) && (filtersMatch(filters, SHORT_NAME, m_shortName)))
             {
                 protoPresent = true;
             }
 
-            if(filtersMatch(filters, PROTOCOL_INFO, m_protocolInfo))
+            if((m_protocolInfo != null) && (filtersMatch(filters, PROTOCOL_INFO, m_protocolInfo)))
             {
                 elements.addElement(PROTOCOL_INFO, m_protocolInfo);
                 protoPresent = true;
@@ -591,7 +597,7 @@ public class Rygel.RuihServiceManager
             }
         }
 
-        public override bool match(Gee.ArrayList<ProtocolElem> protocols, Gee.ArrayList filters)
+        public override bool match(Gee.ArrayList<ProtocolElem> protocols, Gee.ArrayList<FilterEntry> filters)
         {
             if(protocols == null || protocols.size == 0)
             {
@@ -612,28 +618,28 @@ public class Rygel.RuihServiceManager
             return result;
         }
         
-        public override string toUIListing(Gee.ArrayList filters)
+        public override string toUIListing(Gee.ArrayList<FilterEntry> filters)
         {
             XMLFragment elements = new XMLFragment();
             bool atleastOne = false;
             elements.addElement(UIID, m_uiId);
             elements.addElement(NAME, m_name);
             
-            if(filtersMatch(filters, NAME, m_name))
+            if((m_name != null) && (filtersMatch(filters, NAME, m_name)))
             {
                 atleastOne = true;
             }
-            if(filtersMatch(filters, DESCRIPTION, m_description))
+            if((m_description != null) && (filtersMatch(filters, DESCRIPTION, m_description)))
             {
                 elements.addElement(DESCRIPTION, m_description);
                 atleastOne = true;
             }
-            if(filtersMatch(filters, FORK, m_fork))
+            if((m_fork != null) && (filtersMatch(filters, FORK, m_fork)))
             {
                 elements.addElement(FORK, m_fork);
                 atleastOne = true;
             }
-            if(filtersMatch(filters, LIFETIME, m_lifetime))
+            if((m_lifetime != null) && (filtersMatch(filters, LIFETIME, m_lifetime)))
             {
                 elements.addElement(LIFETIME, m_lifetime);
                 atleastOne = true;
