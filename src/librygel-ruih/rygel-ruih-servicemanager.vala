@@ -80,17 +80,31 @@ public class Rygel.RuihServiceManager
         Xml.Node* deviceProfileNode = null;
         ArrayList<ProtocolElem> protocols = new ArrayList<ProtocolElem> ();
         this.filterEntries = new ArrayList<FilterEntry> ();
-
+        File file = null;
         // Parse if there is device info
         if(deviceInfo != null && deviceInfo.length > 0)
         {
             try
             {
-                var file = File.new_for_path(deviceInfo);
+                Xml.Doc* doc = null; 
+                file = File.new_for_path(deviceInfo);
                 var file_info = file.query_info ("*", FileQueryInfoFlags.NONE);
                 if (file_info.get_size() != 0)
                 {
-                    Xml.Doc* doc = Parser.parse_file(deviceInfo);
+                    doc = Parser.parse_file(deviceInfo);
+                    if (doc == null)
+                    {
+                        // Cleanup when Bad XML document provided.
+                        try
+                        {
+                            file.trash();
+                        }
+                        catch (GLib.Error e)
+                        {
+                            stdout.printf("Error while deleting XML deviceProfile file\n");
+                        }
+                        error ("Error 706-Type mismatch. Failed to parse XML document.");
+                    }
                     deviceProfileNode = doc->get_root_element();
                 }
             }
@@ -98,7 +112,6 @@ public class Rygel.RuihServiceManager
             {
                 stdout.printf("getCompatibleUI's threw an error while doing File I/:O%s\n", e.message);
             }
-
         }
 
         // If inputDeviceProfile and filter are empty
@@ -145,7 +158,7 @@ public class Rygel.RuihServiceManager
         } //outer if
 
         string[] entries = {};
-        if (filter != null)
+        if (filter.length > 0)
         {
             if(filter == "*" || filter == "\"*\"")
             {
@@ -154,6 +167,22 @@ public class Rygel.RuihServiceManager
             }
             else
             {
+                // Check if the input UIFilter is in the right format.
+                if (filter.get_char(0) != '"' || filter.get_char(filter.length - 1) != '"'
+                    ||  (!(filter.contains(",")) && filter.contains(";")))
+                {
+                    //Cleanup
+                    try
+                    {
+                        file.trash();
+                    }
+                    catch (GLib.Error e)
+                    {
+                        stdout.printf("Error while deleting XML deviceProfile file\n");
+                    }
+                    error ("Error 702-Bad Filter.");
+                }
+
                 entries = filter.split(",");
                 foreach (unowned string str in entries) 
                 {
@@ -169,8 +198,8 @@ public class Rygel.RuihServiceManager
                            nameValue[1].get_char(nameValue[1].length - 1) == '"')
                         {
                             value = nameValue[1].substring(1, nameValue[1].length - 1);
+                            filterEntries.add(new FilterEntry(nameValue[0], value));
                         }
-                        filterEntries.add(new FilterEntry(nameValue[0], value));
                     }
                 }
             }
