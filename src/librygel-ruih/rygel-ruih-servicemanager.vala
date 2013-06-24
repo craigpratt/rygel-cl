@@ -134,22 +134,13 @@ public class Rygel.RuihServiceManager
                         // Get shortName attribute
                         for (Xml.Attr* prop = childNode->properties; prop != null; prop = prop->next) 
                         {
-                            if (prop->name == SHORT_NAME)
+                            if (prop->name == SHORT_NAME && prop->children->content != null)
                             {
                                 filterEntries.add(new FilterEntry(SHORT_NAME, prop->children->content));
                             }
                         }
-                        try
-                        {
-                            protocols.add(new ProtocolElem(childNode));
-                            filterEntries.add(new FilterEntry(PROTOCOL, childNode->content));
-                        }
-                        catch (GLib.Error e)
-                        {
-                            stdout.printf("getCompatibleUI's threw an error %s\n", e.message);
-                        }
                     }    
-                    if(PROTOCOL_INFO == childNode->name)
+                    if(PROTOCOL_INFO == childNode->name && childNode->content != null)
                     {
                         filterEntries.add(new FilterEntry(PROTOCOL_INFO, childNode->content));
                     }                
@@ -167,8 +158,8 @@ public class Rygel.RuihServiceManager
             }
             else
             {
-                // Check if the input UIFilter is in the right format.
-                if (filter.get_char(0) != '"' || filter.get_char(filter.length - 1) != '"'
+                // Check if the input UIFilter is in the right format. 
+                if ((filter.get_char(0) != '"') || (filter.get_char(filter.length - 1) != '"')
                     ||  (!(filter.contains(",")) && filter.contains(";")))
                 {
                     //Cleanup
