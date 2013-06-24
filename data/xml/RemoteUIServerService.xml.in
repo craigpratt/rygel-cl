@@ -36,10 +36,6 @@
          <dataType>string</dataType>
       </stateVariable>
       <stateVariable sendEvents="no">
-         <name>A_ARG_TYPE_URI</name>
-         <dataType>uri</dataType>
-      </stateVariable>
-      <stateVariable sendEvents="no">
          <name>A_ARG_TYPE_CompatibleUIs</name>
          <dataType>string</dataType>
       </stateVariable>
