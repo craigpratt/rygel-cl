@@ -80,7 +80,10 @@ internal abstract class Rygel.HTTPGetHandler: GLib.Object {
     }
 
     public virtual bool knows_size (HTTPGet request) {
-        return false;
+        if ((request.object as MediaItem).size != -1)
+            return true;
+        else
+            return false;
     }
 
     // Create an HTTPResponse object that will render the body.
