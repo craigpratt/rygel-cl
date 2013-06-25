@@ -92,6 +92,8 @@ public class Rygel.RuihServiceManager
                 if (file_info.get_size() != 0)
                 {
                     doc = Parser.parse_file(deviceInfo);
+                    // Check if inoutDeviceProfile XML is well-formatted
+                    // Else throw Generic Error 703 and do cleanup. 
                     if (doc == null)
                     {
                         // Cleanup when Bad XML document provided.
@@ -158,7 +160,8 @@ public class Rygel.RuihServiceManager
             }
             else
             {
-                // Check if the input UIFilter is in the right format. 
+                // Check if the input UIFilter is in the right format.
+                // Else throw Error 702 and do cleanup. 
                 if ((filter.get_char(0) != '"') || (filter.get_char(filter.length - 1) != '"')
                     ||  (!(filter.contains(",")) && filter.contains(";")))
                 {
@@ -259,13 +262,14 @@ public class Rygel.RuihServiceManager
                     m_name = value1;
                 }
 
-                if(m_name == name || m_name == "*") // Wildcard entry "*"
+                if (m_name == name || m_name == "*") // Wildcard entry "*"
                 {
-                    if(m_value != null)
+                    if (m_value != null)
                     {
                         if (m_name == LIFETIME)
                         {
-                            if(int.parse(m_value) == int.parse(value))
+                            // Lifetime value can be negative as well.
+                            if (int.parse(m_value) == int.parse(value))
                             {
                                 return true;
                             }
@@ -274,7 +278,7 @@ public class Rygel.RuihServiceManager
                                 return false;
                             }
                         }     
-                        if((m_value == "*") || (m_value == value) || value.contains(m_value)) // Wildcard entry "*"
+                        if ((m_value == "*") || (m_value == value) || value.contains(m_value)) // Wildcard entry "*"
                         {
                             return true;
                         }
@@ -301,13 +305,13 @@ public class Rygel.RuihServiceManager
     // Convenience method to avoid a lot of inline loops
     private static bool filtersMatch(Gee.ArrayList<FilterEntry> filters, string name, string value)
     {
-        if(filters != null && name != null && value != null)
+        if (filters != null && name != null && value != null)
         {
             foreach (FilterEntry fil in filters)
             {
                 FilterEntry entry = (FilterEntry)fil;
                 
-                if((entry != null) && (entry.matches(name, value)))
+                if ((entry != null) && (entry.matches(name, value)))
                 {
                     return true;
                 }
@@ -338,7 +342,7 @@ public class Rygel.RuihServiceManager
         
         public IconElem(Xml.Node* node) throws GLib.Error
         {
-            if(node == null)
+            if (node == null)
             {
                 // temporary GLib error
                 throw new GLib.Error(0, 0, "Node is Null");
@@ -347,7 +351,7 @@ public class Rygel.RuihServiceManager
             for (Xml.Node* childNode = node->children; childNode != null; childNode = childNode->next)
             {
                 string nodeName = childNode->name;
-                if(MIMETYPE == nodeName)
+                if (MIMETYPE == nodeName)
                 {
                     m_mimeType = childNode->get_content();
                 }
@@ -385,33 +389,33 @@ public class Rygel.RuihServiceManager
             bool atleastOne = false;
 
             XMLFragment elements = new XMLFragment();
-            if((m_mimeType != null) && (filtersMatch(filters, ICON + "@" + MIMETYPE, m_mimeType)))
+            if ((m_mimeType != null) && (filtersMatch(filters, ICON + "@" + MIMETYPE, m_mimeType)))
             {
                 elements.addElement(MIMETYPE, m_mimeType);
                 atleastOne = true;
             }
-            if((m_width != null) && (filtersMatch(filters, ICON + "@" + WIDTH, m_width)))
+            if ((m_width != null) && (filtersMatch(filters, ICON + "@" + WIDTH, m_width)))
             {
                 elements.addElement(WIDTH, m_width);
                 atleastOne = true;
             }
-            if((m_height != null) && (filtersMatch(filters, ICON + "@" + HEIGHT, m_height)))
+            if ((m_height != null) && (filtersMatch(filters, ICON + "@" + HEIGHT, m_height)))
             {
                 elements.addElement(HEIGHT, m_height);
                 atleastOne = true;
             }
-            if((m_depth != null) && (filtersMatch(filters, ICON + "@" + DEPTH, m_depth)))
+            if ((m_depth != null) && (filtersMatch(filters, ICON + "@" + DEPTH, m_depth)))
             {
                 elements.addElement(DEPTH, m_depth);
                 atleastOne = true;
             }
-            if((m_url != null) && (filtersMatch(filters, ICON + "@" + URL, m_url)))
+            if ((m_url != null) && (filtersMatch(filters, ICON + "@" + URL, m_url)))
             {
                 elements.addElement(URL, m_url);
                 atleastOne = true;
             }
             
-            if(elements.size() > 0)
+            if (elements.size() > 0)
             {
                 sb.append("<" + ICON + ">\n");
                 sb.append(elements.toXML());
@@ -439,7 +443,7 @@ public class Rygel.RuihServiceManager
         public ProtocolElem(Xml.Node* node) throws GLib.Error
         {
             this.m_uris = new ArrayList<string>();
-            if(node == null)
+            if (node == null)
             {
                 throw new GLib.Error(0, 0, "Node is Null");
             }
@@ -458,7 +462,7 @@ public class Rygel.RuihServiceManager
             for (Xml.Node* childNode = node->children; childNode != null; childNode = childNode->next)
             {
                 string nodeName = childNode->name;
-                if(URI == nodeName)
+                if (URI == nodeName)
                 {
                     m_uris.add(childNode->get_content());
                 }
@@ -482,7 +486,7 @@ public class Rygel.RuihServiceManager
         public override bool match(Gee.ArrayList<ProtocolElem> protocols, Gee.ArrayList filters)
         {
             bool result = false;
-            if(protocols == null || protocols.size == 0)
+            if (protocols == null || protocols.size == 0)
             {
                 return true;
             }
@@ -490,14 +494,14 @@ public class Rygel.RuihServiceManager
             foreach (ProtocolElem i in protocols)
             {
                 ProtocolElem proto = (ProtocolElem)i;
-                if(m_shortName == proto.getShortName())
+                if (m_shortName == proto.getShortName())
                 {
                     // Optionally if a protocolInfo is specified
                     // match on that as well.
-                    if(proto.getProtocolInfo() != null &&
+                    if (proto.getProtocolInfo() != null &&
                             proto.getProtocolInfo()._strip().length > 0)
                     {
-                        if(proto.getProtocolInfo() == m_protocolInfo)
+                        if (proto.getProtocolInfo() == m_protocolInfo)
                         {
                             result = true;
                             break;
@@ -517,19 +521,19 @@ public class Rygel.RuihServiceManager
         public override string toUIListing(Gee.ArrayList<FilterEntry> filters)
         {
             XMLFragment elements = new XMLFragment();
-            if((m_shortName != null) && (filtersMatch(filters, SHORT_NAME, m_shortName)))
+            if ((m_shortName != null) && (filtersMatch(filters, SHORT_NAME, m_shortName)))
             {
                 protoPresent = true;
             }
 
-            if((m_protocolInfo != null) && (filtersMatch(filters, PROTOCOL_INFO, m_protocolInfo)))
+            if ((m_protocolInfo != null) && (filtersMatch(filters, PROTOCOL_INFO, m_protocolInfo)))
             {
                 elements.addElement(PROTOCOL_INFO, m_protocolInfo);
                 protoPresent = true;
             }
             
             StringBuilder sb = new StringBuilder("<" + PROTOCOL + " " + SHORT_NAME + "=\""  + m_shortName + "\">\n");
-            if(m_uris.size > 0)
+            if (m_uris.size > 0)
             {
                 foreach (string i in m_uris) 
                 {
@@ -562,7 +566,7 @@ public class Rygel.RuihServiceManager
             m_icons = new ArrayList<IconElem> ();
             m_protocols = new ArrayList<ProtocolElem> ();
 
-            if(node == null)
+            if (node == null)
             {
                 throw new GLib.Error(0, 0, "Node is Null");
             }
@@ -570,7 +574,7 @@ public class Rygel.RuihServiceManager
             for (Xml.Node* childNode = node->children; childNode != null; childNode = childNode->next)
             {
                 string nodeName = childNode->name;
-                if(UIID == nodeName)
+                if (UIID == nodeName)
                 {
                     m_uiId = childNode->get_content();
                 }
@@ -586,7 +590,7 @@ public class Rygel.RuihServiceManager
                 {
                     for (Xml.Node* pNode = childNode->children; pNode != null; pNode = pNode->next)
                     {
-                        if(ICON == pNode->name)
+                        if (ICON == pNode->name)
                         {
                             m_icons.add(new IconElem(pNode));
                             iconsPresent = true;
@@ -619,7 +623,7 @@ public class Rygel.RuihServiceManager
 
         public override bool match(Gee.ArrayList<ProtocolElem> protocols, Gee.ArrayList<FilterEntry> filters)
         {
-            if(protocols == null || protocols.size == 0)
+            if (protocols == null || protocols.size == 0)
             {
                 return true;
             }
@@ -628,7 +632,7 @@ public class Rygel.RuihServiceManager
             foreach (ProtocolElem prot in protocols)
             {
                 ProtocolElem proto = (ProtocolElem)prot;
-                if(proto.match(protocols, filters))
+                if (proto.match(protocols, filters))
                 {
                     result = true;
                     break;
@@ -645,21 +649,21 @@ public class Rygel.RuihServiceManager
             elements.addElement(UIID, m_uiId);
             elements.addElement(NAME, m_name);
             
-            if((m_name != null) && (filtersMatch(filters, NAME, m_name)))
+            if ((m_name != null) && (filtersMatch(filters, NAME, m_name)))
             {
                 atleastOne = true;
             }
-            if((m_description != null) && (filtersMatch(filters, DESCRIPTION, m_description)))
+            if ((m_description != null) && (filtersMatch(filters, DESCRIPTION, m_description)))
             {
                 elements.addElement(DESCRIPTION, m_description);
                 atleastOne = true;
             }
-            if((m_fork != null) && (filtersMatch(filters, FORK, m_fork)))
+            if ((m_fork != null) && (filtersMatch(filters, FORK, m_fork)))
             {
                 elements.addElement(FORK, m_fork);
                 atleastOne = true;
             }
-            if((m_lifetime != null) && (filtersMatch(filters, LIFETIME, m_lifetime)))
+            if ((m_lifetime != null) && (filtersMatch(filters, LIFETIME, m_lifetime)))
             {
                 elements.addElement(LIFETIME, m_lifetime);
                 atleastOne = true;
@@ -669,7 +673,7 @@ public class Rygel.RuihServiceManager
             sb.append(elements.toXML());
 
             // Include icons
-            if(m_iconsSizeList.get(UIElemNum++) > 0)
+            if (m_iconsSizeList.get(UIElemNum++) > 0)
             {
                 StringBuilder iconSB = new StringBuilder();
                 foreach (IconElem i in m_icons)
@@ -679,7 +683,7 @@ public class Rygel.RuihServiceManager
                 }
                 
                 // Only display list if there is something to display
-                if(iconSB.str.length > 0)
+                if (iconSB.str.length > 0)
                 {
                     atleastOne = true;
                     sb.append("<" + ICONLIST + ">\n");
@@ -687,7 +691,7 @@ public class Rygel.RuihServiceManager
                     sb.append("</" + ICONLIST + ">\n");
                 }
             }
-            if(m_protocols.size > 0)
+            if (m_protocols.size > 0)
             {
                 foreach(ProtocolElem i in m_protocols)
                 {

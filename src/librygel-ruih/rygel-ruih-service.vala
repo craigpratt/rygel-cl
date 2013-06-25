@@ -1,7 +1,5 @@
 /*
- * Copyright (C) 2008 Zeeshan Ali <zeenix@gmail.com>.
- * Copyright (C) 2007 OpenedHand Ltd.
- * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 cablelabs
  *
  * Author: Cablelabs 
  *
