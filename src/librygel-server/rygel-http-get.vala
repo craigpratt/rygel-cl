@@ -152,6 +152,10 @@ internal class Rygel.HTTPGet : HTTPRequest {
             } else if (need_byte_seek && requested_byte_seek) {
                 this.seek = new HTTPByteSeek (this);
             }
+            else
+            {
+                this.msg.response_headers.set_content_length ((this.object as MediaItem).size);
+            }
         } catch (HTTPSeekError error) {
             this.server.unpause_message (this.msg);
 
@@ -179,7 +183,8 @@ internal class Rygel.HTTPGet : HTTPRequest {
         if (this.handler.knows_size (this)) {
             this.msg.response_headers.set_encoding (Soup.Encoding.CONTENT_LENGTH);
         } else {
-            this.msg.response_headers.set_encoding (Soup.Encoding.EOF);
+            // Set the streaming mode to chunked if the size is unknown
+            this.msg.response_headers.set_encoding (Soup.Encoding.CHUNKED);
         }
 
         debug ("Following HTTP headers appended to response:");
