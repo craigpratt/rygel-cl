@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 cablelabs
+ * Copyright (C) 2013 Cablelabs
  *
  * Author: Cablelabs 
  *

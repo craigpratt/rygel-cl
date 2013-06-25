@@ -1,11 +1,15 @@
  /*
+ * Copyright (C) 2013 Cablelabs
+ *
+ * Author: Cablelabs 
+ *
+ * This file is part of Rygel.
+ *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
- /* the Free Software Foundation; either version 2 of the License, or
+ * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * Author: Cablelabs
- 
  * Rygel is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -103,7 +107,7 @@ public class Rygel.RuihServiceManager
                         }
                         catch (GLib.Error e)
                         {
-                            stdout.printf("Error while deleting XML deviceProfile file\n");
+                            debug("Error while deleting XML deviceProfile file\n");
                         }
                         return "Error703";
                     }
@@ -112,7 +116,7 @@ public class Rygel.RuihServiceManager
             }
             catch (GLib.Error e)
             {
-                stdout.printf("getCompatibleUI's threw an error while doing File I/:O%s\n", e.message);
+                debug("getCompatibleUI's threw an error while doing File I/:O%s\n", e.message);
             }
         }
 
@@ -172,7 +176,7 @@ public class Rygel.RuihServiceManager
                     }
                     catch (GLib.Error e)
                     {
-                        stdout.printf("Error while deleting XML deviceProfile file\n");
+                        debug("Error while deleting XML deviceProfile file\n");
                     }
                     return "Error702";
                 }
