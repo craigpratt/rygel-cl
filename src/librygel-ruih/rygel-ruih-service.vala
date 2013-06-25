@@ -24,7 +24,6 @@
 
 using GUPnP;
 using Gee;
-using Xml;
 
 /**
  * Errors used by RemoteUIService and deriving classes.
@@ -72,8 +71,6 @@ internal class Rygel.RuihService: Service {
 
         new Thread<int> ("UIListingManager thread", uiMan.run);
 
-        //this.initialUIList = uiMan.getUIListing(UIISTING_PATH);
-
         this.root_device.resource_factory as RuihServerPlugin;
 
         this.query_variable["UIListingUpdate"].connect (
@@ -117,9 +114,27 @@ internal class Rygel.RuihService: Service {
             data_stream.put_string (inputDeviceProfile);
             ruiManager.setUIList(UIISTING_PATH);
             string compatUI = ruiManager.getCompatibleUIs(xmlstr, DEVICEPROFILE_PATH, inputUIFilter);
-            action.set ("UIListing", typeof (string), compatUI);
-            file.trash();
-            action.return ();
+
+            // Bad Filter Argument provided
+            if (compatUI.contains("Error"))
+            {
+                if (compatUI == "Error702")
+                {
+                    action.return_error(702, _("Invalid Filter Argument"));
+                }
+
+                // Bad Input Device Profile XML provided
+                if (compatUI == "Error703")
+                {
+                    action.return_error(703, _("Bad InputDeviceProfile XML"));
+                }
+            }
+            else
+            {
+                action.set ("UIListing", typeof (string), compatUI);
+                file.trash();
+                action.return ();
+            }
         }
         catch (GLib.Error e)
         {

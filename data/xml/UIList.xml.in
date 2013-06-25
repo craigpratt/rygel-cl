@@ -91,7 +91,7 @@ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:sc
    </protocol>
   </ui>
   <ui>
-   <uiID>1111-1111-1111-1111</uiID>
+   <uiID>9876-5432-1098-7654</uiID>
    <name>DVD player</name>
    <description>DVDpplication</description>
    <iconList>
@@ -111,4 +111,3 @@ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:sc
    </protocol>
  </ui>
 </uilist>
-

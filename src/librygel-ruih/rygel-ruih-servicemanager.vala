@@ -103,7 +103,7 @@ public class Rygel.RuihServiceManager
                         {
                             stdout.printf("Error while deleting XML deviceProfile file\n");
                         }
-                        error ("Error 706-Type mismatch. Failed to parse XML document.");
+                        return "Error703";
                     }
                     deviceProfileNode = doc->get_root_element();
                 }
@@ -171,7 +171,7 @@ public class Rygel.RuihServiceManager
                     {
                         stdout.printf("Error while deleting XML deviceProfile file\n");
                     }
-                    error ("Error 702-Bad Filter.");
+                    return "Error702";
                 }
 
                 entries = filter.split(",");
