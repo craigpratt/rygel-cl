@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 cablelabs 
+ * Copyright (C) 2013 Cablelabs
  *
  * Author: Cablelabs 
  *
@@ -52,10 +52,12 @@ internal class Rygel.RuihService: Service {
                     "urn:schemas-upnp-org:service:RemoteUIServer:1";
     public const string DESCRIPTION_PATH = "xml/RemoteUIServerService.xml";
     public const string UIISTING_PATH = BuildConfig.DATA_DIR + "/xml/UIList.xml";
+    public const string DEVICEPROFILE_PATH = BuildConfig.DATA_DIR + "/xml/DeviceProfile.xml";
 
     internal Cancellable cancellable;
 
     private UIListingManager uiMan; 
+    private RuihServiceManager ruiManager;
 
     public override void constructed () {
         base.constructed ();
@@ -63,6 +65,7 @@ internal class Rygel.RuihService: Service {
         this.cancellable = new Cancellable ();
 
         this.uiMan = new UIListingManager(this, UIISTING_PATH);
+        this.ruiManager = new RuihServiceManager();
 
         new Thread<int> ("UIListingManager thread", uiMan.run);
 
@@ -84,6 +87,58 @@ internal class Rygel.RuihService: Service {
     private void getcompatibleuis_cb (Service       content_dir,
                             ServiceAction action) {
 
+        string xmlstr;
+        xmlstr = this.uiMan.getUIListing (UIISTING_PATH);
+        //No InputDeviceProfile or UIFilter entered, Return all possible UI's
+        
+        if (action.get_argument_count () == 0) {
+            action.set ("UIListing", typeof (string), xmlstr);
+            action.return ();
+            return;
+        }
+
+        string inputDeviceProfile, inputUIFilter;
+        action.get ("InputDeviceProfile", typeof (string), out inputDeviceProfile);
+        action.get ("UIFilter", typeof (string), out inputUIFilter);
+        
+        try
+        {
+            var file = File.new_for_path (DEVICEPROFILE_PATH);
+            // Create a new file with this name
+            var file_stream = file.create (FileCreateFlags.NONE);
+
+            // Write text data to file
+            var data_stream = new DataOutputStream (file_stream);
+            data_stream.put_string (inputDeviceProfile);
+            ruiManager.setUIList(UIISTING_PATH);
+            string compatUI = ruiManager.getCompatibleUIs(xmlstr, DEVICEPROFILE_PATH, inputUIFilter);
+
+            // Bad Filter Argument provided
+            if (compatUI.contains("Error"))
+            {
+                if (compatUI == "Error702")
+                {
+                    action.return_error(702, _("Invalid Filter Argument"));
+                }
+
+                // Bad Input Device Profile XML provided
+                if (compatUI == "Error703")
+                {
+                    action.return_error(703, _("Bad InputDeviceProfile XML"));
+                }
+            }
+            else
+            {
+                action.set ("UIListing", typeof (string), compatUI);
+                file.trash();
+                action.return ();
+            }
+        }
+        catch (GLib.Error e)
+        {
+            debug("setUIList() threw an error %s, EXIT\n", e.message);
+            return;
+        }
     }
 
     private void query_uilisting(Service   ruih_service,
@@ -92,6 +147,5 @@ internal class Rygel.RuihService: Service {
         value.init (typeof (string));
         value.set_string ("");
     }
-
 
 }
