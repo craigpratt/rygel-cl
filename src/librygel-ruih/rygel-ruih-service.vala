@@ -136,7 +136,7 @@ internal class Rygel.RuihService: Service {
         }
         catch (GLib.Error e)
         {
-            stdout.printf("setUIList() threw an error %s, EXIT\n", e.message);
+            debug("setUIList() threw an error %s, EXIT\n", e.message);
             return;
         }
     }
