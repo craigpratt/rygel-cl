@@ -3,21 +3,12 @@
 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:schemas-upnp-org:remoteui:uilist-1-0 CompatibleUIs.xsd">
   <ui>
    <uiID>1234-9876-1265-8758</uiID>
-   <name>Program Guide</name>
-   <description>Program Guide application</description>
-   <iconList>
-     <icon>
-        <mimetype>image/png</mimetype>
-        <width>40</width>
-        <height>40</height>
-        <depth>8</depth>
-        <url>/icon40.png</url>
-     </icon>
-   </iconList>
+   <name>CableLabs Program Guide</name>
+   <description>CableLabs Program Guide application</description>
    <fork>true</fork>
    <lifetime>-1</lifetime>
    <protocol shortName="DLNA-HTML5-1.0">
-     <uri>DLNA-HTML5-1.0://2.3.6.5:5910</uri>
+     <uri>http://192.168.0.100:4004/index.html</uri>
    </protocol>
  </ui>
 </uilist>

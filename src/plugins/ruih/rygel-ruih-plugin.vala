@@ -27,7 +27,7 @@ internal class Rygel.Ruih.Plugin : Rygel.RuihServerPlugin {
     public const string NAME = "Ruih";
 
     public Plugin () {
-        base (Plugin.NAME, _("RemoteUIServer"));
+        base (Plugin.NAME, _("CableLabs CVP-2 RemoteUIServer"));
     }
 
 }
