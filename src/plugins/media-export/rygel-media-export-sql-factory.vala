@@ -85,11 +85,11 @@ internal enum Rygel.MediaExport.SQLString {
 internal class Rygel.MediaExport.SQLFactory : Object {
     private const string SAVE_META_DATA_STRING =
     "INSERT OR REPLACE INTO meta_data " +
-        "(size, mime_type, width, height, class, creator, " +
+        "(size, mime_type, width, height, class, " +
          "author, album, date, bitrate, " +
          "sample_freq, bits_per_sample, channels, " +
          "track, color_depth, duration, object_fk, " +
-         "dlna_profile, genre, disc) VALUES " +
+         "dlna_profile, genre, disc, creator) VALUES " +
          "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private const string INSERT_OBJECT_STRING =
