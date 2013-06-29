@@ -248,6 +248,11 @@ public abstract class Rygel.MediaItem : MediaObject {
             creator.name = this.creator;
         }
 
+        if (this.creator != null && this.creator != "") {
+            var creator = didl_item.add_creator ();
+            creator.name = this.creator;
+        }
+
         if (this.description != null) {
             didl_item.description = this.description;
         }

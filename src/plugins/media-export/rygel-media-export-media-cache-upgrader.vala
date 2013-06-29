@@ -504,7 +504,7 @@ internal class Rygel.MediaExport.MediaCacheUpgrader {
             this.database = null;
         }
     }
-    
+
     private void update_v14_v15 () {
         try {
             this.database.begin ();

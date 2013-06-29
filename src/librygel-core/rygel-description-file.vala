@@ -28,6 +28,25 @@ using Xml;
  * manipulation of those.
  */
 public class Rygel.DescriptionFile : Object {
+    /// List of known device elements in the order specified by UDA 1.1
+    private string[] device_elements = {
+        "deviceType",
+        "friendlyName",
+        "manufacturer",
+        "manufacturerURL",
+        "modelDescription",
+        "modelName",
+        "modelNumber",
+        "modelURL",
+        "serialNumber",
+        "UDN",
+        "UPC",
+        "iconList",
+        "serviceList",
+        "deviceList",
+        "presentationURL",
+    };
+
     /// XML doc wrapper representing the description document
     private XMLDoc doc;
 
@@ -68,6 +87,17 @@ public class Rygel.DescriptionFile : Object {
      */
     public void set_device_type (string device_type) {
         this.set_device_element ("deviceType", device_type);
+    }
+
+    /**
+     * Modify the model description.
+     *
+     * A longer user friendly description of the device.
+     *
+     * @param model_description is the new model description.
+     */
+    public void set_model_description (string model_description) {
+        this.set_device_element ("modelDescription", model_description);
     }
 
     /**
@@ -120,6 +150,34 @@ public class Rygel.DescriptionFile : Object {
     }
 
     /**
+     * Set the Unique Device Name of the device.
+     *
+     * Unique Device Name is the UUID of this particular device instance.
+     *
+     * @param udn is the Unique Device Name of the device.
+     */
+    public void set_udn (string udn) {
+        this.set_device_element ("UDN", udn);
+    }
+
+    /**
+     * Get the current UDN of the device.
+     *
+     * @return The currenly set UDN.
+     */
+    public string? get_udn () {
+        var element = Rygel.XMLUtils.get_element ((Xml.Node *) this.doc.doc,
+                                                  "root",
+                                                  "device",
+                                                  "UDN");
+        if (element == null) {
+            return null;
+        }
+
+        return element->get_content ();
+    }
+
+    /**
      * Set the DLNA caps of this root device and while taking the
      * capabilities of the plugin into account.
      *
@@ -127,7 +185,6 @@ public class Rygel.DescriptionFile : Object {
      */
     public void set_dlna_caps (PluginCapabilities capabilities) {
         var flags = new string[0];
-        var content = "";
 
         if ((PluginCapabilities.UPLOAD & capabilities) != 0) {
             // This means "Supports upload to AnyContainer_DLNA.ORG", but we
@@ -178,12 +235,71 @@ public class Rygel.DescriptionFile : Object {
         // Set the flags we found; otherwise remove whatever is in the
         // template.
         if (flags.length > 0) {
-            content = string.joinv (",", flags);
+            var content = string.joinv (",", flags);
+            this.set_device_element ("X_DLNACAP", content, "dlna");
+        } else {
+            this.remove_device_element ("X_DLNACAP");
         }
-
-        this.set_device_element ("X_DLNACAP", content);
     }
 
+    public void clear_service_list () {
+        this.remove_device_element ("serviceList");
+    }
+
+    public void add_service (string device_name, ResourceInfo resource_info) {
+        var list = Rygel.XMLUtils.get_element
+                                        ((Xml.Node *) this.doc.doc,
+                                         "root",
+                                         "device",
+                                         "serviceList");
+        if (list == null) {
+            list = this.set_device_element ("serviceList", null);
+        }
+
+        Xml.Node *service_node = list->new_child (null, "service");
+
+        service_node->new_child (null, "serviceType", resource_info.upnp_type);
+        service_node->new_child (null, "serviceId", resource_info.upnp_id);
+
+        /* Now the relative (to base URL) URLs*/
+        string url = "/" + resource_info.description_path;
+        service_node->new_child (null, "SCPDURL", url);
+
+        url = "/Control/" + device_name + "/" + resource_info.type.name ();
+        service_node->new_child (null, "controlURL", url);
+
+        url = "/Event/" + device_name + "/" + resource_info.type.name ();
+        service_node->new_child (null, "eventSubURL", url);
+    }
+
+    public void clear_icon_list () {
+        this.remove_device_element ("iconList");
+    }
+
+    public void add_icon (string   device_name,
+                          IconInfo icon_info,
+                          string   url) {
+        var list = Rygel.XMLUtils.get_element
+                                        ((Xml.Node *) this.doc.doc,
+                                         "root",
+                                         "device",
+                                         "iconList");
+        if (list == null) {
+            list = this.set_device_element ("iconList", null);
+        }
+
+        Xml.Node *icon_node = list->new_child (null, "icon");
+
+        string width = icon_info.width.to_string ();
+        string height = icon_info.height.to_string ();
+        string depth = icon_info.depth.to_string ();
+
+        icon_node->new_child (null, "mimetype", icon_info.mime_type);
+        icon_node->new_child (null, "width", width);
+        icon_node->new_child (null, "height", height);
+        icon_node->new_child (null, "depth", depth);
+        icon_node->new_child (null, "url", url);
+    }
 
     /**
      * Change the type of a service.
@@ -239,20 +355,95 @@ public class Rygel.DescriptionFile : Object {
         file.puts (mem.replace ("\n", ""));
     }
 
+    private int index_of_device_element (string element) {
+        for (var i = 0; i < this.device_elements.length; i++) {
+            if (this.device_elements[i] == element) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
     /**
-     * Internal helper function to set an element to a new value.
+     * Internal helper function to set an element to a new value,
+     * creating it if needed.
      *
      * @param element below /root/device to be set.
-     * @param new_vale is the new content of that element.
+     * @param new_value is the new content of that element.
+     *
+     * @returns the element that was modified (or created) or null
      */
-    private void set_device_element (string element, string new_value) {
+    private Xml.Node* set_device_element (string element,
+                                          string? new_value,
+                                          string? ns = null) {
         var xml_element = Rygel.XMLUtils.get_element
                                         ((Xml.Node *) this.doc.doc,
                                          "root",
                                          "device",
                                          element);
-        if (element != null) {
+        if (xml_element != null) {
             xml_element->set_content (new_value);
+            return xml_element;
+        }
+
+        // Element not found: create it
+        var device_element = Rygel.XMLUtils.get_element
+                                ((Xml.Node *) this.doc.doc,
+                                 "root",
+                                 "device");
+
+        Xml.Ns *xml_ns = null;
+        if (ns != null) {
+            xml_ns = this.doc.doc.search_ns(device_element, ns);
+        }
+
+        xml_element = device_element->new_child (xml_ns, element, new_value);
+
+        // Now move the element to correct location
+        var index = this.index_of_device_element (element);
+        if (index > -1) {
+            // try to find a previous sibling
+            Xml.Node* sibling = null;
+            for (index--; index > 0; index--) {
+                sibling = Rygel.XMLUtils.get_element
+                                        ((Xml.Node *) this.doc.doc,
+                                         "root",
+                                         "device",
+                                         device_elements[index]);
+                if (sibling != null) {
+                    xml_element = sibling->add_next_sibling (xml_element);
+
+                    break;
+                }
+            }
+
+            if (sibling == null) {
+                // Set as first child
+                sibling = device_element->first_element_child ();
+                if (sibling != null) {
+                    xml_element = sibling->add_prev_sibling (xml_element);
+                }
+            }
+        }
+
+        return xml_element;
+    }
+
+    /**
+     * Internal helper function to remove an element (if it exists).
+     *
+     * @param element below /root/device to be removed.
+     */
+    private void remove_device_element (string element) {
+        var xml_element = Rygel.XMLUtils.get_element
+                                        ((Xml.Node *) this.doc.doc,
+                                         "root",
+                                         "device",
+                                         element);
+        if (xml_element != null) {
+            xml_element->unlink ();
+            delete xml_element;
         }
     }
 }

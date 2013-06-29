@@ -54,16 +54,12 @@ internal class Rygel.MediaExport.WritableDbContainer : TrackableDbContainer,
         this.create_classes.add (Rygel.PlaylistItem.UPNP_CLASS);
 
         // Containers
-        this.create_classes.add (Rygel.MediaContainer.STORAGE_FOLDER);
+        this.create_classes.add (Rygel.MediaContainer.UPNP_CLASS);
     }
 
     public virtual async void add_item (Rygel.MediaItem item,
                                         Cancellable? cancellable)
                                         throws Error {
-        if (item.id == null && item.ref_id != null) {
-            warning ("=> CreateReference not supported");
-            throw new WritableContainerError.NOT_IMPLEMENTED ("Not supported");
-        }
         item.parent = this;
         var file = File.new_for_uri (item.uris[0]);
         // TODO: Mark as place-holder. Make this proper some time.
@@ -75,12 +71,19 @@ internal class Rygel.MediaExport.WritableDbContainer : TrackableDbContainer,
         this.media_db.make_object_guarded (item);
     }
 
+    public virtual async string add_reference (MediaObject  object,
+                                               Cancellable? cancellable)
+                                               throws Error {
+        return MediaCache.get_default ().create_reference (object, this);
+    }
+
     public virtual async void add_container (MediaContainer container,
                                              Cancellable?   cancellable)
                                              throws Error {
         container.parent = this;
         switch (container.upnp_class) {
         case MediaContainer.STORAGE_FOLDER:
+        case MediaContainer.UPNP_CLASS:
             var file = File.new_for_uri (container.uris[0]);
             container.id = MediaCache.get_id (file);
             if (file.is_native ()) {
