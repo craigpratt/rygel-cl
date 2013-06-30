@@ -34,8 +34,6 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
     public new const string UPNP_CLASS = "object.item.videoItem";
 
     public string author { get; set; }
-    
-    public string creator { get; set; }
 
     //TODO: This property documentation is not used.
     //See valadoc bug: https://bugzilla.gnome.org/show_bug.cgi?id=684367
@@ -139,9 +137,6 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
         var item = media_object as VideoItem;
 
         switch (property) {
-        case "dc:creator":
-            return this.compare_string_props (this.creator, item.creator);
-        // Replaced dc:author with upnp:author
         case "upnp:author":
             return this.compare_string_props (this.author, item.author);
         default:
@@ -160,7 +155,6 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
     internal override void apply_didl_lite (DIDLLiteObject didl_object) {
         base.apply_didl_lite (didl_object);
 
-        this.creator = didl_object.get_creator();
         this.author = get_first (didl_object.get_authors ());
     }
 
@@ -168,11 +162,6 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
                                                  HTTPServer  http_server)
                                                  throws Error {
         var didl_item = base.serialize (serializer, http_server);
-
-        if (this.creator != null && this.creator != "") {
-            var creator = didl_item.add_creator ();
-            creator.name = this.creator;
-        }
 
         if (this.author != null && this.author != "") {
             var contributor = didl_item.add_author ();
