@@ -98,6 +98,19 @@ internal class Rygel.ItemUpdater: GLib.Object, Rygel.StateMachine {
         }
     }
 
+    // Remove any leading or trailing spaces for the corresponding text node.
+    private static string formatTagValues (string tag_values){
+        if(tag_values.length > 0 && tag_values.get_char(0) == '<'){
+            var initSplit = tag_values.split("</");
+            var tagName = initSplit[1].substring(0, initSplit[1].length - 1)._strip();
+            var tagValue = initSplit[0].split(">")[1]._strip();
+            debug ("Tag Name formatted :%s",tagName);
+            debug ("Tag Value formatted :%s",tagValue);
+            return "<%s>%s</%s>".printf (tagName, tagValue, tagName);
+        }
+        return tag_values;
+    }
+
     private static LinkedList<string> csv_split (string? tag_values) {
         var list = new LinkedList<string> ();
 
@@ -147,7 +160,7 @@ internal class Rygel.ItemUpdater: GLib.Object, Rygel.StateMachine {
             }
         }
 
-        list.add (ItemUpdater.unescape (tag_values.substring (token_start)));
+        list.add (formatTagValues(ItemUpdater.unescape (tag_values.substring (token_start)._strip())));
 
         return list;
     }
