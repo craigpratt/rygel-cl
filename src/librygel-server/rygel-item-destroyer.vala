@@ -57,7 +57,7 @@ internal class Rygel.ItemDestroyer: GLib.Object, Rygel.StateMachine {
 
             this.action.return ();
 
-            debug (_("Successfully destroyed object '%s'"), this.object_id);
+            message (_("Successfully destroyed object '%s'"), this.object_id);
         } catch (Error error) {
             if (error is ContentDirectoryError) {
                 this.action.return_error (error.code, error.message);

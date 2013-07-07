@@ -110,7 +110,9 @@ internal class Rygel.MediaExport.WritableDbContainer : TrackableDbContainer,
     public virtual async void remove_container (string id,
                                                 Cancellable? cancellable)
                                                 throws Error {
-        throw new WritableContainerError.NOT_IMPLEMENTED ("Not supported");
+        var container = this.media_db.get_object (id);
+
+        yield this.remove_child_tracked (container);
     }
 
 }
