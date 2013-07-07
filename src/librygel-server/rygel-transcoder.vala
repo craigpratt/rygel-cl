@@ -37,6 +37,10 @@ public abstract class Rygel.Transcoder : GLib.Object {
     public string mime_type { get; construct; }
     public string dlna_profile { get; construct; }
     public string extension { get; construct; }
+    // DLNA operation specific to the transcoder
+    public GUPnP.DLNAOperation operation { get; set; }
+    // DLNA flags specific to the transcoder
+    public GUPnP.DLNAFlags flags { get; set; }
 
     /**
      * Creates a transcoding source.
