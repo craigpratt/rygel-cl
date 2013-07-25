@@ -96,7 +96,8 @@ public abstract class Rygel.TranscodeManager : GLib.Object {
             protocol_info.protocol = this.get_protocol ();
             protocol_info.mime_type = transcoder.mime_type;
             protocol_info.dlna_profile = transcoder.dlna_profile;
-
+            protocol_info.dlna_operation = transcoder.operation;
+            protocol_info.dlna_flags = transcoder.flags;
             protocol_infos.add (protocol_info);
         }
 

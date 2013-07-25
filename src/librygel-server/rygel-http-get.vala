@@ -140,9 +140,12 @@ internal class Rygel.HTTPGet : HTTPRequest {
         var need_byte_seek = HTTPByteSeek.needed (this);
         var requested_byte_seek = HTTPByteSeek.requested (this);
 
-        if ((requested_time_seek && !need_time_seek) ||
-            (requested_byte_seek && !need_byte_seek)) {
-            throw new HTTPRequestError.UNACCEPTABLE ("Invalid seek request");
+        if (requested_time_seek && !need_time_seek) {
+            throw new HTTPRequestError.UNACCEPTABLE ("Invalid time seek request");
+        }
+
+        if (requested_byte_seek && !need_byte_seek) {
+            throw new HTTPRequestError.UNACCEPTABLE ("Invalid byte seek request");
         }
 
         try {
@@ -150,6 +153,10 @@ internal class Rygel.HTTPGet : HTTPRequest {
                 this.seek = new HTTPTimeSeek (this);
             } else if (need_byte_seek && requested_byte_seek) {
                 this.seek = new HTTPByteSeek (this);
+            }
+            else
+            {
+                this.msg.response_headers.set_content_length ((this.object as MediaItem).size);
             }
         } catch (HTTPSeekError error) {
             this.server.unpause_message (this.msg);
@@ -178,7 +185,8 @@ internal class Rygel.HTTPGet : HTTPRequest {
         if (this.handler.knows_size (this)) {
             this.msg.response_headers.set_encoding (Soup.Encoding.CONTENT_LENGTH);
         } else {
-            this.msg.response_headers.set_encoding (Soup.Encoding.EOF);
+            // Set the streaming mode to chunked if the size is unknown
+            this.msg.response_headers.set_encoding (Soup.Encoding.CHUNKED);
         }
 
         debug ("Following HTTP headers appended to response:");

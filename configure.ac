@@ -84,7 +84,7 @@ PKG_CHECK_MODULES([EXAMPLE_DEPS], [$RYGEL_COMMON_MODULES gio-2.0 >= $GIO_REQUIRE
 
 
 dnl Media engine to use
-BUILT_ENGINES="librygel-media-engine-simple"
+BUILT_ENGINES="librygel-media-engine-simple librygel-media-engine-cl-dlna"
 
 dnl Disabling the gstreamer media_engine also disables
 dnl anything else that uses gstreamer.
@@ -134,6 +134,16 @@ RYGEL_ADD_PLUGIN([mediathek],[ZDF Mediathek],[no])
 AS_IF([test "x$enable_mediathek_plugin" = "xyes"],
   [
     PKG_CHECK_MODULES([RYGEL_PLUGIN_MEDIATHEK_DEPS],
+                      [$RYGEL_COMMON_MODULES
+                       gio-2.0 >= $GIO_REQUIRED
+                       libsoup-2.4 >= $LIBSOUP_REQUIRED
+                       libxml-2.0 >= $LIBXML_REQUIRED])
+  ])
+
+RYGEL_ADD_PLUGIN([ruih],[Ruih],[yes])
+AS_IF([test "x$enable_ruih_plugin" = "xyes"],
+  [
+    PKG_CHECK_MODULES([RYGEL_PLUGIN_RUIH_DEPS],
                       [$RYGEL_COMMON_MODULES
                        gio-2.0 >= $GIO_REQUIRED
                        libsoup-2.4 >= $LIBSOUP_REQUIRED
@@ -191,6 +201,7 @@ AM_CONDITIONAL([BUILD_EXAMPLE_PLUGINS], [test "x$[]enable_example_plugins" = "xy
 dnl Explicitly add stamp files for targets that are not plugins
 RYGEL_ADD_STAMP([src/librygel-core/librygel_core_2_0_la_vala.stamp])
 RYGEL_ADD_STAMP([src/librygel-server/librygel_server_2_0_la_vala.stamp])
+RYGEL_ADD_STAMP([src/librygel-ruih/librygel_ruih_2_0_la_vala.stamp])
 RYGEL_ADD_STAMP([src/librygel-renderer/librygel_renderer_2_0_la_vala.stamp])
 RYGEL_ADD_STAMP([src/rygel/rygel_vala.stamp])
 RYGEL_ADD_STAMP([src/ui/rygel_preferences_vala.stamp])
@@ -391,6 +402,7 @@ src/librygel-core/Makefile
 src/librygel-renderer/Makefile
 src/librygel-renderer-gst/Makefile
 src/librygel-server/Makefile
+src/librygel-ruih/Makefile
 src/rygel/Makefile
 src/ui/Makefile
 src/media-engines/Makefile
@@ -398,12 +410,16 @@ src/media-engines/gstreamer/Makefile
 src/media-engines/gstreamer/media-engine-gst.plugin
 src/media-engines/simple/Makefile
 src/media-engines/simple/media-engine-simple.plugin
+src/media-engines/cl-dlna/Makefile
+src/media-engines/cl-dlna/media-engine-cl-dlna.plugin
 src/plugins/Makefile
 data/Makefile
 data/xml/Makefile
 data/xml/MediaServer3.xml.in
+data/xml/RuihServer2.xml.in
 data/xml/MediaRenderer2.xml.in
 data/icons/Makefile
+data/icons/24x24/Makefile
 data/icons/32x32/Makefile
 data/icons/48x48/Makefile
 data/icons/120x120/Makefile
@@ -422,6 +438,7 @@ rygel-core-2.0.pc
 rygel-renderer-2.0.pc
 rygel-server-2.0.pc
 rygel-renderer-gst-2.0.pc
+rygel-ruih-1.0.pc
 tests/Makefile
 examples/Makefile
 examples/renderer-plugins/Makefile

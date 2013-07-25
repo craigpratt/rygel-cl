@@ -1,7 +1,7 @@
 /*
- * Copyright (C) 2012 Openismus GmbH.
+ * Copyright (C) 2013 Cablelabs 
  *
- * Author: Jens Georg <jensg@openismus.com>
+ * Author: Cablelabs 
  *
  * This file is part of Rygel.
  *
@@ -21,21 +21,16 @@
  */
 
 using Rygel;
-using Gst;
 
 public void module_init (PluginLoader loader) {
-    if (loader.plugin_disabled (Playbin.Plugin.NAME)) {
+    if (loader.plugin_disabled (Ruih.Plugin.NAME)) {
         message ("Plugin '%s' disabled by user, ignoring..",
-                 Playbin.Plugin.NAME);
+                 Ruih.Plugin.NAME);
 
         return;
     }
 
-    unowned string[] args = null;
-
-    Gst.init (ref args);
-
-    var plugin = new Playbin.Plugin ();
+    var plugin = new Ruih.Plugin ();
 
     loader.add_plugin (plugin);
 }

@@ -1,0 +1,9 @@
+
+LIBRYGEL_RUIH_VAPI_SOURCE_FILES = \
+	rygel-ruih-server-plugin.vala \
+	rygel-uilisting-manager.vala \
+	rygel-ruih-servicemanager.vala \
+	rygel-ruih-service.vala \
+	rygel-ruih-server.vala 
+
+LIBRYGEL_RUIH_NONVAPI_SOURCE_FILES = 

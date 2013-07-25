@@ -1,7 +1,7 @@
 /*
- * Copyright (C) 2012 Openismus GmbH.
+ * Copyright (C) 2013 Cablelabs.
  *
- * Author: Jens Georg <jensg@openismus.com>
+ * Author: Cablelabs 
  *
  * This file is part of Rygel.
  *
@@ -21,21 +21,13 @@
  */
 
 using Rygel;
-using Gst;
+using Gee;
 
-public void module_init (PluginLoader loader) {
-    if (loader.plugin_disabled (Playbin.Plugin.NAME)) {
-        message ("Plugin '%s' disabled by user, ignoring..",
-                 Playbin.Plugin.NAME);
+internal class Rygel.Ruih.Plugin : Rygel.RuihServerPlugin {
+    public const string NAME = "Ruih";
 
-        return;
+    public Plugin () {
+        base (Plugin.NAME, _("CableLabs CVP-2 RemoteUIServer"));
     }
 
-    unowned string[] args = null;
-
-    Gst.init (ref args);
-
-    var plugin = new Playbin.Plugin ();
-
-    loader.add_plugin (plugin);
 }
