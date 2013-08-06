@@ -27,7 +27,7 @@
 using Gee;
 
 public errordomain Rygel.WritableContainerError {
-    NOT_IMPLEMENTED = 400
+    NOT_IMPLEMENTED = 602
 }
 
 /**
