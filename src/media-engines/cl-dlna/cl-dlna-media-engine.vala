@@ -55,9 +55,15 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
         }
     }
 	
-    public override unowned GLib.List<DLNAProfile> get_dlna_profiles() {
-        message("get_dlna_profiles");
+    public override unowned GLib.List<DLNAProfile> get_renderable_dlna_profiles() {
+        message("get_renderable_dlna_profiles");
         return this.profiles;
+    }
+
+    public override unowned GLib.List<MediaRendering>? get_renderings_for_item (MediaItem item) {
+        message("get_renderings_for_item");
+        // TODO: Implement me
+        return null;
     }
 
     public override unowned GLib.List<Transcoder>? get_transcoders() {

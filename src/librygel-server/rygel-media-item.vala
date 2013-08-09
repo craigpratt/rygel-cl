@@ -39,11 +39,16 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     public string creator { get; set; }
 
+    // TODO: Add List of MediaResources. Note that subclasses will also need to be changed
+    //       to store media resource parameters in a MediaResource
+
     // Resource info
+    // TODO: Remove me (this will be in MediaResource)
     public string mime_type { get; set; }
     public string dlna_profile { get; set; }
 
     // Size in bytes
+    // TODO: Remove me (this will be in MediaResource)
     private int64 _size = -1;
     public int64 size {
         get {
@@ -266,6 +271,7 @@ public abstract class Rygel.MediaItem : MediaObject {
          * there just choose the first one in the list instead of the one they
          * can handle.
          */
+        // TODO: Change this to call serialize() on the list of MediaResource objects
         this.add_proxy_resources (http_server, didl_item);
         if (!this.place_holder) {
             var host_ip = http_server.context.host_ip;

@@ -84,19 +84,32 @@ public abstract class Rygel.MediaEngine : GLib.Object {
     }
 
     /**
-     * Get a list of the DLNA profiles that are supported by this media
-     * engine when calling rygel_media_engine_create_data_source().
-     *
-     * Other DLNA profiles may be supported as transcoding targets -
+     * Get a list of the DLNA profiles that the media engine can consume.
      *
      * This information is needed to implement DLNA's
      * ConnectionManager.GetProtocolInfo call and to determine whether Rygel
      * can accept an uploaded file.
      *
      * @return A list of #RygelDLNAProfile<!-- -->s
-     * @see rygel_media_engine_get_transcoders().
      */
-    public abstract unowned List<DLNAProfile> get_dlna_profiles ();
+    public abstract unowned List<DLNAProfile> get_renderable_dlna_profiles ();
+
+    /**
+     * Get the supported renderings for the given MediaItem.
+     *
+     * The MediaRenderings returned may include formats/profiles that don't match the
+     * source/stored content byte-for-byte. 
+     * 
+     * Each MediaRendering must have a unique "id" field. And the order of
+     * renderings in the returned List should be from most-preferred to least-preferred.
+     *
+     * Note: This call will only be made when new source content is added or the source
+     * content changes (the results will be cached).
+     *
+     * @return A list of #MediaRendering<!-- -->s or null if no renderings are supported
+     *         for the item.
+     */
+    public abstract unowned List<MediaRendering>? get_renderings_for_item (MediaItem item);
 
     /**
      * Get a list of the transcoders that are provided by this media engine.

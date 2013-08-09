@@ -716,7 +716,7 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
     private bool is_profile_valid (string profile) {
         unowned GLib.List<DLNAProfile> profiles, result;
 
-        profiles = MediaEngine.get_default ().get_dlna_profiles ();
+        profiles = MediaEngine.get_default ().get_renderable_dlna_profiles ();
         var p = new DLNAProfile (profile, "");
 
         result = profiles.find_custom (p, DLNAProfile.compare_by_name);

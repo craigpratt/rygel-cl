@@ -108,8 +108,13 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
         }
     }
 
-    public override unowned GLib.List<DLNAProfile> get_dlna_profiles () {
+    public override unowned GLib.List<DLNAProfile> get_renderable_dlna_profiles() {
         return this.dlna_profiles;
+    }
+
+    public override unowned GLib.List<MediaRendering>? get_renderings_for_item (MediaItem item) {
+        // TODO: Implement me
+        return null;
     }
 
     public override unowned GLib.List<Transcoder>? get_transcoders () {

@@ -52,7 +52,7 @@ internal class Rygel.SourceConnectionManager : Rygel.ConnectionManager {
         var protocol_infos = server.get_protocol_info ();
 
         unowned GLib.List<DLNAProfile> profiles = MediaEngine.get_default ().
-                                                              get_dlna_profiles ();
+                                                              get_renderable_dlna_profiles ();
 
         var protocol = server.get_protocol ();
 
