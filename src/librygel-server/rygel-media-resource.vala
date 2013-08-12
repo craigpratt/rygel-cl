@@ -7,25 +7,15 @@
 using GUPnP;
 
 /**
- * Represents a media resource (Music, Video or Image).
- *
- * These objects correspond to items res blocks in the UPnP ContentDirectory's DIDL-Lite XML.
+ * Represents a media resource (Music, Video, Image, etc).
  */
-public abstract class Rygel.MediaResource : GLib.Object {
-    public MediaItem parent_item {
-        get {
-            return this.parent_item;
-        }
-        private set {
-            this.parent_item = value;
-        }
-    }
-    public string mime_type { get; set; }
-    public string dlna_profile { get; set; }
+public class Rygel.MediaResource : GLib.Object {
+    private MediaItem parent_item;
+    private ProtocolInfo protocol_info = null;
+    
     public string uri { get; set; }
     public int64 size { get; set; default = -1; }
     public int64 cleartext_size { get; set; default = -1; }
-    public ProtocolInfo protcol_info { get; set; default = null; }
     public long duration { get; set; default = -1; }
     public int bitrate { get; set; default = -1; }
     public int bits_per_sample { get; set; default = -1; }
@@ -49,12 +39,25 @@ public abstract class Rygel.MediaResource : GLib.Object {
         this.parent_item = parent;
     }
 
+    public MediaItem get_parent_item() {
+        return parent_item;
+    }
+
+    public void set_protocol_info(ProtocolInfo protocol_info) {
+        this.protocol_info = protocol_info;
+    }
+
+    public ProtocolInfo get_protocol_info() {
+        return this.protocol_info;
+    }
+    
+    
     public void apply_didl_lite (DIDLLiteResource didl_resource) {
         //  Populate the MediaResource from the given DIDLLiteResource
         this.uri = didl_resource.uri;
         this.size = didl_resource.size64;
         // Note: No cleartext size in DIDLLiteResource currently
-        this.protcol_info = didl_resource.protocol_info;
+        this.protocol_info = didl_resource.protocol_info;
         this.duration = didl_resource.duration;
         this.bitrate = didl_resource.bitrate;
         this.bits_per_sample = didl_resource.bits_per_sample;
@@ -64,16 +67,14 @@ public abstract class Rygel.MediaResource : GLib.Object {
         this.audio_channels = didl_resource.audio_channels;
         this.sample_freq = didl_resource.sample_freq;
     }
-
+/*
     internal DIDLLiteResource? serialize (HTTPServer http_server)
                                                    throws Error {
         var didl_resource = new DIDLLiteResource ();
 
-        // Note: No cleartext size in DIDLLiteResource currently
-
         didl_resource.size64 = this.size;
         // Note: No cleartext size in DIDLLiteResource currently
-        didl_resource.protocol_info = this.protcol_info;
+        didl_resource.protocol_info = this.protocol_info;
         didl_resource.duration = this.duration;
         didl_resource.bitrate = this.bitrate;
         didl_resource.bits_per_sample = this.bits_per_sample;
@@ -88,4 +89,5 @@ public abstract class Rygel.MediaResource : GLib.Object {
 
         return didl_resource;
     }
+*/
 }

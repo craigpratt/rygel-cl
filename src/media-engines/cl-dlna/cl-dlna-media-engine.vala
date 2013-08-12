@@ -19,6 +19,7 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
         = new  GLib.List<DLNAProfile>();
         
     private GLib.List<Transcoder> transcoders = null;
+    // private GLib.List<MediaRendering> renderings = null;
 
     public CableLabsDLNAMediaEngine() {
         message("constructing");
@@ -60,10 +61,37 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
         return this.profiles;
     }
 
-    public override unowned GLib.List<MediaRendering>? get_renderings_for_item (MediaItem item) {
+    public override GLib.List<MediaRendering>? get_renderings_for_item (MediaItem item) {
         message("get_renderings_for_item");
-        // TODO: Implement me
-        return null;
+
+        var protocol_info = new GUPnP.ProtocolInfo();
+        var res = new MediaResource(item);
+        res.duration = 10;
+        res.size = 12345678;
+        res.protocol_info = protocol_info;
+
+        var rendering_1 = new CableLabsDLNAMediaRendering("My AVC_MP4_MP_SD profile #1",item,res);
+
+        var renderings = new GLib.List<MediaRendering>();
+        renderings.append(rendering_1);
+/*
+    public string mime_type { get; set; }
+    public string dlna_profile { get; set; }
+    public string uri { get; set; }
+    public int64 size { get; set; default = -1; }
+    public int64 cleartext_size { get; set; default = -1; }
+    public ProtocolInfo protcol_info { get; set; default = null; }
+    public long duration { get; set; default = -1; }
+    public int bitrate { get; set; default = -1; }
+    public int bits_per_sample { get; set; default = -1; }
+    public int color_depth { get; set; default = -1; }
+    public int width { get; set; default = -1; }
+    public int height { get; set; default = -1; }
+    public int audio_channels { get; set; default = -1; }
+    public int sample_freq { get; set; default = -1; }
+ */
+
+        return renderings;
     }
 
     public override unowned GLib.List<Transcoder>? get_transcoders() {

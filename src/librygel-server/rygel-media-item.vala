@@ -302,6 +302,21 @@ public abstract class Rygel.MediaItem : MediaObject {
         if (!this.place_holder) {
             // Transcoding resources
             server.add_resources (didl_item, this);
+            add_media_rendering_resources(didl_item);
+        }
+    }
+
+    internal void add_media_rendering_resources(DIDLLiteItem didl_item) {
+        var engine = MediaEngine.get_default ();
+        GLib.List<MediaRendering> renderings = engine.get_renderings_for_item(this);
+
+        if (renderings == null) {
+            message("No renderings found for %s", this.uris.get (0));
+            return;
+        }
+        
+        foreach (var rendering in renderings) {
+            message("Found rendering %s", rendering.get_name());
         }
     }
 

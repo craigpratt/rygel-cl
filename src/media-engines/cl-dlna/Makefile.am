@@ -6,7 +6,8 @@ engine_DATA = media-engine-cl-dlna.plugin
 librygel_media_engine_cl_dlna_la_SOURCES = \
 	cl-dlna-media-engine.vala \
 	cl-dlna-fake-transcoder.vala \
-	cl-dlna-data-source.vala
+	cl-dlna-data-source.vala \
+	cl-dlna-media-rendering.vala
 
 librygel_media_engine_cl_dlna_la_VALAFLAGS = \
 	$(RYGEL_COMMON_LIBRYGEL_SERVER_VALAFLAGS) \

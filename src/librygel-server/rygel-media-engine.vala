@@ -100,7 +100,7 @@ public abstract class Rygel.MediaEngine : GLib.Object {
      * The MediaRenderings returned may include formats/profiles that don't match the
      * source/stored content byte-for-byte. 
      * 
-     * Each MediaRendering must have a unique "id" field. And the order of
+     * Each MediaRendering must have a unique "name" field. And the order of
      * renderings in the returned List should be from most-preferred to least-preferred.
      *
      * Note: This call will only be made when new source content is added or the source
@@ -109,7 +109,7 @@ public abstract class Rygel.MediaEngine : GLib.Object {
      * @return A list of #MediaRendering<!-- -->s or null if no renderings are supported
      *         for the item.
      */
-    public abstract unowned List<MediaRendering>? get_renderings_for_item (MediaItem item);
+    public abstract List<MediaRendering>? get_renderings_for_item (MediaItem item);
 
     /**
      * Get a list of the transcoders that are provided by this media engine.

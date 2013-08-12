@@ -16,36 +16,26 @@ using GUPnP;
  *
  */
 public abstract class Rygel.MediaRendering : GLib.Object {
-    public string id {
-         get {
-             return this.id;
-         }
-         private set {
-              this.id = value;
-         }
-    }
-    public MediaItem item {
-         get {
-             return this.item;
-         }
-         private set {
-              this.item = value;
-         }
-    }
-    
-    public MediaResource resource {
-         get {
-             return this.resource;
-         }
-         private set {
-              this.resource = value;
-         }
-    }
+    private string name;
+    private MediaItem item;
+    private MediaResource resource;
 
-     public MediaRendering (string id, MediaItem item, MediaResource resource) {
-        this.id = id;
+     public MediaRendering (string name, MediaItem item, MediaResource resource) {
+        this.name = name;
         this.item = item;
         this.resource = resource;
+    }
+
+    public string get_name() {
+        return this.name;
+    }
+
+    public MediaItem get_item() {
+         return this.item;
+    }
+
+    public MediaResource get_resource() {
+         return this.resource;
     }
 
     /**
