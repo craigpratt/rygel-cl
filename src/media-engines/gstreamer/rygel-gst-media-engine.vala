@@ -112,7 +112,7 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
         return this.dlna_profiles;
     }
 
-    public override unowned GLib.List<MediaRendering>? get_renderings_for_item (MediaItem item) {
+    public override GLib.List<MediaRendering>? get_renderings_for_item (MediaItem item) {
         // TODO: Implement me
         return null;
     }

@@ -36,7 +36,7 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
         return this.profiles;
     }
 
-    public override unowned List<MediaRendering>? get_renderings_for_item (MediaItem item) {
+    public override List<MediaRendering>? get_renderings_for_item (MediaItem item) {
         // TODO: Implement me
         return null;
     }
