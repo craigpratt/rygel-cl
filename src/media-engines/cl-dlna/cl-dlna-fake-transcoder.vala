@@ -75,15 +75,56 @@ internal class Rygel.FakeTranscoder : Rygel.Transcoder
         
         // base.add_resource() will set the MIME type and DLNA profile
         //  according to what's passed in the base constructor
-
+        /** TODO : Need to delegate to helper class to get accurate
+        * value of cleartextsize if the item is protected.
+        */
         resource.size64 = item.size;
         var protocol_info = resource.protocol_info;
+
+        if (has_dtcp_enabled() && has_mediaengine_dtcp ()
+                           && is_item_protected (item)) {
+
+            protocol_info.mime_type = handle_mime_item_protected
+                                                (this.mime_type);
+            debug ("The new mime type is: "+protocol_info.mime_type);
+            protocol_info.dlna_profile = dtcp_prefix + this.dlna_profile;
+            debug ("The new dlna profile is: "+protocol_info.dlna_profile);
+
+            resource.cleartextSize64 = item.size;
+        } else {
+                protocol_info.mime_type = this.mime_type;
+                protocol_info.dlna_profile = this.dlna_profile;
+        }
+
         //message("protocol_info:" + protocol_info.to_string());
         protocol_info.dlna_conversion = DLNAConversion.NONE;
         protocol_info.dlna_flags = this.flags;
         protocol_info.dlna_operation = this.operation;
         
         return resource;
+    }
+
+    /**
+     * Check if the MediaItem is protected.
+     * TODO: This can call into a helper class that will have knowledge.
+     */
+    public override bool is_item_protected (MediaItem item) {
+        return true;
+    }
+
+    /**
+     * Returns if the media engine is capable of handling dtcp request
+     */
+    public override bool has_mediaengine_dtcp () {
+        var config = MetaConfig.get_default();
+        bool dtcp_supported = false;
+        try {
+            dtcp_supported = config.get_bool ("CL-DLNAMediaEngine","engine-dtcp");
+        } catch (Error err) {
+            error("Error reading dtcp property for media engine :" + err.message);
+        }
+
+        return dtcp_supported;
     }
     
     /**
