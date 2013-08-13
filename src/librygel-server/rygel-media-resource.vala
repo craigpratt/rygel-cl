@@ -11,7 +11,7 @@ using GUPnP;
  */
 public class Rygel.MediaResource : GLib.Object {
     private MediaItem parent_item;
-    private ProtocolInfo protocol_info = null;
+    public ProtocolInfo protocol_info = null;
     
     public string uri { get; set; }
     public int64 size { get; set; default = -1; }
