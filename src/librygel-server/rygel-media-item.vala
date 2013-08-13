@@ -116,6 +116,20 @@ public abstract class Rygel.MediaItem : MediaObject {
         }
     }
 
+    private GLib.List<MediaRendering> renderings;
+
+    void retrieve_renderings() {
+        message("MediaItem.retrieve_renderings() for %s", this.uris.get (0));
+
+        // Note: the renderings will need to be loaded some other way to avoid
+        //       get_renderings_for_item() being called for every browse.
+        var engine = MediaEngine.get_default();
+        GLib.List<MediaRendering> renderings = engine.get_renderings_for_item(this);
+        if (renderings == null) {
+            message("No renderings found for %s", this.uris.get (0));
+        }
+    }
+    
     // Live media items need to provide a nice working implementation of this
     // method if they can/do not provide a valid URI
     public virtual DataSource? create_stream_source (string? host_ip = null) {
@@ -144,6 +158,8 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     public virtual void add_uri (string uri) {
         this.uris.add (uri);
+        // The MediaItem isn't fully constructed until an URI is present
+        retrieve_renderings();
     }
 
     internal int compare_transcoders (Transcoder transcoder1,
@@ -302,21 +318,19 @@ public abstract class Rygel.MediaItem : MediaObject {
         if (!this.place_holder) {
             // Transcoding resources
             server.add_resources (didl_item, this);
+            // Temporary way to add resources from MediaRenderings
+            //  (eventually they shouldn't be proxy resources)
             add_media_rendering_resources(didl_item);
         }
     }
 
     internal void add_media_rendering_resources(DIDLLiteItem didl_item) {
-        var engine = MediaEngine.get_default ();
-        GLib.List<MediaRendering> renderings = engine.get_renderings_for_item(this);
-
-        if (renderings == null) {
-            message("No renderings found for %s", this.uris.get (0));
-            return;
-        }
-        
+        message("MediaItem.add_media_rendering_resources");
         foreach (var rendering in renderings) {
             message("Found rendering %s", rendering.get_name());
+            MediaResource resource = rendering.get_resource();
+            DIDLLiteResource didl_resource = didl_item.add_resource();
+            resource.write_didl_lite(didl_resource);
         }
     }
 

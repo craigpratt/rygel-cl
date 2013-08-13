@@ -67,13 +67,11 @@ public class Rygel.MediaResource : GLib.Object {
         this.audio_channels = didl_resource.audio_channels;
         this.sample_freq = didl_resource.sample_freq;
     }
-/*
-    internal DIDLLiteResource? serialize (HTTPServer http_server)
-                                                   throws Error {
-        var didl_resource = new DIDLLiteResource ();
-
+    
+    public DIDLLiteResource write_didl_lite (DIDLLiteResource didl_resource) {
+        didl_resource.uri = this.uri;
         didl_resource.size64 = this.size;
-        // Note: No cleartext size in DIDLLiteResource currently
+        // TODO: Copy clearTextSize
         didl_resource.protocol_info = this.protocol_info;
         didl_resource.duration = this.duration;
         didl_resource.bitrate = this.bitrate;
@@ -84,10 +82,11 @@ public class Rygel.MediaResource : GLib.Object {
         didl_resource.audio_channels = this.audio_channels;
         didl_resource.sample_freq = this.sample_freq;
         
-        var host_ip = http_server.context.host_ip;
-        didl_resource.uri = address_regex.replace_literal (didl_resource.uri, -1, 0, host_ip);
-
         return didl_resource;
     }
-*/
+    /*
+        var didl_resource = new DIDLLiteResource ();
+        var host_ip = http_server.context.host_ip;
+        didl_resource.uri = address_regex.replace_literal (didl_resource.uri, -1, 0, host_ip);
+    */
 }
