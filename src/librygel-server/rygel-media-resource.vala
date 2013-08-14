@@ -10,10 +10,8 @@ using GUPnP;
  * Represents a media resource (Music, Video, Image, etc).
  */
 public class Rygel.MediaResource : GLib.Object {
-    private MediaItem parent_item;
-    public ProtocolInfo protocol_info = null;
-    
     public string uri { get; set; }
+    private ProtocolInfo protocol_info = null;
     public int64 size { get; set; default = -1; }
     public int64 cleartext_size { get; set; default = -1; }
     public long duration { get; set; default = -1; }
@@ -35,14 +33,6 @@ public class Rygel.MediaResource : GLib.Object {
         }
     }
 
-    public MediaResource (MediaItem parent) {
-        this.parent_item = parent;
-    }
-
-    public MediaItem get_parent_item() {
-        return parent_item;
-    }
-
     public void set_protocol_info(ProtocolInfo protocol_info) {
         this.protocol_info = protocol_info;
     }
@@ -50,7 +40,6 @@ public class Rygel.MediaResource : GLib.Object {
     public ProtocolInfo get_protocol_info() {
         return this.protocol_info;
     }
-    
     
     public void apply_didl_lite (DIDLLiteResource didl_resource) {
         //  Populate the MediaResource from the given DIDLLiteResource
@@ -67,13 +56,11 @@ public class Rygel.MediaResource : GLib.Object {
         this.audio_channels = didl_resource.audio_channels;
         this.sample_freq = didl_resource.sample_freq;
     }
-/*
-    internal DIDLLiteResource? serialize (HTTPServer http_server)
-                                                   throws Error {
-        var didl_resource = new DIDLLiteResource ();
-
+    
+    public DIDLLiteResource write_didl_lite (DIDLLiteResource didl_resource) {
+        didl_resource.uri = this.uri;
         didl_resource.size64 = this.size;
-        // Note: No cleartext size in DIDLLiteResource currently
+        // TODO: Copy clearTextSize
         didl_resource.protocol_info = this.protocol_info;
         didl_resource.duration = this.duration;
         didl_resource.bitrate = this.bitrate;
@@ -84,10 +71,11 @@ public class Rygel.MediaResource : GLib.Object {
         didl_resource.audio_channels = this.audio_channels;
         didl_resource.sample_freq = this.sample_freq;
         
-        var host_ip = http_server.context.host_ip;
-        didl_resource.uri = address_regex.replace_literal (didl_resource.uri, -1, 0, host_ip);
-
         return didl_resource;
     }
-*/
+    /*
+        var didl_resource = new DIDLLiteResource ();
+        var host_ip = http_server.context.host_ip;
+        didl_resource.uri = address_regex.replace_literal (didl_resource.uri, -1, 0, host_ip);
+    */
 }

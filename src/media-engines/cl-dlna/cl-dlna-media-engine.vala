@@ -8,6 +8,7 @@
  */
 
 using Gee;
+using GUPnP;
 
 /**
  * This media engine is intended to be the basis for the CL 
@@ -16,16 +17,30 @@ using Gee;
  */
 internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
     private  GLib.List<DLNAProfile> profiles 
-        = new  GLib.List<DLNAProfile>();
-        
+        = new GLib.List<DLNAProfile>();
+
     private GLib.List<Transcoder> transcoders = null;
-    // private GLib.List<MediaRendering> renderings = null;
+
+    internal class ConfigProfileEntry {
+        public string profile;
+        public string mimetype;
+        public string extension;
+
+        public ConfigProfileEntry(string profile, string mimetype, string extension) {
+            this.profile = profile;
+            this.mimetype = mimetype;
+            this.extension = extension;
+        }
+    }
+
+    private GLib.List<ConfigProfileEntry> config_entries = null;
 
     public CableLabsDLNAMediaEngine() {
         message("constructing");
 
         var profiles_config = new Gee.ArrayList<string>();
-        
+        config_entries = new GLib.List<ConfigProfileEntry>();
+                
         var config = MetaConfig.get_default();
         try {
             profiles_config = config.get_string_list( "CL-DLNAMediaEngine", "profiles");
@@ -47,6 +62,7 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
             string extension = columns[2];
 
             message( "CL-DLNAMediaEngine: configuring profile entry: " + row);
+            config_entries.append(new ConfigProfileEntry(profile, mimetype, extension));
             // Note: This profile list won't affect what profiles are included in the 
             //       primary res block
             profiles.append(new DLNAProfile(profile,mimetype));
@@ -61,19 +77,34 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
         return this.profiles;
     }
 
-    public override GLib.List<MediaRendering>? get_renderings_for_item (MediaItem item) {
-        message("get_renderings_for_item");
+    public override Gee.List<MediaRendering>? get_renderings_for_uri
+                                              (string uri, Gee.List <MediaResource> ? resources) {
+        message("get_renderings_for_uri");
+        var renderings = new Gee.ArrayList<MediaRendering>();
 
-        var protocol_info = new GUPnP.ProtocolInfo();
-        var res = new MediaResource(item);
-        res.duration = 10;
-        res.size = 12345678;
-        res.protocol_info = protocol_info;
+        // Note: Here's where we can get the metadata from the ODID info files.
+        // For now, we'll just hobble something together from the config file
+        foreach (var config in config_entries) {
+            message("get_renderings_for_uri: processing profile " + config.profile);
+            var protocol_info = new GUPnP.ProtocolInfo();
+            protocol_info.dlna_profile = "BOGUS_" + config.profile;
+            protocol_info.protocol = "http-get";
+            protocol_info.mime_type = config.mimetype;
+            protocol_info.dlna_operation = DLNAOperation.RANGE;
+            protocol_info.dlna_flags = DLNAFlags.DLNA_V15 
+                                       | DLNAFlags.STREAMING_TRANSFER_MODE 
+                                       | DLNAFlags.BACKGROUND_TRANSFER_MODE 
+                                       | DLNAFlags.CONNECTION_STALL;
 
-        var rendering_1 = new CableLabsDLNAMediaRendering("My AVC_MP4_MP_SD profile #1",item,res);
+            var res = new MediaResource();
+            res.duration = 10;
+            res.size = 12345678;
+            res.set_protocol_info(protocol_info);
+            res.uri = "http://bogus";
+            var rendering = new CableLabsDLNAMediaRendering("Rendering " + protocol_info.dlna_profile,uri,res);
 
-        var renderings = new GLib.List<MediaRendering>();
-        renderings.append(rendering_1);
+            renderings.add(rendering);
+        }
 /*
     public string mime_type { get; set; }
     public string dlna_profile { get; set; }
@@ -113,3 +144,4 @@ public static Rygel.MediaEngine module_get_instance() {
         message("module_get_instance");
         return new Rygel.CableLabsDLNAMediaEngine();
 }
+

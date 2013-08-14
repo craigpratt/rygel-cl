@@ -68,6 +68,8 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     public string description { get; set; default = null; }
 
+    private Gee.List<MediaRendering> renderings;
+
     internal override OCMFlags ocm_flags {
         get {
             var flags = OCMFlags.NONE;
@@ -144,6 +146,9 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     public virtual void add_uri (string uri) {
         this.uris.add (uri);
+        // The MediaItem isn't fully constructed until an URI is present
+        renderings = RenderingManager.get_default().get_renderings_for_uri ( this.uris.get (0),
+                                                                             null );
     }
 
     internal int compare_transcoders (Transcoder transcoder1,
@@ -302,21 +307,19 @@ public abstract class Rygel.MediaItem : MediaObject {
         if (!this.place_holder) {
             // Transcoding resources
             server.add_resources (didl_item, this);
+            // Temporary way to add resources from MediaRenderings
+            //  (eventually they shouldn't be proxy resources)
             add_media_rendering_resources(didl_item);
         }
     }
 
     internal void add_media_rendering_resources(DIDLLiteItem didl_item) {
-        var engine = MediaEngine.get_default ();
-        GLib.List<MediaRendering> renderings = engine.get_renderings_for_item(this);
-
-        if (renderings == null) {
-            message("No renderings found for %s", this.uris.get (0));
-            return;
-        }
-        
+        message("MediaItem.add_media_rendering_resources");
         foreach (var rendering in renderings) {
             message("Found rendering %s", rendering.get_name());
+            MediaResource resource = rendering.get_resource();
+            DIDLLiteResource didl_resource = didl_item.add_resource();
+            resource.write_didl_lite(didl_resource);
         }
     }
 
