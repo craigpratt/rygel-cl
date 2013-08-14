@@ -10,7 +10,6 @@ using GUPnP;
  * Represents a media resource (Music, Video, Image, etc).
  */
 public class Rygel.MediaResource : GLib.Object {
-    private MediaItem parent_item;
     private ProtocolInfo protocol_info = null;
     
     public string uri { get; set; }
@@ -35,14 +34,6 @@ public class Rygel.MediaResource : GLib.Object {
         }
     }
 
-    public MediaResource (MediaItem parent) {
-        this.parent_item = parent;
-    }
-
-    public MediaItem get_parent_item() {
-        return parent_item;
-    }
-
     public void set_protocol_info(ProtocolInfo protocol_info) {
         this.protocol_info = protocol_info;
     }
@@ -50,7 +41,6 @@ public class Rygel.MediaResource : GLib.Object {
     public ProtocolInfo get_protocol_info() {
         return this.protocol_info;
     }
-    
     
     public void apply_didl_lite (DIDLLiteResource didl_resource) {
         //  Populate the MediaResource from the given DIDLLiteResource

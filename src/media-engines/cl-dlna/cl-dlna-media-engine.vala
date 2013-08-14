@@ -77,14 +77,15 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
         return this.profiles;
     }
 
-    public override GLib.List<MediaRendering>? get_renderings_for_item (MediaItem item) {
-        message("get_renderings_for_item");
-        var renderings = new GLib.List<MediaRendering>();
+    public override Gee.List<MediaRendering>? get_renderings_for_uri
+                                              (string uri, Gee.List <MediaResource> ? resources) {
+        message("get_renderings_for_uri");
+        var renderings = new Gee.ArrayList<MediaRendering>();
 
         // Note: Here's where we can get the metadata from the ODID info files.
         // For now, we'll just hobble something together from the config file
         foreach (var config in config_entries) {
-            message("get_renderings_for_item: processing profile " + config.profile);
+            message("get_renderings_for_uri: processing profile " + config.profile);
             var protocol_info = new GUPnP.ProtocolInfo();
             protocol_info.dlna_profile = "BOGUS_" + config.profile;
             protocol_info.protocol = "http-get";
@@ -95,17 +96,14 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
                                        | DLNAFlags.BACKGROUND_TRANSFER_MODE 
                                        | DLNAFlags.CONNECTION_STALL;
 
-            message("get_renderings_for_item: creating MediaResource");
-            var res = new MediaResource(item);
+            var res = new MediaResource();
             res.duration = 10;
             res.size = 12345678;
             res.set_protocol_info(protocol_info);
             res.uri = "http://bogus";
-            message("get_renderings_for_item: creating CableLabsDLNAMediaRendering");
-            var rendering = new CableLabsDLNAMediaRendering("Rendering " + protocol_info.dlna_profile,item,res);
+            var rendering = new CableLabsDLNAMediaRendering("Rendering " + protocol_info.dlna_profile,uri,res);
 
-            message("get_renderings_for_item: adding rendering to the list");
-            renderings.append(rendering);
+            renderings.add(rendering);
         }
 /*
     public string mime_type { get; set; }

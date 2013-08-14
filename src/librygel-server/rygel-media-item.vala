@@ -68,6 +68,8 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     public string description { get; set; default = null; }
 
+    private Gee.List<MediaRendering> renderings;
+
     internal override OCMFlags ocm_flags {
         get {
             var flags = OCMFlags.NONE;
@@ -116,20 +118,6 @@ public abstract class Rygel.MediaItem : MediaObject {
         }
     }
 
-    private GLib.List<MediaRendering> renderings;
-
-    void retrieve_renderings() {
-        message("MediaItem.retrieve_renderings() for %s", this.uris.get (0));
-
-        // Note: the renderings will need to be loaded some other way to avoid
-        //       get_renderings_for_item() being called for every browse.
-        var engine = MediaEngine.get_default();
-        GLib.List<MediaRendering> renderings = engine.get_renderings_for_item(this);
-        if (renderings == null) {
-            message("No renderings found for %s", this.uris.get (0));
-        }
-    }
-    
     // Live media items need to provide a nice working implementation of this
     // method if they can/do not provide a valid URI
     public virtual DataSource? create_stream_source (string? host_ip = null) {
@@ -159,7 +147,8 @@ public abstract class Rygel.MediaItem : MediaObject {
     public virtual void add_uri (string uri) {
         this.uris.add (uri);
         // The MediaItem isn't fully constructed until an URI is present
-        retrieve_renderings();
+        renderings = RenderingManager.get_default().get_renderings_for_uri ( this.uris.get (0),
+                                                                             null );
     }
 
     internal int compare_transcoders (Transcoder transcoder1,

@@ -10,19 +10,19 @@ using GUPnP;
  * This class and subclasses encapsulate both the metadata and streaming
  * requirements associated with rendering of a particular content source. 
  * 
- * MediaRenderings are obtained from rygel_media_engine_get_renderings_for_item()
+ * MediaRenderings are obtained from rygel_media_engine_get_renderings_for_uri()
  * and are only expected to support the source content types provided
  * by rygel_media_engine_get_renderable_dlna_profiles().
  *
  */
 public abstract class Rygel.MediaRendering : GLib.Object {
     private string name;
-    private MediaItem item;
+    private string uri;
     private MediaResource resource;
 
-     public MediaRendering (string name, MediaItem item, MediaResource resource) {
+     public MediaRendering (string name, string uri, MediaResource resource) {
         this.name = name;
-        this.item = item;
+        this.uri = uri;
         this.resource = resource;
     }
 
@@ -30,8 +30,8 @@ public abstract class Rygel.MediaRendering : GLib.Object {
         return this.name;
     }
 
-    public MediaItem get_item() {
-         return this.item;
+    public string get_uri() {
+         return this.uri;
     }
 
     public MediaResource get_resource() {

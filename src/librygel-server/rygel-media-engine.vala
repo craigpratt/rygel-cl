@@ -95,7 +95,7 @@ public abstract class Rygel.MediaEngine : GLib.Object {
     public abstract unowned List<DLNAProfile> get_renderable_dlna_profiles ();
 
     /**
-     * Get the supported renderings for the given MediaItem.
+     * Get the supported renderings for the given content uri.
      *
      * The MediaRenderings returned may include formats/profiles that don't match the
      * source/stored content byte-for-byte. 
@@ -103,13 +103,18 @@ public abstract class Rygel.MediaEngine : GLib.Object {
      * Each MediaRendering must have a unique "name" field. And the order of
      * renderings in the returned List should be from most-preferred to least-preferred.
      *
-     * Note: This call will only be made when new source content is added or the source
-     * content changes (the results will be cached).
+     * If/when MediaResources are provided (e.g. when metadata has been persistently
+     * cached), the engine may utilize the resource information to produce the
+     * MediaRenderings.
+     * 
+     * Note: This call will only be made at startup or when source content is added
+     * or changed (the results will be cached).
      *
      * @return A list of #MediaRendering<!-- -->s or null if no renderings are supported
      *         for the item.
      */
-    public abstract List<MediaRendering>? get_renderings_for_item (MediaItem item);
+    public abstract Gee.List<MediaRendering>? get_renderings_for_uri
+                                              (string uri, Gee.List <MediaResource> ? resources);
 
     /**
      * Get a list of the transcoders that are provided by this media engine.
