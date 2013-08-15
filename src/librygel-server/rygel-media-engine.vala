@@ -100,8 +100,9 @@ public abstract class Rygel.MediaEngine : GLib.Object {
      * The MediaResources returned may include formats/profiles that don't match the
      * raw source content byte-for-byte. 
      * 
-     * Each MediaResource returned in the List must have a unique "name" field. And
-     * the order of resources in the List should be from most-preferred to least-preferred.
+     * Each MediaResource returned in the List must have a unique "name" field
+     * (containing only alphanumeric characters). And the order of resources in
+     * the List should be from most-preferred to least-preferred.
      *
      * Note: This call will only be made when source content is added or changed
      * (the results will be cached).
