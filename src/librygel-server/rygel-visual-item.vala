@@ -99,6 +99,7 @@ public interface Rygel.VisualItem : MediaItem {
                                                             index,
                                                             -1,
                                                             null,
+                                                            null,
                                                             null);
                 thumbnail.add_resource (didl_item, server.get_protocol ());
 

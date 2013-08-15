@@ -99,6 +99,7 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
             res.duration = 10;
             res.size = 12345678;
             res.set_protocol_info(protocol_info);
+            res.extension = config.extension;
             res.uri = "http://bogus";
 
             resources.add(res);

@@ -308,14 +308,21 @@ public abstract class Rygel.MediaItem : MediaObject {
             server.add_resources (didl_item, this);
             // Temporary way to add MediaResources
             //  (eventually they shouldn't be proxy resources)
-            add_media_resources(didl_item);
+            add_media_resources(server, didl_item);
         }
     }
 
-    internal void add_media_resources(DIDLLiteItem didl_item) {
+    internal void add_media_resources(HTTPServer server, DIDLLiteItem didl_item) {
         message("MediaItem.add_media_resources");
         foreach (var resource in media_resources) {
             message("Found resource %s", resource.get_name());
+            var uri = server.create_uri_for_item (this,
+                                                   -1,
+                                                   -1,
+                                                   this.dlna_profile,
+                                                   null,
+                                                   resource);
+            resource.uri = uri;
             DIDLLiteResource didl_resource = didl_item.add_resource();
             resource.write_didl_lite(didl_resource);
         }

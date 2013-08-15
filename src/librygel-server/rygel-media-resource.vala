@@ -14,6 +14,7 @@ public class Rygel.MediaResource : GLib.Object {
     private string name;
     public string uri { get; set; }
     private ProtocolInfo protocol_info = null;
+    public string extension { get; set; default = null; }
     public int64 size { get; set; default = -1; }
     public int64 cleartext_size { get; set; default = -1; }
     public long duration { get; set; default = -1; }
@@ -24,7 +25,7 @@ public class Rygel.MediaResource : GLib.Object {
     public int height { get; set; default = -1; }
     public int audio_channels { get; set; default = -1; }
     public int sample_freq { get; set; default = -1; }
-
+    
     protected static Regex address_regex;
 
     static construct {

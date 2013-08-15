@@ -70,6 +70,7 @@ internal abstract class Rygel.HTTPGetHandler: GLib.Object {
                                          -1,
                                          0, // FIXME: offer first subtitle only?
                                          null,
+                                         null,
                                          null);
 
                 request.msg.response_headers.append ("CaptionInfo.sec",
