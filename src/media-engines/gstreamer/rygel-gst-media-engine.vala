@@ -112,8 +112,7 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
         return this.dlna_profiles;
     }
 
-    public override Gee.List<MediaRendering>? get_renderings_for_uri
-                                              (string uri, Gee.List <MediaResource> ? resources) {
+    public override Gee.List<MediaResource>? get_resources_for_uri(string uri) {
         // TODO: Implement me
         return null;
     }
@@ -122,7 +121,8 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
         return this.transcoders;
     }
 
-    public override DataSource? create_data_source (string uri) {
+    public override DataSource? create_data_source_for_resource
+                                (string uri, MediaResource ? resource) {
         try {
             return new GstDataSource (uri);
         } catch (Error error) {
@@ -133,7 +133,7 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
             return null;
         }
     }
-
+    
     public DataSource create_data_source_from_element (Element element) {
         return new GstDataSource.from_element (element);
     }

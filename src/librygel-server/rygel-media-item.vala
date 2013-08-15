@@ -68,7 +68,7 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     public string description { get; set; default = null; }
 
-    private Gee.List<MediaRendering> renderings;
+    private Gee.List<MediaResource> media_resources;
 
     internal override OCMFlags ocm_flags {
         get {
@@ -135,7 +135,7 @@ public abstract class Rygel.MediaItem : MediaObject {
             }
         }
 
-        return MediaEngine.get_default ().create_data_source (translated_uri);
+        return MediaEngine.get_default ().create_data_source_for_resource (translated_uri, null);
     }
 
     public bool is_live_stream () {
@@ -147,8 +147,7 @@ public abstract class Rygel.MediaItem : MediaObject {
     public virtual void add_uri (string uri) {
         this.uris.add (uri);
         // The MediaItem isn't fully constructed until an URI is present
-        renderings = RenderingManager.get_default().get_renderings_for_uri ( this.uris.get (0),
-                                                                             null );
+        media_resources = MediaResourceManager.get_default().get_resources_for_uri (this.uris.get (0));
     }
 
     internal int compare_transcoders (Transcoder transcoder1,
@@ -307,17 +306,16 @@ public abstract class Rygel.MediaItem : MediaObject {
         if (!this.place_holder) {
             // Transcoding resources
             server.add_resources (didl_item, this);
-            // Temporary way to add resources from MediaRenderings
+            // Temporary way to add MediaResources
             //  (eventually they shouldn't be proxy resources)
-            add_media_rendering_resources(didl_item);
+            add_media_resources(didl_item);
         }
     }
 
-    internal void add_media_rendering_resources(DIDLLiteItem didl_item) {
-        message("MediaItem.add_media_rendering_resources");
-        foreach (var rendering in renderings) {
-            message("Found rendering %s", rendering.get_name());
-            MediaResource resource = rendering.get_resource();
+    internal void add_media_resources(DIDLLiteItem didl_item) {
+        message("MediaItem.add_media_resources");
+        foreach (var resource in media_resources) {
+            message("Found resource %s", resource.get_name());
             DIDLLiteResource didl_resource = didl_item.add_resource();
             resource.write_didl_lite(didl_resource);
         }

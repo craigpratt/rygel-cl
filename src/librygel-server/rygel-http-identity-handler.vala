@@ -94,9 +94,9 @@ internal class Rygel.HTTPIdentityHandler : Rygel.HTTPGetHandler {
         var engine = MediaEngine.get_default ();
 
         if (request.subtitle != null) {
-            src = engine.create_data_source (request.subtitle.uri);
+            src = engine.create_data_source_for_resource (request.subtitle.uri, null);
         } else if (request.thumbnail != null) {
-            src = engine.create_data_source (request.thumbnail.uri);
+            src = engine.create_data_source_for_resource (request.thumbnail.uri, null);
         } else {
             src = (request.object as MediaItem).create_stream_source
                                         (request.http_server.context.host_ip);

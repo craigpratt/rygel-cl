@@ -10,6 +10,8 @@ using GUPnP;
  * Represents a media resource (Music, Video, Image, etc).
  */
 public class Rygel.MediaResource : GLib.Object {
+    
+    private string name;
     public string uri { get; set; }
     private ProtocolInfo protocol_info = null;
     public int64 size { get; set; default = -1; }
@@ -33,6 +35,15 @@ public class Rygel.MediaResource : GLib.Object {
         }
     }
 
+    public MediaResource(string name) {
+        this.name = name;
+    }
+
+    public string get_name()
+    {
+        return this.name;
+    }
+
     public void set_protocol_info(ProtocolInfo protocol_info) {
         this.protocol_info = protocol_info;
     }
@@ -45,7 +56,7 @@ public class Rygel.MediaResource : GLib.Object {
         //  Populate the MediaResource from the given DIDLLiteResource
         this.uri = didl_resource.uri;
         this.size = didl_resource.size64;
-        // Note: No cleartext size in DIDLLiteResource currently
+        this.cleartext_size = didl_resource.cleartextSize64;
         this.protocol_info = didl_resource.protocol_info;
         this.duration = didl_resource.duration;
         this.bitrate = didl_resource.bitrate;
@@ -60,7 +71,7 @@ public class Rygel.MediaResource : GLib.Object {
     public DIDLLiteResource write_didl_lite (DIDLLiteResource didl_resource) {
         didl_resource.uri = this.uri;
         didl_resource.size64 = this.size;
-        // TODO: Copy clearTextSize
+        didl_resource.cleartextSize64 = this.cleartext_size;
         didl_resource.protocol_info = this.protocol_info;
         didl_resource.duration = this.duration;
         didl_resource.bitrate = this.bitrate;

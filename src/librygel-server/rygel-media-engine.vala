@@ -95,26 +95,21 @@ public abstract class Rygel.MediaEngine : GLib.Object {
     public abstract unowned List<DLNAProfile> get_renderable_dlna_profiles ();
 
     /**
-     * Get the supported renderings for the given content uri.
+     * Get the supported MediaResources for the given content uri.
      *
-     * The MediaRenderings returned may include formats/profiles that don't match the
-     * source/stored content byte-for-byte. 
+     * The MediaResources returned may include formats/profiles that don't match the
+     * raw source content byte-for-byte. 
      * 
-     * Each MediaRendering must have a unique "name" field. And the order of
-     * renderings in the returned List should be from most-preferred to least-preferred.
+     * Each MediaResource returned in the List must have a unique "name" field. And
+     * the order of resources in the List should be from most-preferred to least-preferred.
      *
-     * If/when MediaResources are provided (e.g. when metadata has been persistently
-     * cached), the engine may utilize the resource information to produce the
-     * MediaRenderings.
-     * 
-     * Note: This call will only be made at startup or when source content is added
-     * or changed (the results will be cached).
+     * Note: This call will only be made when source content is added or changed
+     * (the results will be cached).
      *
-     * @return A list of #MediaRendering<!-- -->s or null if no renderings are supported
+     * @return A list of #MediaResources<!-- -->s or null if no resources are supported
      *         for the item.
      */
-    public abstract Gee.List<MediaRendering>? get_renderings_for_uri
-                                              (string uri, Gee.List <MediaResource> ? resources);
+    public abstract Gee.List<MediaResource>? get_resources_for_uri(string uri);
 
     /**
      * Get a list of the transcoders that are provided by this media engine.
@@ -124,10 +119,18 @@ public abstract class Rygel.MediaEngine : GLib.Object {
     public abstract unowned List<Transcoder>? get_transcoders ();
 
     /**
-     * Get a data source for the URI.
+     * Get a data source for the URI which renders the content specified by the uri
+     * according to the MediaResource-specified parameters.
+     *
+     * Note that the provided #resource will be field-wise equivalent with a MediaResource
+     * obtained from #get_resources_for_uri, but subclasses should not expect objects
+     * references from #get_resources_for_uri to be provided to this method. If #resource
+     * is null, then the DataSource returned should render the raw (unmodified) content.
      *
      * @param uri to create the data source for.
-     * @return A data source representing the uri
+     * @param resource format to render for the data source.
+     * @return A data source representing the uri rendered according to resource parameters
      */
-    public abstract DataSource? create_data_source (string uri);
+    public abstract DataSource? create_data_source_for_resource
+                                (string uri, MediaResource ? resource);
 }

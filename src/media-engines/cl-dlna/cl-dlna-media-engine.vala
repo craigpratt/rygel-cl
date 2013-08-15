@@ -77,15 +77,14 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
         return this.profiles;
     }
 
-    public override Gee.List<MediaRendering>? get_renderings_for_uri
-                                              (string uri, Gee.List <MediaResource> ? resources) {
-        message("get_renderings_for_uri");
-        var renderings = new Gee.ArrayList<MediaRendering>();
+    public override Gee.List<MediaResource>? get_resources_for_uri(string uri) {
+        message("get_resources_for_uri");
+        var resources = new Gee.ArrayList<MediaResource>();
 
         // Note: Here's where we can get the metadata from the ODID info files.
         // For now, we'll just hobble something together from the config file
         foreach (var config in config_entries) {
-            message("get_renderings_for_uri: processing profile " + config.profile);
+            message("get_resources_for_uri: processing profile " + config.profile);
             var protocol_info = new GUPnP.ProtocolInfo();
             protocol_info.dlna_profile = "BOGUS_" + config.profile;
             protocol_info.protocol = "http-get";
@@ -96,14 +95,13 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
                                        | DLNAFlags.BACKGROUND_TRANSFER_MODE 
                                        | DLNAFlags.CONNECTION_STALL;
 
-            var res = new MediaResource();
+            var res = new MediaResource("BOGUS_" + config.profile);
             res.duration = 10;
             res.size = 12345678;
             res.set_protocol_info(protocol_info);
             res.uri = "http://bogus";
-            var rendering = new CableLabsDLNAMediaRendering("Rendering " + protocol_info.dlna_profile,uri,res);
 
-            renderings.add(rendering);
+            resources.add(res);
         }
 /*
     public string mime_type { get; set; }
@@ -122,7 +120,7 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
     public int sample_freq { get; set; default = -1; }
  */
 
-        return renderings;
+        return resources;
     }
 
     public override unowned GLib.List<Transcoder>? get_transcoders() {
@@ -130,7 +128,8 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
         return this.transcoders;
     }
 
-    public override DataSource? create_data_source(string uri) {
+    public override DataSource? create_data_source_for_resource
+                                (string uri, MediaResource ? resource) {
         if (!uri.has_prefix ("file://")) {
             return null;
         }

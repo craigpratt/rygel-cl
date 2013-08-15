@@ -36,8 +36,7 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
         return this.profiles;
     }
 
-    public override Gee.List<MediaRendering>? get_renderings_for_uri
-                                              (string uri, Gee.List <MediaResource> ? resources) {
+    public override Gee.List<MediaResource>? get_resources_for_uri(string uri) {
         // TODO: Implement me
         return null;
     }
@@ -46,7 +45,8 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
         return null;
     }
 
-    public override DataSource? create_data_source (string uri) {
+    public override DataSource? create_data_source_for_resource
+                                (string uri, MediaResource ? resource) {
         if (!uri.has_prefix ("file://")) {
             return null;
         }
