@@ -90,7 +90,7 @@ internal class Rygel.FakeTranscoder : Rygel.Transcoder
             protocol_info.dlna_profile = dtcp_prefix + this.dlna_profile;
             debug ("The new dlna profile is: "+protocol_info.dlna_profile);
 
-            resource.cleartextSize64 = item.size;
+            resource.cleartextSize = item.size;
         } else {
                 protocol_info.mime_type = this.mime_type;
                 protocol_info.dlna_profile = this.dlna_profile;

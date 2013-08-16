@@ -57,7 +57,7 @@ public class Rygel.MediaResource : GLib.Object {
         //  Populate the MediaResource from the given DIDLLiteResource
         this.uri = didl_resource.uri;
         this.size = didl_resource.size64;
-        this.cleartext_size = didl_resource.cleartextSize64;
+        this.cleartext_size = didl_resource.cleartextSize;
         this.protocol_info = didl_resource.protocol_info;
         this.duration = didl_resource.duration;
         this.bitrate = didl_resource.bitrate;
@@ -72,7 +72,7 @@ public class Rygel.MediaResource : GLib.Object {
     public DIDLLiteResource write_didl_lite (DIDLLiteResource didl_resource) {
         didl_resource.uri = this.uri;
         didl_resource.size64 = this.size;
-        didl_resource.cleartextSize64 = this.cleartext_size;
+        didl_resource.cleartextSize = this.cleartext_size;
         didl_resource.protocol_info = this.protocol_info;
         didl_resource.duration = this.duration;
         didl_resource.bitrate = this.bitrate;
