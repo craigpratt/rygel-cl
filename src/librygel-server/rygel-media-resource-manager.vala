@@ -58,6 +58,26 @@ public class Rygel.MediaResourceManager : GLib.Object {
     }
 
     /**
+     * Get the MediaResource given URI with name resource_name or null if no resource
+     * with the given name exists.
+     */
+    public MediaResource ? get_resource_for_uri_and_name(string uri, string resource_name) {
+        message("MediaResourceManager.get_resources_for_uri_and_name(%s, %s)", uri, resource_name);
+
+        Gee.List <MediaResource> resources = get_resources_for_uri(uri);
+
+        foreach (var resource in resources)
+        {
+            if (resource.get_name() == resource_name)
+            {
+                return resource;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Update the MediaResources the configured MediaEngine supports for the given URI.
      *
      * This should be called every time there's a change in the content referenced by the
