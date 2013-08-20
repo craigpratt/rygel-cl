@@ -1,4 +1,4 @@
-SUBDIRS=simple cl-dlna
+SUBDIRS=simple odid
 
 if HAVE_GSTREAMER
 SUBDIRS += gstreamer

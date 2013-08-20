@@ -8,13 +8,13 @@ using GUPnP;
  * This class exists just to allow the creation of res blocks with
  * arbitrary profiles/protocolinfo.
  */
-internal class Rygel.FakeTranscoder : Rygel.Transcoder
+internal class Rygel.ODIDFakeTranscoder : Rygel.Transcoder
 {
-    public FakeTranscoder( string mime_type,
+    public ODIDFakeTranscoder( string mime_type,
                            string dlna_profile,
                            string extension ) 
     {
-        message("Creating FakeTranscoder(mime_type " + mime_type
+        message("Creating ODIDFakeTranscoder(mime_type " + mime_type
                 + ",dlna_profile " + dlna_profile
                 + ",extension " + extension );
         GLib.Object (mime_type : mime_type,
@@ -119,7 +119,7 @@ internal class Rygel.FakeTranscoder : Rygel.Transcoder
         var config = MetaConfig.get_default();
         bool dtcp_supported = false;
         try {
-            dtcp_supported = config.get_bool ("CL-DLNAMediaEngine","engine-dtcp");
+            dtcp_supported = config.get_bool ("CL-ODIDMediaEngine","engine-dtcp");
         } catch (Error err) {
             error("Error reading dtcp property for media engine :" + err.message);
         }

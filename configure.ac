@@ -84,7 +84,7 @@ PKG_CHECK_MODULES([EXAMPLE_DEPS], [$RYGEL_COMMON_MODULES gio-2.0 >= $GIO_REQUIRE
 
 
 dnl Media engine to use
-BUILT_ENGINES="librygel-media-engine-simple librygel-media-engine-cl-dlna"
+BUILT_ENGINES="librygel-media-engine-simple librygel-media-engine-odid"
 
 dnl Disabling the gstreamer media_engine also disables
 dnl anything else that uses gstreamer.
@@ -410,8 +410,8 @@ src/media-engines/gstreamer/Makefile
 src/media-engines/gstreamer/media-engine-gst.plugin
 src/media-engines/simple/Makefile
 src/media-engines/simple/media-engine-simple.plugin
-src/media-engines/cl-dlna/Makefile
-src/media-engines/cl-dlna/media-engine-cl-dlna.plugin
+src/media-engines/odid/Makefile
+src/media-engines/odid/media-engine-odid.plugin
 src/plugins/Makefile
 data/Makefile
 data/xml/Makefile

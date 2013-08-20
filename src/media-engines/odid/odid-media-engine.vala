@@ -15,7 +15,7 @@ using GUPnP;
  * reference DMS. Long-term, this could be moved outside the Rygel
  * source tree and built stand-alone.
  */
-internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
+internal class Rygel.CableLabsODIDMediaEngine : MediaEngine {
     private  GLib.List<DLNAProfile> profiles 
         = new GLib.List<DLNAProfile>();
 
@@ -35,7 +35,7 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
 
     private GLib.List<ConfigProfileEntry> config_entries = null;
 
-    public CableLabsDLNAMediaEngine() {
+    public CableLabsODIDMediaEngine() {
         message("constructing");
 
         var profiles_config = new Gee.ArrayList<string>();
@@ -43,16 +43,16 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
                 
         var config = MetaConfig.get_default();
         try {
-            profiles_config = config.get_string_list( "CL-DLNAMediaEngine", "profiles");
+            profiles_config = config.get_string_list( "OdidMediaEngine", "profiles");
         } catch (Error err) {
-            error("Error reading CL-DLNAMediaEngine profiles: " + err.message);
+            error("Error reading CL-ODIDMediaEngine profiles: " + err.message);
         }
 
         foreach (var row in profiles_config) {
             var columns = row.split(",");
             if (columns.length < 3)
             {
-                message( "CL-DLNAMediaEngine profile entry \""
+                message( "CL-ODIDMediaEngine profile entry \""
                          + row + "\" is malformed: Expected 3 entries and found "
                          + columns.length.to_string() );
                 break;
@@ -61,14 +61,14 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
             string mimetype = columns[1];
             string extension = columns[2];
 
-            message( "CL-DLNAMediaEngine: configuring profile entry: " + row);
+            message( "CL-ODIDMediaEngine: configuring profile entry: " + row);
             config_entries.append(new ConfigProfileEntry(profile, mimetype, extension));
             // Note: This profile list won't affect what profiles are included in the 
             //       primary res block
             profiles.append(new DLNAProfile(profile,mimetype));
             // The transcoders will become secondary res blocks
             this.transcoders.prepend(
-                    new FakeTranscoder(mimetype,profile,extension) );
+                    new ODIDFakeTranscoder(mimetype,profile,extension) );
         }
     }
 	
@@ -136,12 +136,12 @@ internal class Rygel.CableLabsDLNAMediaEngine : MediaEngine {
         }
 
         message("creating data source for " + uri);
-        return new CableLabsDLNADataSource(uri);
+        return new CableLabsODIDDataSource(uri);
     }
-} // END CableLabsDLNAMediaEngine
+}
 
 public static Rygel.MediaEngine module_get_instance() {
         message("module_get_instance");
-        return new Rygel.CableLabsDLNAMediaEngine();
+        return new Rygel.CableLabsODIDMediaEngine();
 }
 
