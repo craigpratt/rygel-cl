@@ -9,9 +9,9 @@
  */
  
 /**
- * A simple data source for use with the CableLabs ODID media engine.
+ * A simple data source for use with the ODID media engine.
  */
-internal class Rygel.CableLabsODIDDataSource : DataSource, Object {
+internal class Rygel.ODIDDataSource : DataSource, Object {
     private string uri;
     private Thread<void*> thread;
     private Mutex mutex = Mutex ();
@@ -22,12 +22,12 @@ internal class Rygel.CableLabsODIDDataSource : DataSource, Object {
     private bool stop_thread = false;
     private HTTPSeek offsets = null;
 
-    public CableLabsODIDDataSource(string uri) {
+    public ODIDDataSource(string uri) {
         message ("Creating a data source for URI %s", uri);
         this.uri = uri;
     }
 
-    ~CableLabsODIDDataSource() {
+    ~ODIDDataSource() {
         this.stop ();
         message ("Stopped data source");
     }
@@ -45,7 +45,7 @@ internal class Rygel.CableLabsODIDDataSource : DataSource, Object {
 
         message ("Starting data source for uri %s", this.uri);
 
-        this.thread = new Thread<void*>("CableLabsODIDDataSource Serving thread",
+        this.thread = new Thread<void*>("ODIDDataSource Serving thread",
                                          this.thread_func);
     }
 

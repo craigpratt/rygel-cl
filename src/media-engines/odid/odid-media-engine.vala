@@ -15,7 +15,7 @@ using GUPnP;
  * reference DMS. Long-term, this could be moved outside the Rygel
  * source tree and built stand-alone.
  */
-internal class Rygel.CableLabsODIDMediaEngine : MediaEngine {
+internal class Rygel.ODIDMediaEngine : MediaEngine {
     private  GLib.List<DLNAProfile> profiles 
         = new GLib.List<DLNAProfile>();
 
@@ -35,7 +35,7 @@ internal class Rygel.CableLabsODIDMediaEngine : MediaEngine {
 
     private GLib.List<ConfigProfileEntry> config_entries = null;
 
-    public CableLabsODIDMediaEngine() {
+    public ODIDMediaEngine() {
         message("constructing");
 
         var profiles_config = new Gee.ArrayList<string>();
@@ -136,12 +136,12 @@ internal class Rygel.CableLabsODIDMediaEngine : MediaEngine {
         }
 
         message("creating data source for " + uri);
-        return new CableLabsODIDDataSource(uri);
+        return new ODIDDataSource(uri);
     }
 }
 
 public static Rygel.MediaEngine module_get_instance() {
         message("module_get_instance");
-        return new Rygel.CableLabsODIDMediaEngine();
+        return new Rygel.ODIDMediaEngine();
 }
 
