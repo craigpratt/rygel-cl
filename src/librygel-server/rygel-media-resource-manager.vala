@@ -4,6 +4,7 @@
 
 using Gee;
 using GLib;
+using GUPnP;
 
 /**
  * The RenderingManager is responsible for management/caching of MediaResources for content URIs.
@@ -25,7 +26,15 @@ public class Rygel.MediaResourceManager : GLib.Object {
         return MediaResourceManager.the_resource_manager;
     }
     
-    public MediaResourceManager () { }
+    protected Regex address_regex;
+
+    public MediaResourceManager () {
+        try {
+            address_regex = new Regex (Regex.escape_string ("@ADDRESS@"));
+        } catch (GLib.RegexError err) {
+            assert_not_reached ();
+        }
+    }
 
     private HashMap<string,Gee.List<MediaResource>> resource_table
                         = new HashMap< string,Gee.List<MediaResource> >();
@@ -50,6 +59,7 @@ public class Rygel.MediaResourceManager : GLib.Object {
             if (engine_resources == null) {
                 message("MediaResourceManager: No resources found for %s", uri);
             }
+            adapt_resources_for_delivery(engine_resources);
             resource_table.set(uri, engine_resources);
             resources = engine_resources;
         }
@@ -103,5 +113,16 @@ public class Rygel.MediaResourceManager : GLib.Object {
     public void remove_resources_for_uri(string uri) {
         message("MediaResourceManager.remove_resources_for_uri: " + uri);
         resource_table.unset(uri);
+    }
+
+    public void adapt_resources_for_delivery(Gee.List <MediaResource> ? resources) {
+        foreach (MediaResource resource in resources) {
+            var protocol_info = resource.protocol_info;
+            protocol_info.protocol = "http-get";
+            protocol_info.dlna_flags |= DLNAFlags.DLNA_V15 
+                                        | DLNAFlags.STREAMING_TRANSFER_MODE 
+                                        | DLNAFlags.BACKGROUND_TRANSFER_MODE 
+                                        | DLNAFlags.CONNECTION_STALL;
+        }
     }
 }

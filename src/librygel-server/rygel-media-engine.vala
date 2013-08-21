@@ -101,11 +101,13 @@ public abstract class Rygel.MediaEngine : GLib.Object {
      * raw source content byte-for-byte. 
      * 
      * Each MediaResource returned in the List must have a unique "name" field
-     * (containing only alphanumeric characters). And the order of resources in
-     * the List should be from most-preferred to least-preferred.
+     * (containing only alphanumeric characters). The order of resources in
+     * the List should be from most-preferred to least-preferred. And some fields
+     * related to the delivery protocol will be over-written (e.g. the host address
+     * portion of the URI and the protocol field/deliver flags of the protocolInfo).
      *
-     * Note: This call will only be made when source content is added or changed
-     * (the results will be cached).
+     * Note: To reduce overhead, this call will only be made when source content is
+     * added or changed (the results will be cached).
      *
      * @return A list of #MediaResources<!-- -->s or null if no resources are supported
      *         for the item.

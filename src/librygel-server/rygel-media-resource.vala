@@ -13,7 +13,7 @@ public class Rygel.MediaResource : GLib.Object {
     
     private string name;
     public string uri { get; set; }
-    private ProtocolInfo protocol_info = null;
+    public ProtocolInfo protocol_info { get; set; default = null; }
     public string extension { get; set; default = null; }
     public int64 size { get; set; default = -1; }
     public int64 cleartext_size { get; set; default = -1; }
@@ -26,16 +26,6 @@ public class Rygel.MediaResource : GLib.Object {
     public int audio_channels { get; set; default = -1; }
     public int sample_freq { get; set; default = -1; }
     
-    protected static Regex address_regex;
-
-    static construct {
-        try {
-            address_regex = new Regex (Regex.escape_string ("@ADDRESS@"));
-        } catch (GLib.RegexError err) {
-            assert_not_reached ();
-        }
-    }
-
     public MediaResource(string name) {
         this.name = name;
     }
@@ -45,16 +35,9 @@ public class Rygel.MediaResource : GLib.Object {
         return this.name;
     }
 
-    public void set_protocol_info(ProtocolInfo protocol_info) {
-        this.protocol_info = protocol_info;
-    }
-
-    public ProtocolInfo get_protocol_info() {
-        return this.protocol_info;
-    }
-    
     public void apply_didl_lite (DIDLLiteResource didl_resource) {
         //  Populate the MediaResource from the given DIDLLiteResource
+        // Note: For a DIDLLiteResource, a value of -1 also signals "not set"
         this.uri = didl_resource.uri;
         this.size = didl_resource.size64;
         this.cleartext_size = didl_resource.cleartextSize;
@@ -70,6 +53,7 @@ public class Rygel.MediaResource : GLib.Object {
     }
     
     public DIDLLiteResource write_didl_lite (DIDLLiteResource didl_resource) {
+        // Note: For a DIDLLiteResource, a value of -1 also signals "not set"
         didl_resource.uri = this.uri;
         didl_resource.size64 = this.size;
         didl_resource.cleartextSize = this.cleartext_size;
@@ -85,9 +69,4 @@ public class Rygel.MediaResource : GLib.Object {
         
         return didl_resource;
     }
-    /*
-        var didl_resource = new DIDLLiteResource ();
-        var host_ip = http_server.context.host_ip;
-        didl_resource.uri = address_regex.replace_literal (didl_resource.uri, -1, 0, host_ip);
-    */
 }

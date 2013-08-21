@@ -85,42 +85,20 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         // For now, we'll just hobble something together from the config file
         foreach (var config in config_entries) {
             message("get_resources_for_uri: processing profile " + config.profile);
-            var protocol_info = new GUPnP.ProtocolInfo();
-            protocol_info.dlna_profile = "BOGUS_" + config.profile;
-            protocol_info.protocol = "http-get";
-            protocol_info.mime_type = config.mimetype;
-            protocol_info.dlna_operation = DLNAOperation.RANGE;
-            protocol_info.dlna_flags = DLNAFlags.DLNA_V15 
-                                       | DLNAFlags.STREAMING_TRANSFER_MODE 
-                                       | DLNAFlags.BACKGROUND_TRANSFER_MODE 
-                                       | DLNAFlags.CONNECTION_STALL;
-
             var res = new MediaResource("BOGUS_" + config.profile);
             res.duration = 10;
             res.size = 12345678;
-            res.set_protocol_info(protocol_info);
             res.extension = config.extension;
-            res.uri = "http://bogus";
+
+            var protocol_info = new GUPnP.ProtocolInfo();
+            protocol_info.dlna_profile = "BOGUS_" + config.profile;
+            protocol_info.mime_type = config.mimetype;
+            protocol_info.dlna_operation = DLNAOperation.RANGE;
+            res.protocol_info = protocol_info;
 
             resources.add(res);
         }
-/*
-    public string mime_type { get; set; }
-    public string dlna_profile { get; set; }
-    public string uri { get; set; }
-    public int64 size { get; set; default = -1; }
-    public int64 cleartext_size { get; set; default = -1; }
-    public ProtocolInfo protcol_info { get; set; default = null; }
-    public long duration { get; set; default = -1; }
-    public int bitrate { get; set; default = -1; }
-    public int bits_per_sample { get; set; default = -1; }
-    public int color_depth { get; set; default = -1; }
-    public int width { get; set; default = -1; }
-    public int height { get; set; default = -1; }
-    public int audio_channels { get; set; default = -1; }
-    public int sample_freq { get; set; default = -1; }
- */
-
+        
         return resources;
     }
 

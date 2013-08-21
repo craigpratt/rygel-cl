@@ -27,7 +27,7 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
     public override void add_response_headers (HTTPGet request)
                                                throws HTTPRequestError {
         request.msg.response_headers.append ("Content-Type",
-                                             this.media_resource.get_protocol_info().mime_type);
+                                             this.media_resource.protocol_info.mime_type);
         if (request.seek != null) {
             request.seek.add_response_headers ();
         }
