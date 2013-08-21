@@ -52,7 +52,7 @@ internal class Rygel.CableLabsODIDMediaEngine : MediaEngine {
             var columns = row.split(",");
             if (columns.length < 3)
             {
-                message( "CL-ODIDMediaEngine profile entry \""
+                message( "OdidMediaEngine profile entry \""
                          + row + "\" is malformed: Expected 3 entries and found "
                          + columns.length.to_string() );
                 break;
@@ -61,7 +61,7 @@ internal class Rygel.CableLabsODIDMediaEngine : MediaEngine {
             string mimetype = columns[1];
             string extension = columns[2];
 
-            message( "CL-ODIDMediaEngine: configuring profile entry: " + row);
+            message( "OdidMediaEngine: configuring profile entry: " + row);
             config_entries.append(new ConfigProfileEntry(profile, mimetype, extension));
             // Note: This profile list won't affect what profiles are included in the 
             //       primary res block

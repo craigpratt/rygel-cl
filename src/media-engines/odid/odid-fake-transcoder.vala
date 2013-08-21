@@ -119,7 +119,7 @@ internal class Rygel.ODIDFakeTranscoder : Rygel.Transcoder
         var config = MetaConfig.get_default();
         bool dtcp_supported = false;
         try {
-            dtcp_supported = config.get_bool ("CL-ODIDMediaEngine","engine-dtcp");
+            dtcp_supported = config.get_bool ("OdidMediaEngine","engine-dtcp");
         } catch (Error err) {
             error("Error reading dtcp property for media engine :" + err.message);
         }
