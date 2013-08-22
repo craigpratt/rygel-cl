@@ -24,11 +24,12 @@
  */
 
 internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
-    public HTTPByteSeek (HTTPGet request) throws HTTPSeekError {
+    public HTTPByteSeek (HTTPGet request) throws HTTPSeekError, HTTPRequestError {
         Soup.Range[] ranges;
         int64 start = 0, total_length;
         unowned string range = request.msg.request_headers.get_one ("Range");
-
+        unowned string range_dtcp = request.msg.request_headers.get_one ("Range.dtcp.com");
+        string range_header_str = null;
         if (request.thumbnail != null) {
             total_length = request.thumbnail.size;
         } else if (request.subtitle != null) {
@@ -38,7 +39,18 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
         }
         var stop = total_length - 1;
 
-        if (range != null) {
+        if (range != null && range_dtcp != null)
+        {
+            // The return status code must be 406(not acceptable)
+            throw new HTTPRequestError.UNACCEPTABLE (_
+                  ("Invalid combination of Range and Range.dtcp.com"));
+        } else if (range != null) {
+            range_header_str = range;
+        } else if (range_dtcp != null) {
+            range_header_str = range_dtcp;
+        }
+
+        if (range_header_str != null) {
             if (request.msg.request_headers.get_ranges (total_length,
                                                         out ranges)) {
                 // TODO: Somehow deal with multipart/byterange properly
@@ -75,22 +87,23 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
     }
 
     public static bool requested (HTTPGet request) {
-        return request.msg.request_headers.get_one ("Range") != null;
+        return (request.msg.request_headers.get_one ("Range") != null
+                || request.msg.request_headers.get_one ("Range.dtcp.com") != null);
     }
 
     public override void add_response_headers () {
         // Content-Range: bytes START_BYTE-STOP_BYTE/TOTAL_LENGTH
         var range = "bytes ";
         unowned Soup.MessageHeaders headers = this.msg.response_headers;
+        headers.append ("Accept-Ranges", "bytes");
 
-        if (this.msg.request_headers.get_one ("Range") != null) {
-            headers.append ("Accept-Ranges", "bytes");
-
-            range += this.start.to_string () + "-" +
-                     this.stop.to_string () + "/" +
-                     this.total_length.to_string ();
+        range += this.start.to_string () + "-" +
+                 this.stop.to_string () + "/" +
+                 this.total_length.to_string ();
+        if (this.msg.request_headers.get_one ("Range") != null)
             headers.append ("Content-Range", range);
-        }
+        else if (this.msg.request_headers.get_one ("Range.dtcp.com") != null)
+            headers.append ("Content-Range.dtcp.com", range);
 
         headers.set_content_length (this.length);
     }
