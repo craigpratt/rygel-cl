@@ -20,8 +20,8 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
         this.media_resource_name = media_resource_name;
 
         media_resource = MediaResourceManager.get_default()
-                                  .get_resource_for_uri_and_name (media_item.uris.get (0),
-                                                                  media_resource_name);
+                                  .get_resource_for_source_uri_and_name (media_item.uris.get (0),
+                                                                         media_resource_name);
     }
 
     public override void add_response_headers (HTTPGet request)
@@ -41,8 +41,9 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
         try {
             DataSource src;
 
-            src = (request.object as MediaItem).create_stream_source
-                                        (request.http_server.context.host_ip);
+            src = (request.object as MediaItem).create_stream_source_for_resource
+                                        (request.http_server.context.host_ip,
+                                        this.media_resource);
 
             if (src == null) {
                 throw new HTTPRequestError.NOT_FOUND (_("Not found"));

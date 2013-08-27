@@ -98,8 +98,8 @@ internal class Rygel.HTTPIdentityHandler : Rygel.HTTPGetHandler {
         } else if (request.thumbnail != null) {
             src = engine.create_data_source_for_resource (request.thumbnail.uri, null);
         } else {
-            src = (request.object as MediaItem).create_stream_source
-                                        (request.http_server.context.host_ip);
+            src = (request.object as MediaItem).create_stream_source_for_resource
+                                        (request.http_server.context.host_ip, null);
         }
 
         if (src == null) {

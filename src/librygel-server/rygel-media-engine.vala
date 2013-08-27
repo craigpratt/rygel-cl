@@ -40,7 +40,7 @@ public errordomain Rygel.MediaEngineError {
  * media-engine=librygel-media-engine-gst.so
  *
  * Media engines should also derive their own #RygelDataSource,
- * returning an instance of it from create_data_source().
+ * returning an instance of it from create_data_source_for_resource().
  *
  * If this media engine supports transcoding then it will typically
  * implement a set of transcoding classes, typically with one 

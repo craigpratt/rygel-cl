@@ -42,8 +42,8 @@ public class Rygel.MediaResourceManager : GLib.Object {
     /**
      * Get the MediaResources the configured MediaEngine supports for the given URI.
      */
-    public Gee.List<MediaResource> get_resources_for_uri(string uri) {
-        message("MediaResourceManager.get_resources_for_uri: " + uri);
+    public Gee.List<MediaResource> get_resources_for_source_uri(string uri) {
+        message("MediaResourceManager.get_resources_for_source_uri: " + uri);
 
         Gee.List <MediaResource> resources;
 
@@ -52,12 +52,12 @@ public class Rygel.MediaResourceManager : GLib.Object {
         }
         else
         {
-            message("MediaResourceManager.get_resources_for_uri: Calling engine for resources");
+            message("MediaResourceManager.get_resources_for_source_uri: Calling engine for resources");
             var engine = MediaEngine.get_default();
             Gee.List<MediaResource> engine_resources;
             engine_resources = engine.get_resources_for_uri(uri);
             if (engine_resources == null) {
-                message("MediaResourceManager: No resources found for %s", uri);
+                message("MediaResourceManager.get_resources_for_source_uri: No resources found for %s", uri);
             }
             adapt_resources_for_delivery(engine_resources);
             resource_table.set(uri, engine_resources);
@@ -71,10 +71,10 @@ public class Rygel.MediaResourceManager : GLib.Object {
      * Get the MediaResource given URI with name resource_name or null if no resource
      * with the given name exists.
      */
-    public MediaResource ? get_resource_for_uri_and_name(string uri, string resource_name) {
-        message("MediaResourceManager.get_resources_for_uri_and_name(%s, %s)", uri, resource_name);
+    public MediaResource ? get_resource_for_source_uri_and_name(string uri, string resource_name) {
+        message("MediaResourceManager.get_resources_for_source_uri_and_name(%s, %s)", uri, resource_name);
 
-        Gee.List <MediaResource> resources = get_resources_for_uri(uri);
+        Gee.List <MediaResource> resources = get_resources_for_source_uri(uri);
 
         foreach (var resource in resources)
         {

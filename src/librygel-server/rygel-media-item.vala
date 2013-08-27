@@ -120,7 +120,8 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     // Live media items need to provide a nice working implementation of this
     // method if they can/do not provide a valid URI
-    public virtual DataSource? create_stream_source (string? host_ip = null) {
+    public virtual DataSource? create_stream_source_for_resource (string? host_ip = null,
+                                                                  MediaResource? resource) {
         if (this.uris.size == 0) {
             return null;
         }
@@ -135,7 +136,9 @@ public abstract class Rygel.MediaItem : MediaObject {
             }
         }
 
-        return MediaEngine.get_default ().create_data_source_for_resource (translated_uri, null);
+        media_resources = MediaResourceManager
+                          .get_default().get_resources_for_source_uri (this.uris.get (0));
+        return MediaEngine.get_default ().create_data_source_for_resource (translated_uri, resource);
     }
 
     public bool is_live_stream () {
@@ -147,7 +150,8 @@ public abstract class Rygel.MediaItem : MediaObject {
     public virtual void add_uri (string uri) {
         this.uris.add (uri);
         // The MediaItem isn't fully constructed until an URI is present
-        media_resources = MediaResourceManager.get_default().get_resources_for_uri (this.uris.get (0));
+        media_resources = MediaResourceManager
+                          .get_default().get_resources_for_source_uri (this.uris.get (0));
     }
 
     internal int compare_transcoders (Transcoder transcoder1,
