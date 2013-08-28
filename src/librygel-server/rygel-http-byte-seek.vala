@@ -101,9 +101,9 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
                  this.stop.to_string () + "/" +
                  this.total_length.to_string ();
         if (this.msg.request_headers.get_one ("Range") != null)
-            headers.append ("Content-Range", range);
+            headers.set_content_range(this.start, this.stop, this.total_length, false);
         else if (this.msg.request_headers.get_one ("Range.dtcp.com") != null)
-            headers.append ("Content-Range.dtcp.com", range);
+            headers.set_content_range(this.start, this.stop, this.total_length, true);
 
         headers.set_content_length (this.length);
     }
