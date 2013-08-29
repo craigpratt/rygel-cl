@@ -37,6 +37,7 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
         } else if (request.subtitle != null) {
             total_length = request.subtitle.size;
         } else {
+            // TODO : calculate cleartext length if the content is protected
             total_length = (request.object as MediaItem).size;
         }
         var stop = total_length - 1;
@@ -125,13 +126,15 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
         headers.append ("Accept-Ranges", "bytes");
         range_str += this.start.to_string () + "-" +
                  this.stop.to_string () + "/" +
-                 this.total_length.to_string ();
+                 this.total_length.to_string ();// TODO : calculate cleartext length
         if (this.msg.request_headers.get_one ("Range") != null) {
             headers.append("Content-Range", range_str);
             headers.set_content_length (this.length);
 		} else if (this.msg.request_headers.get_one
 		                                   ("Range.dtcp.com") != null) {
             headers.append("Content-Range.dtcp.com", range_str);
+            // TODO : calculate cleartext length, this can be done in the base class
+            // if start and stop bytes are calculated for cleartext size
             headers.set_content_length (this.length);
         }
     }
