@@ -4,8 +4,13 @@
 
 public class Rygel.RygelHTTPRequestUtil : Object {
     private static RygelHTTPRequestUtil util = null;
-    private static long PACKET_SIZE_188 = 188;
-    private static long PACKET_SIZE_192 = 192;
+    public const long PACKET_SIZE_188 = 188;
+    public const long PACKET_SIZE_192 = 192;
+    public const string dtcp_mime_prefix = "application/x-dtcp1";
+    public const string dtcp_host_str = "DTCP1HOST=";
+    public const string dtcp_port_str = "DTCP1PORT=";
+    public const string content_format_str = "CONTENTFORMAT=";
+    public const string dtcp_prefix = "DTCP_";
 
     private RygelHTTPRequestUtil() {
 
@@ -48,6 +53,54 @@ public class Rygel.RygelHTTPRequestUtil : Object {
 	    //TODO : Handle more mime types properly.
 	    // Returning packet size as 188 if other than above conditions.
 		return PACKET_SIZE_188;
+	}
+
+	 /**
+      * Modify mime type if the item is protected.
+      * This can call into a custom class that will have knowledge.
+      */
+    public static string handle_mime_item_protected (string mime_type) {
+        string dtcp_host;
+        string dtcp_port;
+
+        var config = MetaConfig.get_default();
+        try {
+            dtcp_host = config.get_string ("general","dtcp-host");
+            dtcp_port = config.get_string ("general", "dtcp-port");
+
+            if (dtcp_host != "" && dtcp_port != "") {
+                return dtcp_mime_prefix + ";" + dtcp_host_str + dtcp_host + ";" +
+                       dtcp_port_str + dtcp_port + ";" + content_format_str +
+                       mime_type;
+		    }
+        } catch (Error err) {
+            error ("Error reading dtcp host/port :" + err.message);
+        }
+
+        return mime_type;
+    }
+
+    /**
+     * Returns if dtcp is enabled Rygel wide,
+     * with DTCP (keys, host, port) values.
+     */
+    public static bool is_rygel_dtcp_enabled () {
+        var config = MetaConfig.get_default();
+	    bool dtcp_enabled = false;
+
+        try {
+            dtcp_enabled = config.get_bool ("general","dtcp-enabled");
+        } catch (Error err) {
+            error("Error reading dtcp enabled property :"+ err.message);
+        }
+        return dtcp_enabled;
+    }
+
+    /**
+     * Returns if the content is protected
+     */
+    public bool is_item_protected (MediaItem item){
+		return false;
 	}
 
 }

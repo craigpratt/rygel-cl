@@ -79,21 +79,8 @@ internal class Rygel.ODIDFakeTranscoder : Rygel.Transcoder
         */
         resource.size64 = item.size;
         var protocol_info = resource.protocol_info;
-
-        if (has_dtcp_enabled() && has_mediaengine_dtcp ()
-                           && is_item_protected (item)) {
-
-            protocol_info.mime_type = handle_mime_item_protected
-                                                (this.mime_type);
-            debug ("The new mime type is: "+protocol_info.mime_type);
-            protocol_info.dlna_profile = dtcp_prefix + this.dlna_profile;
-            debug ("The new dlna profile is: "+protocol_info.dlna_profile);
-
-            resource.cleartextSize = item.size;
-        } else {
-                protocol_info.mime_type = this.mime_type;
-                protocol_info.dlna_profile = this.dlna_profile;
-        }
+        protocol_info.mime_type = this.mime_type;
+        protocol_info.dlna_profile = this.dlna_profile;
 
         //message("protocol_info:" + protocol_info.to_string());
         protocol_info.dlna_conversion = DLNAConversion.NONE;
@@ -101,32 +88,6 @@ internal class Rygel.ODIDFakeTranscoder : Rygel.Transcoder
         protocol_info.dlna_operation = this.operation;
         
         return resource;
-    }
-
-    /**
-     * Check if the MediaItem is protected.
-     * TODO: This can call into a helper class that will have knowledge.
-     */
-    public override bool is_item_protected (MediaItem item) {
-		// Check has to be done in CCI bits to see if the content is protected.
-		// Or if there is knowledge about the metadata in a config, then it can
-		// be used to provide accurate information.
-        return false;
-    }
-
-    /**
-     * Returns if the media engine is capable of handling dtcp request
-     */
-    public override bool has_mediaengine_dtcp () {
-        var config = MetaConfig.get_default();
-        bool dtcp_supported = false;
-        try {
-            dtcp_supported = config.get_bool ("OdidMediaEngine","engine-dtcp");
-        } catch (Error err) {
-            error("Error reading dtcp property for media engine :" + err.message);
-        }
-
-        return dtcp_supported;
     }
     
     /**
