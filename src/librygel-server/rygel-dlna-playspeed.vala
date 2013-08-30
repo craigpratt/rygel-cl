@@ -18,7 +18,7 @@ public errordomain Rygel.DLNAPlaySpeedError {
 public class Rygel.DLNAPlaySpeed : GLib.Object {
     private int numerator; // Sign of the speed will be attached to the numerator
     private uint denominator;
-    public static string HTTP_HEADER = "PlaySpeed.dlna.org";
+    public static const string HTTP_HEADER = "PlaySpeed.dlna.org";
 
     public DLNAPlaySpeed (int numerator, uint denominator) {
         this.numerator = numerator;
@@ -30,7 +30,7 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
     }
 
     internal DLNAPlaySpeed.from_request (Rygel.HTTPRequest request) throws DLNAPlaySpeedError {
-        
+        // Format: PlaySpeed.dlna.org: speed=<rate>
         string speed_string = request.msg.request_headers.get_one (HTTP_HEADER);
 
         if (speed_string == null) {
@@ -59,7 +59,7 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
         if (this.denominator == 1) {
             return numerator.to_string();
         } else {
-            return @"$this.numerator/$this.denominator";
+            return this.numerator.to_string() + "/" + this.denominator.to_string();
         }
     }
 
@@ -94,7 +94,7 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
     }
     
     internal void add_response_headers (Rygel.HTTPRequest request) {
-        // PlaySpeed.dlna.org: rate
+        // Format: PlaySpeed.dlna.org: speed=<rate>
         request.msg.response_headers.append (HTTP_HEADER, "speed=" + this.to_string());
     }
 }
