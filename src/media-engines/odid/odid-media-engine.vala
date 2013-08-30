@@ -85,15 +85,20 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         // For now, we'll just hobble something together from the config file
         foreach (var config in config_entries) {
             message("get_resources_for_uri: processing profile " + config.profile);
+            // TODO : Must read the protected flag from config file and set DTCP_ prefix
             var res = new MediaResource("BOGUS_" + config.profile);
             res.duration = 10;
             res.size = 12345678;
             res.extension = config.extension;
 
             var protocol_info = new GUPnP.ProtocolInfo();
+            // TODO : Must read the protected flag from config file and set DTCP_ prefix
             protocol_info.dlna_profile = "BOGUS_" + config.profile;
             protocol_info.mime_type = config.mimetype;
             protocol_info.dlna_operation = DLNAOperation.RANGE;
+            // TODO : Must read the protected flag from config file and
+            // set protocolInfo similar to logic done in fake transcoder's
+            // handle_mime_item_protected method to fill in DTCP related protocolInfo
             res.protocol_info = protocol_info;
 
             resources.add(res);

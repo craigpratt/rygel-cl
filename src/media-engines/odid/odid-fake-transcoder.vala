@@ -108,7 +108,10 @@ internal class Rygel.ODIDFakeTranscoder : Rygel.Transcoder
      * TODO: This can call into a helper class that will have knowledge.
      */
     public override bool is_item_protected (MediaItem item) {
-        return true;
+		// Check has to be done in CCI bits to see if the content is protected.
+		// Or if there is knowledge about the metadata in a config, then it can
+		// be used to provide accurate information.
+        return false;
     }
 
     /**
