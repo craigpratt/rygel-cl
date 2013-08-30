@@ -5,6 +5,7 @@
  */
 
 using GUPnP;
+using Gee;
 
 /**
  * Represents a media resource (Music, Video, Image, etc).
@@ -33,6 +34,20 @@ public class Rygel.MediaResource : GLib.Object {
     public string get_name()
     {
         return this.name;
+    }
+
+    private HashMap<string,string> property_table = new HashMap<string,string>();
+
+    public void set_custom_property(string ? name, string ? value) {
+        property_table.set(name,value);
+    }
+
+    public string get_custom_property(string ? name) {
+        return property_table.get(name);
+    }
+
+    public Set get_custom_property_names() {
+        return property_table.keys;
     }
 
     public void apply_didl_lite (DIDLLiteResource didl_resource) {
