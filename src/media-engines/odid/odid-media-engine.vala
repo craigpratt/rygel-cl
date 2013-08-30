@@ -113,8 +113,16 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             return null;
         }
 
-        message("creating data source for " + uri);
-        return new ODIDDataSource(uri);
+        message("create_data_source_for_resource: creating data source for " + uri);
+        if (resource == null) {
+            message("create_data_source_for_resource: null resource");
+        } else {
+            message("create_data_source_for_resource: size %lld", resource.size);
+            message("create_data_source_for_resource: duration %lld", resource.duration);
+            message("create_data_source_for_resource: protocol_info " + resource.protocol_info.to_string());
+            message("create_data_source_for_resource: profile " + resource.protocol_info.dlna_profile);
+        }
+        return new ODIDDataSource(uri, resource);
     }
 }
 

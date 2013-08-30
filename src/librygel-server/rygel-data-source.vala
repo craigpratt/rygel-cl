@@ -22,7 +22,8 @@
 
 public errordomain Rygel.DataSourceError {
     GENERAL,
-    SEEK_FAILED
+    SEEK_FAILED,
+    PLAYSPEED_FAILED
 }
 
 /**
@@ -61,11 +62,13 @@ public interface Rygel.DataSource : GLib.Object {
      * Start producing the data.
      *
      * @param offsets optional limits of the stream for partial streaming
+     * @param playspeed optional playback rate for the stream
      * @throws Error if anything goes wrong while starting the stream. Throws
      * DataSourceError.SEEK_FAILED if a seek method is not supported or the
-     * range is not fulfillable.
+     * range is not fulfillable. Throws PLAYSPEED_FAILED if the rate is not
+     * supported or fulfillable.
      */
-    public abstract void start (HTTPSeek? offsets) throws Error;
+    public abstract void start (HTTPSeek? offsets, DLNAPlaySpeed? playspeed) throws Error;
 
     /**
      * Temporarily stop data generation.
