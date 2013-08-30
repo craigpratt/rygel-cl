@@ -158,6 +158,7 @@ internal class Rygel.HTTPGet : HTTPRequest {
             if (need_time_seek && requested_time_seek) {
                 this.seek = new HTTPTimeSeek (this);
             } else if (need_byte_seek && requested_byte_seek) {
+                //this.seek = new HTTPByteSeek.URI (this,this.uri.media_resource_name);
                 this.seek = new HTTPByteSeek (this);
             }
             else

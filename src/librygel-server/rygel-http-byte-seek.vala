@@ -23,7 +23,10 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+using GUPnP;
+
 internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
+
     public HTTPByteSeek (HTTPGet request) throws HTTPSeekError, HTTPRequestError {
         Soup.Range[] ranges;
         int64 start = 0, total_length;
@@ -64,7 +67,18 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
         } else if (range_dtcp != null) {
             range_header_str = range_dtcp;
 
-            parsed_headers = parseDtcpRangeHeader (range_header_str);
+            if (!check_flag (request, DLNAFlags.LINK_PROTECTED_CONTENT)) {
+					throw new HTTPSeekError.INVALID_RANGE (_
+							  ("Invalid Range.dtcp.com '%s'"), range_header_str);
+			}
+
+            if (!check_flag (request, DLNAFlags.CLEARTEXT_BYTESEEK_FULL) ||
+                !check_flag (request, DLNAFlags.LOP_CLEARTEXT_BYTESEEK)) {
+					throw new HTTPSeekError.INVALID_RANGE (_
+							  ("Invalid Range.dtcp.com '%s'"), range_header_str);
+			}
+
+            parsed_headers = parse_dtcp_range_header (range_header_str);
             if (parsed_headers.length == 2) {
 		        debug ("Parsed Start , Stop value :  %s , %s", parsed_headers[0], parsed_headers[1]);
                 // Start byte must be present and non empty string
@@ -139,7 +153,19 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
         }
     }
 
-    private static string[] parseDtcpRangeHeader (string range_header) {
+    private static bool check_flag (HTTPGet request, int flag) {
+        MediaResource media_resource = MediaResourceManager.get_default()
+                                  .get_resource_for_source_uri_and_name
+                                   ((request.object as MediaItem).uris.get (0), request.uri.media_resource_name);
+        GUPnP.ProtocolInfo protocol_info = media_resource.protocol_info;
+        long flag_value = long.parse("%08d".printf (protocol_info.dlna_flags));
+        if((flag_value & flag) == flag)
+           return true;
+
+        return false;
+	}
+
+    private static string[] parse_dtcp_range_header (string range_header) {
         string[] range_tokens = null;
 		if (!range_header.has_prefix ("bytes=")) {
 			return range_tokens;

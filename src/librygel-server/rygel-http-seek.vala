@@ -80,6 +80,11 @@ public abstract class Rygel.HTTPSeek : GLib.Object {
      */
     public int64 total_length { get; private set; }
 
+    /**
+     * The resource name which has been requested as string.
+     */
+    public string resource_name { get; protected set;}
+
     public HTTPSeek (Soup.Message msg,
                      int64        start,
                      int64        stop,
