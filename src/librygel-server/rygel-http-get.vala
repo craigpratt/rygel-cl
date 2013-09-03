@@ -180,10 +180,17 @@ internal class Rygel.HTTPGet : HTTPRequest {
         }
 
         // Check for DLNA PlaySpeed request
-        if (DLNAPlaySpeed.requested(this)) {
-            this.speed = new DLNAPlaySpeed.from_request(this);
+        try {
+            if (DLNAPlaySpeed.requested(this)) {
+                this.speed = new DLNAPlaySpeed.from_request(this);
 
-            this.speed.add_response_headers(this);
+                this.speed.add_response_headers(this);
+            }
+        } catch (DLNAPlaySpeedError error) {
+            if (error is DLNAPlaySpeedError.INVALID_SPEED_FORMAT) {
+                this.end (Soup.KnownStatusCode.BAD_REQUEST);
+                // Per DLNA 7.5.4.3.3.16.3
+            }
         }
 
         // Add headers
