@@ -165,7 +165,7 @@ internal class Rygel.HTTPPlaylistHandler : Rygel.HTTPGetHandler {
         var protocol = request.http_server.get_protocol ();
 
         try {
-            return request.object.add_resource (didl_object, null, protocol);
+            return request.object.add_resource (didl_object, null, protocol, new MediaResource("dummy"));
         } catch (Error error) {
             return null as DIDLLiteResource;
         }

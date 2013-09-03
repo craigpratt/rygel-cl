@@ -27,7 +27,7 @@ internal class Rygel.ODID.DummyContainer : TrackableDbContainer {
                            MediaContainer parent) {
         var cache = MediaCache.get_default ();
 
-        base (MediaCache.get_id (file), file.get_basename ());
+        base (MediaCache.get_id (file.get_uri ()), file.get_basename ());
 
         uint32 object_update_id, container_update_id, total_deleted_child_count;
         this.media_db.get_track_properties (this.id,
@@ -51,6 +51,6 @@ internal class Rygel.ODID.DummyContainer : TrackableDbContainer {
     }
 
     public void seen (File file) {
-        this.children.remove (MediaCache.get_id (file));
+        this.children.remove (MediaCache.get_id (file.get_uri ()));
     }
 }

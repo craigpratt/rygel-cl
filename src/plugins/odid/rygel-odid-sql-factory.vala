@@ -27,8 +27,8 @@ internal enum Rygel.ODID.DetailColumn {
     MIME_TYPE,
     WIDTH,
     HEIGHT,
-    CLASS,
-    CREATOR,
+	CLASS,
+	CREATOR,
     AUTHOR,
     ALBUM,
     DATE,
@@ -46,7 +46,21 @@ internal enum Rygel.ODID.DetailColumn {
     DLNA_PROFILE,
     GENRE,
     DISC,
-	RESOURCE_URI,
+	NAME,
+    OBJECT_UPDATE_ID,
+    DELETED_CHILD_COUNT,
+    CONTAINER_UPDATE_ID,
+    REFERENCE_ID
+}
+
+internal enum Rygel.ODID.ObjectColumn {
+    TYPE,
+    TITLE,
+    ID,
+    PARENT,
+	CLASS,
+    TIMESTAMP,
+    URI,
     OBJECT_UPDATE_ID,
     DELETED_CHILD_COUNT,
     CONTAINER_UPDATE_ID,
@@ -90,7 +104,7 @@ internal class Rygel.ODID.SQLFactory : Object {
          "author, album, date, bitrate, " +
          "sample_freq, bits_per_sample, channels, " +
          "track, color_depth, duration, object_fk, " +
-         "dlna_profile, genre, disc, resource_uri, creator) VALUES " +
+         "dlna_profile, genre, disc, name, creator) VALUES " +
          "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private const string INSERT_OBJECT_STRING =
@@ -120,11 +134,16 @@ internal class Rygel.ODID.SQLFactory : Object {
     "m.height, m.class, m.creator, m.author, m.album, m.date, m.bitrate, " +
     "m.sample_freq, m.bits_per_sample, m.channels, m.track, " +
     "m.color_depth, m.duration, o.upnp_id, o.parent, o.timestamp, " +
-    "o.uri, m.dlna_profile, m.genre, m.disc, m.resource_uri, o.object_update_id, " +
+    "o.uri, m.dlna_profile, m.genre, m.disc, m.name, o.object_update_id, " +
+    "o.deleted_child_count, o.container_update_id, o.reference_id ";
+
+    private const string ALL_OBJECT_STRING =
+    "o.type_fk, o.title, o.upnp_id, o.parent, m.class, o.timestamp, " +
+    "o.uri, o.object_update_id, " +
     "o.deleted_child_count, o.container_update_id, o.reference_id ";
 
     private const string GET_OBJECT_WITH_PATH =
-    "SELECT DISTINCT " + ALL_DETAILS_STRING +
+    "SELECT DISTINCT " + ALL_OBJECT_STRING +
     "FROM Object o " +
         "JOIN Closure c ON (o.upnp_id = c.ancestor) " +
         "LEFT OUTER JOIN meta_data m ON (o.upnp_id = m.object_fk) " +
@@ -141,7 +160,7 @@ internal class Rygel.ODID.SQLFactory : Object {
      *   - and after that alphabetically
      */
     private const string GET_CHILDREN_STRING =
-    "SELECT " + ALL_DETAILS_STRING +
+    "SELECT " + ALL_OBJECT_STRING +
     "FROM Object o " +
         "JOIN Closure c ON (o.upnp_id = c.descendant) " +
         "LEFT OUTER JOIN meta_data m " +
@@ -150,7 +169,7 @@ internal class Rygel.ODID.SQLFactory : Object {
     "LIMIT ?,?";
 
     private const string GET_OBJECTS_BY_FILTER_STRING_WITH_ANCESTOR =
-    "SELECT DISTINCT " + ALL_DETAILS_STRING +
+    "SELECT DISTINCT " + ALL_OBJECT_STRING +
     "FROM Object o " +
         "JOIN Closure c ON o.upnp_id = c.descendant AND c.ancestor = ? " +
         "LEFT OUTER JOIN meta_data m " +
@@ -158,7 +177,7 @@ internal class Rygel.ODID.SQLFactory : Object {
     "LIMIT ?,?";
 
     private const string GET_OBJECTS_BY_FILTER_STRING =
-    "SELECT DISTINCT " + ALL_DETAILS_STRING +
+    "SELECT DISTINCT " + ALL_OBJECT_STRING +
     "FROM Object o " +
         "LEFT OUTER JOIN meta_data m " +
             "ON o.upnp_id = m.object_fk %s %s " +
@@ -189,7 +208,7 @@ internal class Rygel.ODID.SQLFactory : Object {
         "WHERE _column IS NOT NULL %s ORDER BY _column COLLATE CASEFOLD " +
     "LIMIT ?,?";
 
-    internal const string SCHEMA_VERSION = "16";
+    internal const string SCHEMA_VERSION = "1";
     internal const string CREATE_META_DATA_TABLE_STRING =
     "CREATE TABLE meta_data (size INTEGER NOT NULL, " +
                             "mime_type TEXT NOT NULL, " +
@@ -209,11 +228,12 @@ internal class Rygel.ODID.SQLFactory : Object {
                             "channels INTEGER, " +
                             "track INTEGER, " +
                             "disc INTEGER, " +
-							"resource_uri TEXT PRIMARY KEY, " +
+							"name TEXT NOT NULL, " +
                             "color_depth INTEGER, " +
                             "object_fk TEXT CONSTRAINT " +
                                 "object_fk_id REFERENCES Object(upnp_id) " +
-                                    "ON DELETE CASCADE);";
+                                    "ON DELETE CASCADE,  " +
+                             "PRIMARY KEY (name, object_fk));";
 
     private const string SCHEMA_STRING =
     "CREATE TABLE schema_info (version TEXT NOT NULL, " +

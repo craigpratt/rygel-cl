@@ -85,7 +85,7 @@ internal class Rygel.HTTPIdentityHandler : Rygel.HTTPGetHandler {
             return request.thumbnail.add_resource (didl_object as DIDLLiteItem,
                                                    protocol);
         } else {
-            return request.object.add_resource (didl_object, null, protocol);
+            return request.object.add_resource (didl_object, null, protocol, new MediaResource("dummy"));
         }
     }
 

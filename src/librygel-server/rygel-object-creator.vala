@@ -355,6 +355,7 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
     private async WritableContainer fetch_container () throws Error {
         MediaObject media_object = null;
 
+		message("Fetch container");
         if (this.container_id == MediaContainer.ANY) {
             media_object = yield this.find_any_container ();
         } else {

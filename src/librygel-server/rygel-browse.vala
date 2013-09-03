@@ -79,7 +79,7 @@ internal class Rygel.Browse: Rygel.MediaQueryAction {
     private MediaObjects handle_metadata_request (MediaObject media_object)
                                                   throws Error {
         this.total_matches = 1;
-
+		
         var results = new MediaObjects ();
         results.add (media_object);
 
@@ -94,6 +94,7 @@ internal class Rygel.Browse: Rygel.MediaQueryAction {
                                         (_("Cannot browse children on item"));
         }
 
+		message ("handle_children_request");
         var container = (MediaContainer) media_object;
         if (container.child_count < int.MAX) {
             this.total_matches = container.child_count;

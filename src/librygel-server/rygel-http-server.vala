@@ -58,35 +58,35 @@ internal class Rygel.HTTPServer : Rygel.TranscodeManager, Rygel.StateMachine {
         }
     }
 
-    internal void add_proxy_resource (DIDLLiteItem didl_item,
-                                      MediaItem    item)
-                                      throws Error {
-        if (this.http_uri_present (item)) {
-            return;
-        }
+    // internal void add_proxy_resource (DIDLLiteItem didl_item,
+    //                                   MediaItem    item)
+    //                                   throws Error {
+    //     if (this.http_uri_present (item)) {
+    //         return;
+    //     }
 
-        var uri = this.create_uri_for_item (item, -1, -1, null, null, null);
+    //     var uri = this.create_uri_for_item (item, -1, -1, null, null, null);
 
-        item.add_resource (didl_item, uri, this.get_protocol (), uri);
-    }
+    //     item.add_resource (didl_item, uri, this.get_protocol (), uri);
+    // }
 
     public bool need_proxy (string uri) {
         return Uri.parse_scheme (uri) != "http";
     }
 
-    private bool http_uri_present (MediaItem item) {
-        bool present = false;
+    // private bool http_uri_present (MediaItem item) {
+    //     bool present = false;
 
-        foreach (var uri in item.uris) {
-            if (!this.need_proxy (uri)) {
-                present = true;
+    //     foreach (var uri in item.uris) {
+    //         if (!this.need_proxy (uri)) {
+    //             present = true;
 
-                break;
-            }
-        }
+    //             break;
+    //         }
+    //     }
 
-        return present;
-    }
+    //     return present;
+    // }
 
     private void on_cancelled (Cancellable cancellable) {
         // Cancel all state machines

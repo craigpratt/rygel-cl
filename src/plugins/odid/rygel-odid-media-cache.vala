@@ -74,9 +74,8 @@ public class Rygel.ODID.MediaCache : Object {
     }
 
     // Public static functions
-    public static string get_id (File file) {
-        return Checksum.compute_for_string (ChecksumType.MD5,
-                                            file.get_uri ());
+    public static string get_id (string uri) {
+        return Checksum.compute_for_string (ChecksumType.MD5, uri);
     }
 
     public static void ensure_exists () throws Error {
@@ -256,6 +255,7 @@ public class Rygel.ODID.MediaCache : Object {
                                 max_count };
 
         var sql = this.sql.make (SQLString.GET_CHILDREN);
+
         var sort_order = MediaCache.translate_sort_criteria (sort_criteria);
         var cursor = this.db.exec_cursor (sql.printf (sort_order), values);
 
@@ -377,7 +377,7 @@ public class Rygel.ODID.MediaCache : Object {
         var cursor = this.db.exec_cursor (sql.printf (filter, sort_order),
                                           args.values);
         foreach (var statement in cursor) {
-            unowned string parent_id = statement.column_text (DetailColumn.PARENT);
+            unowned string parent_id = statement.column_text (ObjectColumn.PARENT);
 
             if (parent == null || parent_id != parent.id) {
                 if (parent_id == null) {
@@ -394,7 +394,7 @@ public class Rygel.ODID.MediaCache : Object {
             } else {
                 warning ("Inconsistent database: item %s " +
                          "has no parent %s",
-                         statement.column_text (DetailColumn.ID),
+                         statement.column_text (ObjectColumn.ID),
                          parent_id);
             }
         }
@@ -635,63 +635,44 @@ public class Rygel.ODID.MediaCache : Object {
     }
 
     private void save_metadata (Rygel.MediaItem item) throws Error {
-        // Fill common properties
-        GLib.Value[] values = { item.size,
-                                item.mime_type,
-                                -1,
-                                -1,
-                                item.upnp_class,
-                                Database.null (),
-                                Database.null (),
-                                item.date,
-                                -1,
-                                -1,
-                                -1,
-                                -1,
-                                -1,
-                                -1,
-                                -1,
-                                item.id,
-                                item.dlna_profile,
-                                Database.null (),
-                                -1,
-                                item.creator};
+		foreach (MediaResource resource in item.media_resources)
+		{
+			// Fill common properties
+			GLib.Value[] values = { resource.size,
+									resource.protocol_info.mime_type,
+									-1,
+									-1,
+									item.upnp_class,
+									Database.null (),
+									Database.null (),
+									item.date,
+									-1,
+									-1,
+									-1,
+									-1,
+									-1,
+									-1,
+									-1,
+									item.id,
+									resource.protocol_info.dlna_profile,
+									Database.null (),
+									-1,
+									item.creator};
+									
 
-        if (item is AudioItem) {
-            var audio_item = item as AudioItem;
-            values[14] = audio_item.duration;
-            values[8] = audio_item.bitrate;
-            values[9] = audio_item.sample_freq;
-            values[10] = audio_item.bits_per_sample;
-            values[11] = audio_item.channels;
-            if (item is MusicItem) {
-                var music_item = item as MusicItem;
-                values[5] = music_item.artist;
-                values[6] = music_item.album;
-                values[17] = music_item.genre;
-                values[12] = music_item.track_number;
-                values[18] = music_item.disc;
-            }
-        }
+				
+			values[2] = resource.width;
+			values[3] = resource.height;
+			values[8] = resource.bitrate;
+			values[9] = resource.sample_freq;
+			values[10] = resource.bits_per_sample;
+			values[11] = resource.audio_channels;
+			values[13] = resource.color_depth;
+			values[14] = resource.duration;
+			values[19] = resource.get_name ();
 
-        if (item is VisualItem) {
-            var visual_item = item as VisualItem;
-            values[2] = visual_item.width;
-            values[3] = visual_item.height;
-            values[13] = visual_item.color_depth;
-            if (item is VideoItem) {
-                var video_item = item as VideoItem;
-                values[5] = video_item.author;
-            }
-        }
-
-        if (item is PlaylistItem) {
-            var playlist_item = item as PlaylistItem;
-
-            values[5] = playlist_item.creator;
-        }
-
-        this.db.exec (this.sql.make (SQLString.SAVE_METADATA), values);
+			this.db.exec (this.sql.make (SQLString.SAVE_METADATA), values);
+		}
     }
 
     private void update_guarded_object (MediaObject object) throws Error {
@@ -818,51 +799,52 @@ public class Rygel.ODID.MediaCache : Object {
     private MediaObject? get_object_from_statement (MediaContainer? parent,
                                                     Statement       statement) {
         MediaObject object = null;
-        unowned string title = statement.column_text (DetailColumn.TITLE);
-        unowned string object_id = statement.column_text (DetailColumn.ID);
-        unowned string uri = statement.column_text (DetailColumn.URI);
+        unowned string title = statement.column_text (ObjectColumn.TITLE);
+        unowned string object_id = statement.column_text (ObjectColumn.ID);
+        unowned string uri = statement.column_text (ObjectColumn.URI);
 
-        switch (statement.column_int (DetailColumn.TYPE)) {
+        switch (statement.column_int (ObjectColumn.TYPE)) {
             case 0:
                 // this is a container
                 object = factory.get_container (object_id, title, 0, uri);
-
                 var container = object as MediaContainer;
                 if (uri != null) {
                     container.uris.add (uri);
                 }
                 container.total_deleted_child_count = (uint32) statement.column_int64
-                                        (DetailColumn.DELETED_CHILD_COUNT);
+                                        (ObjectColumn.DELETED_CHILD_COUNT);
                 container.update_id = (uint) statement.column_int64
-                                        (DetailColumn.CONTAINER_UPDATE_ID);
+                                        (ObjectColumn.CONTAINER_UPDATE_ID);
                 break;
             case 1:
                 // this is an item
                 unowned string upnp_class = statement.column_text
-                                        (DetailColumn.CLASS);
+                                        (ObjectColumn.CLASS);
                 object = factory.get_item (parent,
                                            object_id,
                                            title,
                                            upnp_class);
-                fill_item (statement, object as MediaItem);
 
                 if (uri != null) {
                     (object as MediaItem).add_uri (uri);
                 }
+
+                fill_item (statement, object as MediaItem);
+
                 break;
             default:
                 assert_not_reached ();
         }
 
         if (object != null) {
-            object.modified = statement.column_int64 (DetailColumn.TIMESTAMP);
+            object.modified = statement.column_int64 (ObjectColumn.TIMESTAMP);
             if (object.modified  == int64.MAX && object is MediaItem) {
                 object.modified = 0;
                 (object as MediaItem).place_holder = true;
             }
             object.object_update_id = (uint) statement.column_int64
-                                        (DetailColumn.OBJECT_UPDATE_ID);
-            object.ref_id = statement.column_text (DetailColumn.REFERENCE_ID);
+                                        (ObjectColumn.OBJECT_UPDATE_ID);
+            object.ref_id = statement.column_text (ObjectColumn.REFERENCE_ID);
         }
 
         return object;
@@ -870,40 +852,9 @@ public class Rygel.ODID.MediaCache : Object {
 
     private void fill_item (Statement statement, MediaItem item) {
         // Fill common properties
-        item.date = statement.column_text (DetailColumn.DATE);
-        item.mime_type = statement.column_text (DetailColumn.MIME_TYPE);
-        item.dlna_profile = statement.column_text (DetailColumn.DLNA_PROFILE);
-        item.size = statement.column_int64 (DetailColumn.SIZE);
-        item.creator = statement.column_text (DetailColumn.CREATOR);
+        //item.date = statement.column_text (DetailColumn.DATE);
 
-        if (item is AudioItem) {
-            var audio_item = item as AudioItem;
-            audio_item.duration = (long) statement.column_int64
-                                        (DetailColumn.DURATION);
-            audio_item.bitrate = statement.column_int (DetailColumn.BITRATE);
-            audio_item.sample_freq = statement.column_int
-                                        (DetailColumn.SAMPLE_FREQ);
-            audio_item.bits_per_sample = statement.column_int
-                                        (DetailColumn.BITS_PER_SAMPLE);
-            audio_item.channels = statement.column_int (DetailColumn.CHANNELS);
-            if (item is MusicItem) {
-                var music_item = item as MusicItem;
-                music_item.artist = statement.column_text (DetailColumn.AUTHOR);
-                music_item.album = statement.column_text (DetailColumn.ALBUM);
-                music_item.genre = statement.column_text (DetailColumn.GENRE);
-                music_item.track_number = statement.column_int
-                                        (DetailColumn.TRACK);
-                music_item.lookup_album_art ();
-            }
-        }
-
-        if (item is VisualItem) {
-            var visual_item = item as VisualItem;
-            visual_item.width = statement.column_int (DetailColumn.WIDTH);
-            visual_item.height = statement.column_int (DetailColumn.HEIGHT);
-            visual_item.color_depth = statement.column_int
-                                        (DetailColumn.COLOR_DEPTH);
-        }
+		item.media_resources = MediaEngine.get_default ().get_resources_for_uri (item.uris[0]);
     }
 
     private static string translate_search_expression

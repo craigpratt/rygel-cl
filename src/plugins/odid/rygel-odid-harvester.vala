@@ -169,7 +169,7 @@ internal class Rygel.ODID.Harvester : GLib.Object {
                                         this.cancellable);
             if (info.get_file_type () == FileType.DIRECTORY ||
                 Harvester.is_eligible (info)) {
-                var id = MediaCache.get_id (file.get_parent ());
+                var id = MediaCache.get_id (file.get_parent ().get_uri ());
                 try {
                     var parent_container = cache.get_object (id)
                                         as MediaContainer;
@@ -201,7 +201,7 @@ internal class Rygel.ODID.Harvester : GLib.Object {
             // the full object is fetched instead of simply calling
             // exists because we need the parent to signal the
             // change
-            var id = MediaCache.get_id (file);
+            var id = MediaCache.get_id (file.get_uri ());
             var object = cache.get_object (id);
             var parent = null as MediaContainer;
 
