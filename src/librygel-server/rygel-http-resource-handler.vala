@@ -10,7 +10,7 @@ using GUPnP;
 internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
     private MediaItem media_item;
     private string media_resource_name;
-    private MediaResource media_resource;
+    public MediaResource media_resource;
 
     public HTTPMediaResourceHandler (MediaItem media_item,
                                      string media_resource_name,

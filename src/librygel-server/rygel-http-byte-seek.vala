@@ -82,6 +82,9 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
 
         return force_seek
                || (!(request.object is MediaContainer) && (request.object as MediaItem).size > 0)
+               || ( request.handler is HTTPMediaResourceHandler
+                    && (request.handler as HTTPMediaResourceHandler)
+                       .media_resource.supports_arbitrary_byte_seek() )
                || (request.thumbnail != null && request.thumbnail.size > 0)
                || (request.subtitle != null && request.subtitle.size > 0);
     }

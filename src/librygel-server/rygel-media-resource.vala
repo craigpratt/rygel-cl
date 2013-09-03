@@ -84,4 +84,29 @@ public class Rygel.MediaResource : GLib.Object {
         
         return didl_resource;
     }
+
+    public bool supports_arbitrary_byte_seek() {
+        bool supported = ((this.protocol_info.dlna_operation & DLNAOperation.RANGE) != 0);
+        return supported;
+    }
+
+    public bool supports_arbitrary_time_seek() {
+        bool supported = ((this.protocol_info.dlna_operation & DLNAOperation.TIMESEEK) != 0);
+        return supported;
+    }
+    
+    public bool supports_limited_byte_seek() {
+        // TODO: Look at LOP params
+        return false;
+    }
+    
+    public bool supports_limited_time_seek() {
+        // TODO: Look at LOP params
+        return false;
+    }
+    
+    public bool supports_playspeed() {
+        return (this.protocol_info.play_speeds.length > 0);
+    }
+    
 }
