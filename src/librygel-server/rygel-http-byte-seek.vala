@@ -72,13 +72,13 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
 							  ("Invalid Range.dtcp.com '%s'"), range_header_str);
 			}
 
-            if (!check_flag (request, DLNAFlags.CLEARTEXT_BYTESEEK_FULL) ||
-                !check_flag (request, DLNAFlags.LOP_CLEARTEXT_BYTESEEK)) {
+            if (!is_cleartext_range_supported(request)) {
 					throw new HTTPSeekError.INVALID_RANGE (_
 							  ("Invalid Range.dtcp.com '%s'"), range_header_str);
 			}
 
             parsed_headers = parse_dtcp_range_header (range_header_str);
+
             if (parsed_headers.length == 2) {
 		        debug ("Parsed Start , Stop value :  %s , %s", parsed_headers[0], parsed_headers[1]);
                 // Start byte must be present and non empty string
@@ -156,7 +156,12 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
         }
     }
 
-    private static bool check_flag (HTTPGet request, int flag) {
+    private static bool is_cleartext_range_supported (HTTPGet request) {
+        return (check_flag (request, DLNAFlags.CLEARTEXT_BYTESEEK_FULL) ||
+                check_flag (request, DLNAFlags.LOP_CLEARTEXT_BYTESEEK));
+    }
+
+    private static bool check_flag (HTTPGet request, long flag) {
         MediaResource media_resource = MediaResourceManager.get_default()
                                   .get_resource_for_source_uri_and_name
                                    ((request.object as MediaItem).uris.get (0), request.uri.media_resource_name);
