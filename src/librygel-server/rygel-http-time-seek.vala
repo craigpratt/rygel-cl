@@ -97,12 +97,16 @@ internal class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
             force_seek = hack.force_seek ();
         } catch (Error error) { }
 
-        return force_seek || (request.object is AudioItem &&
-               (request.object as AudioItem).duration > 0 &&
-               (request.handler is HTTPTranscodeHandler ||
-                (request.thumbnail == null &&
-                 request.subtitle == null &&
-                 (request.object as MediaItem).is_live_stream ())));
+        return force_seek
+               || ( request.object is AudioItem
+                    && (request.object as AudioItem).duration > 0
+                    && ( request.handler is HTTPTranscodeHandler
+                         || ( request.handler is HTTPMediaResourceHandler
+                              && (request.handler as HTTPMediaResourceHandler)
+                                 .media_resource.supports_arbitrary_time_seek() )
+                         || ( request.thumbnail == null
+                              && request.subtitle == null
+                              && (request.object as MediaItem).is_live_stream () ) ) );
     }
 
     public static bool requested (HTTPGet request) {

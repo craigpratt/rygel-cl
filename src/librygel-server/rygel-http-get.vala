@@ -34,6 +34,7 @@ internal class Rygel.HTTPGet : HTTPRequest {
     public Thumbnail thumbnail;
     public Subtitle subtitle;
     public HTTPSeek seek;
+    public DLNAPlaySpeed speed;
 
     private int thumbnail_index;
     private int subtitle_index;
@@ -177,6 +178,20 @@ internal class Rygel.HTTPGet : HTTPRequest {
             }
 
             return;
+        }
+
+        // Check for DLNA PlaySpeed request
+        try {
+            if (DLNAPlaySpeed.requested(this)) {
+                this.speed = new DLNAPlaySpeed.from_request(this);
+
+                this.speed.add_response_headers(this);
+            }
+        } catch (DLNAPlaySpeedError error) {
+            if (error is DLNAPlaySpeedError.INVALID_SPEED_FORMAT) {
+                this.end (Soup.KnownStatusCode.BAD_REQUEST);
+                // Per DLNA 7.5.4.3.3.16.3
+            }
         }
 
         // Add headers

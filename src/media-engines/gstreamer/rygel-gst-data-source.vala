@@ -56,7 +56,12 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
         this.src = element;
     }
 
-    public void start (HTTPSeek? offsets) throws Error {
+    public void start (HTTPSeek? offsets, DLNAPlaySpeed? rate) throws Error {
+        if (rate != null) {
+            throw new DataSourceError.PLAYSPEED_FAILED
+                                    (_("Playspeed not supported"));
+        }
+
         this.seek = offsets;
         this.prepare_pipeline ("RygelGstDataSource", this.src);
         if (this.seek != null) {

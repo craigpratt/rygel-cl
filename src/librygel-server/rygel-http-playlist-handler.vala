@@ -44,16 +44,21 @@ internal class Rygel.PlaylistDatasource : Rygel.DataSource, Object {
 
     public signal void data_ready ();
 
-    public void start (HTTPSeek? offsets) throws Error {
+    public void start (HTTPSeek? offsets, DLNAPlaySpeed? playspeed) throws Error {
         if (offsets != null) {
             throw new DataSourceError.SEEK_FAILED
                                         (_("Seeking not supported"));
         }
 
+        if (playspeed != null) {
+            throw new DataSourceError.PLAYSPEED_FAILED
+                                    (_("Speed not supported"));
+        }
+
         if (this.data == null) {
             this.data_ready.connect ( () => {
                 try {
-                    this.start (offsets);
+                    this.start (offsets, playspeed);
                 } catch (Error error) { }
             });
 

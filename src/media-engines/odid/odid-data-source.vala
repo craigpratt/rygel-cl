@@ -21,10 +21,12 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     private bool frozen = false;
     private bool stop_thread = false;
     private HTTPSeek offsets = null;
+    private MediaResource res;
 
-    public ODIDDataSource(string uri) {
+    public ODIDDataSource(string uri, MediaResource ? res) {
         message ("Creating a data source for URI %s", uri);
         this.uri = uri;
+        this.res = res;
     }
 
     ~ODIDDataSource() {
@@ -32,7 +34,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         message ("Stopped data source");
     }
 
-    public void start (HTTPSeek? offsets) throws Error {
+    public void start (HTTPSeek? offsets, DLNAPlaySpeed? playspeed) throws Error {
         if (offsets != null) {
             if (offsets.seek_type == HTTPSeekType.TIME) {
                 throw new DataSourceError.SEEK_FAILED
@@ -42,6 +44,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         }
 
         this.offsets = offsets;
+
+        if (playspeed == null) {
+            message ("ODIDDataSource.start: Received null playspeed");
+        } else {
+            message ("ODIDDataSource.start: Received playspeed " + playspeed.to_string()
+                     + " (" + playspeed.to_float().to_string() + ")");
+        }
 
         message ("Starting data source for uri %s", this.uri);
 

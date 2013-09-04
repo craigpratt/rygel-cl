@@ -49,13 +49,18 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
         this.stop ();
     }
 
-    public void start (HTTPSeek? offsets) throws Error {
+    public void start (HTTPSeek? offsets, DLNAPlaySpeed? rate) throws Error {
         if (offsets != null) {
             if (offsets.seek_type == HTTPSeekType.TIME) {
                 throw new DataSourceError.SEEK_FAILED
                                         (_("Time-based seek not supported"));
 
             }
+        }
+
+        if (rate != null) {
+            throw new DataSourceError.PLAYSPEED_FAILED
+                                    (_("Playspeed not supported"));
         }
 
         this.offsets = offsets;
