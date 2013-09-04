@@ -45,6 +45,13 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
         return null;
     }
 
+     /**
+     * Returns if the media engine is capable of handling dtcp request
+     */
+    public override bool has_mediaengine_dtcp () {
+        return false;
+    }
+
     public override DataSource? create_data_source_for_resource
                                 (string uri, MediaResource ? resource) {
         if (!uri.has_prefix ("file://")) {
