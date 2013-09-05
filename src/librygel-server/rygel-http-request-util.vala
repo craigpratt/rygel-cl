@@ -40,22 +40,17 @@ public class Rygel.RygelHTTPRequestUtil : Object {
 	}
 
 	// TODO : Identify the packet size from the profile
-	// Write a method in mediaengine to give this information
     public static int64 get_profile_packet_size (string profile) {
         // TODO : Need to consider mime types other than MPEG.
-        if (profile.has_prefix ("DTCP_MPEG") ||
-            profile.has_prefix("MPEG") ||
-            profile.has_prefix("DTCP_AVC")||
-            profile.has_prefix("AVC")) {
-            if (!profile.has_suffix ("_ISO")) {
-			    return PACKET_SIZE_188;
-		    } else {
-			    return PACKET_SIZE_192;
-		    }
+        if (profile.has_prefix ("DTCP_MPEG_TS") && profile.has_suffix ("_ISO")) {
+			return PACKET_SIZE_188;
 	    }
-	    //TODO : Handle more mime types properly.
-	    // Returning packet size as 188 if other than above conditions.
-		return PACKET_SIZE_188;
+        // For Timestamped 192 byte packets
+        if (profile.has_prefix ("DTCP_MPEG_TS") && !profile.has_suffix ("_ISO")){
+			return PACKET_SIZE_192;
+	    }
+	    //TODO : Handle MPEG_PS content alignment.(DLna Link Protection 8.9.5.1.1)
+		return 0;
 	}
 
 	 /**

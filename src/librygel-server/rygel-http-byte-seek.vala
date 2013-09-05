@@ -104,10 +104,14 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
                                               .media_resource.protocol_info.dlna_profile;
 
                        // Align the bytes to transport packet boundaries
+                       int64 packet_size = RygelHTTPRequestUtil.get_profile_packet_size(profile_name);
+                       if (packet_size > 0) {
+					   // DLNA Link Protection : 8.9.5.4.2
                        stop = RygelHTTPRequestUtil.get_dtcp_algined_end
                               (start,
                                stop,
                                RygelHTTPRequestUtil.get_profile_packet_size(profile_name));
+					    }
                    }
                    if (stop > total_length) {
                        stop = total_length -1;
