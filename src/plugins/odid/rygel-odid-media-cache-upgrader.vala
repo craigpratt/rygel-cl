@@ -38,26 +38,6 @@ internal class Rygel.ODID.MediaCacheUpgrader {
     }
 
     public void fix_schema () throws Error {
-        var matching_schema_count = this.database.query_value (
-                                        "SELECT count(*) FROM " +
-                                        "sqlite_master WHERE sql " +
-                                        "LIKE 'CREATE TABLE Meta_Data" +
-                                        "%object_fk TEXT UNIQUE%'");
-        if (matching_schema_count == 0) {
-            try {
-                message ("Found faulty schema, forcing full reindex");
-                database.begin ();
-                database.exec ("DELETE FROM Object WHERE upnp_id IN (" +
-                               "SELECT DISTINCT object_fk FROM meta_data)");
-                database.exec ("DROP TABLE Meta_Data");
-                database.exec (this.sql.make (SQLString.TABLE_METADATA));
-                database.commit ();
-            } catch (Error error) {
-                database.rollback ();
-                warning ("Failed to force reindex to fix database: " +
-                        error.message);
-            }
-        }
     }
 
     public void ensure_indices () {

@@ -32,6 +32,7 @@ internal class Rygel.HTTPResponse : GLib.Object, Rygel.StateMachine {
     public Cancellable cancellable { get; set; }
 
     public HTTPSeek seek;
+    public DLNAPlaySpeed speed;
 
     private SourceFunc run_continue;
     private int _priority = -1;
@@ -69,6 +70,7 @@ internal class Rygel.HTTPResponse : GLib.Object, Rygel.StateMachine {
         this.msg = request.msg;
         this.cancellable = request_handler.cancellable;
         this.seek = request.seek;
+        this.speed = request.speed;
         this.src = src;
         this.sink = new DataSink (this.src, this.server, this.msg, this.seek);
         this.src.done.connect ( () => {
@@ -102,7 +104,7 @@ internal class Rygel.HTTPResponse : GLib.Object, Rygel.StateMachine {
     public async void run () {
         this.run_continue = run.callback;
         try {
-            this.src.start (this.seek);
+            this.src.start (this.seek, this.speed);
         } catch (Error error) {
             Idle.add (() => {
                 this.end (false, KnownStatusCode.NONE);

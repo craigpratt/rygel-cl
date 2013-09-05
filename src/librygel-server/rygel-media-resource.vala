@@ -5,6 +5,7 @@
  */
 
 using GUPnP;
+using Gee;
 
 /**
  * Represents a media resource (Music, Video, Image, etc).
@@ -33,6 +34,20 @@ public class Rygel.MediaResource : GLib.Object {
     public string get_name()
     {
         return this.name;
+    }
+
+    private HashMap<string,string> property_table = new HashMap<string,string>();
+
+    public void set_custom_property(string ? name, string ? value) {
+        property_table.set(name,value);
+    }
+
+    public string get_custom_property(string ? name) {
+        return property_table.get(name);
+    }
+
+    public Set get_custom_property_names() {
+        return property_table.keys;
     }
 
     public void apply_didl_lite (DIDLLiteResource didl_resource) {
@@ -69,4 +84,40 @@ public class Rygel.MediaResource : GLib.Object {
         
         return didl_resource;
     }
+
+    public bool supports_arbitrary_byte_seek() {
+        bool supported = ((this.protocol_info.dlna_operation & DLNAOperation.RANGE) != 0);
+        return supported;
+    }
+
+    public bool supports_arbitrary_time_seek() {
+        bool supported = ((this.protocol_info.dlna_operation & DLNAOperation.TIMESEEK) != 0);
+        return supported;
+    }
+    
+    public bool supports_limited_byte_seek() {
+        return check_flag (this.protocol_info,DLNAFlags.BYTE_BASED_SEEK);
+    }
+    
+    public bool supports_limited_time_seek() {
+        return check_flag (this.protocol_info,DLNAFlags.TIME_BASED_SEEK);
+    }
+
+    public bool supports_limited_cleartext_byte_seek() {
+        return check_flag (this.protocol_info,DLNAFlags.LOP_CLEARTEXT_BYTESEEK);
+    }
+
+    public bool supports_full_cleartext_byte_seek() {
+        return check_flag (this.protocol_info,DLNAFlags.CLEARTEXT_BYTESEEK_FULL);
+    }
+
+    private bool check_flag (ProtocolInfo protocol_info, int flag) {
+        long flag_value = long.parse ("%0.8d".printf (protocol_info.dlna_flags));
+        return ((flag_value & flag) == flag);
+    }
+
+    public bool supports_playspeed() {
+        return (this.protocol_info.play_speeds.length > 0);
+    }
+    
 }
