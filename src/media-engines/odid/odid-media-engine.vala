@@ -115,13 +115,15 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 				protocol_info.dlna_profile = RygelHTTPRequestUtil.dtcp_prefix + config.profile;
 				debug ("The new dlna profile is: "+protocol_info.dlna_profile);
 				res.cleartext_size = 12345678;
-				protocol_info.dlna_operation = DLNAOperation.RANGE;
+				// Add TimeSeek operation after timeseek support has been added to media engine.
+				protocol_info.dlna_operation = DLNAOperation.NONE;
 				protocol_info.dlna_flags |= DLNAFlags.LINK_PROTECTED_CONTENT |
 				                            DLNAFlags.CLEARTEXT_BYTESEEK_FULL;
 			} else {
 
 				protocol_info.dlna_profile = config.profile;
 				protocol_info.mime_type = config.mimetype;
+				// Add TimeSeek operation after timeseek support has been added to media engine.
 				protocol_info.dlna_operation = DLNAOperation.RANGE;
 			}
 
