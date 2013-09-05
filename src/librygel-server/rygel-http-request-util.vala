@@ -73,8 +73,8 @@ public class Rygel.RygelHTTPRequestUtil : Object {
 
             if (dtcp_host != "" && dtcp_port != "") {
                 return dtcp_mime_prefix + ";" + dtcp_host_str + dtcp_host + ";" +
-                       dtcp_port_str + dtcp_port + ";" + content_format_str +
-                       mime_type;
+                       dtcp_port_str + dtcp_port + ";" + content_format_str + "\"" +
+                       mime_type +"\"";
 		    }
         } catch (Error err) {
             error ("Error reading dtcp host/port :" + err.message);
