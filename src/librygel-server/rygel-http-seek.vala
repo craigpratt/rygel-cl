@@ -85,17 +85,23 @@ public abstract class Rygel.HTTPSeek : GLib.Object {
      */
     public string resource_name { get; protected set;}
 
+    /**
+     * If the request includes a protected content.
+     */
+    public bool content_protected { get; protected set;}
+
     public HTTPSeek (Soup.Message msg,
                      int64        start,
                      int64        stop,
                      int64        step,
-                     int64        total_length) throws HTTPSeekError {
+                     int64        total_length,
+                     bool         is_protected) throws HTTPSeekError {
         this.msg = msg;
         this.start = start;
         this.stop = stop;
         this.length = length;
         this.total_length = total_length;
-
+        this.content_protected = is_protected;
         if (start < 0 || start >= total_length) {
             throw new HTTPSeekError.OUT_OF_RANGE (_("Out Of Range Start '%ld'"),
                                                   start);

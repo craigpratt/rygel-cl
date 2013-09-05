@@ -156,10 +156,17 @@ internal class Rygel.HTTPGet : HTTPRequest {
         }
 
         try {
+            // Find if the content has link protection flag in protocolInfo
+            bool content_protected = false;
+            if (this.handler is HTTPMediaResourceHandler) {
+                content_protected = (this.handler as HTTPMediaResourceHandler)
+                                        .media_resource.is_link_protection_enabled();
+            }
+
             if (need_time_seek && requested_time_seek) {
-                this.seek = new HTTPTimeSeek (this);
+                this.seek = new HTTPTimeSeek (this, content_protected);
             } else if (need_byte_seek && requested_byte_seek) {
-                this.seek = new HTTPByteSeek (this);
+                this.seek = new HTTPByteSeek (this, content_protected);
             }
             else
             {

@@ -24,7 +24,7 @@
  */
 
 internal class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
-    public HTTPTimeSeek (HTTPGet request) throws HTTPSeekError {
+    public HTTPTimeSeek (HTTPGet request, bool content_protected) throws HTTPSeekError {
         string range;
         string[] range_tokens;
         int64 start = 0;
@@ -85,7 +85,7 @@ internal class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
             }
         }
 
-        base (request.msg, start, stop - 1, TimeSpan.MILLISECOND, duration);
+        base (request.msg, start, stop - 1, TimeSpan.MILLISECOND, duration, content_protected);
         this.seek_type = HTTPSeekType.TIME;
     }
 

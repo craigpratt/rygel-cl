@@ -111,6 +111,16 @@ public class Rygel.MediaResource : GLib.Object {
         return check_flag (this.protocol_info,DLNAFlags.CLEARTEXT_BYTESEEK_FULL);
     }
 
+    public bool is_link_protection_enabled() {
+        return check_flag (this.protocol_info,DLNAFlags.LINK_PROTECTED_CONTENT);
+	}
+
+    // This is to check if any of the cleartext byte seek operation is supported.
+    public bool is_cleartext_range_support_enabled() {
+        return (check_flag (this.protocol_info, DLNAFlags.CLEARTEXT_BYTESEEK_FULL) ||
+                check_flag (this.protocol_info, DLNAFlags.LOP_CLEARTEXT_BYTESEEK));
+	}
+
     private bool check_flag (ProtocolInfo protocol_info, int flag) {
         long flag_value = long.parse ("%0.8d".printf (protocol_info.dlna_flags));
         return ((flag_value & flag) == flag);
