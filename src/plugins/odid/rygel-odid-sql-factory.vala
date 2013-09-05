@@ -129,14 +129,6 @@ internal class Rygel.ODID.SQLFactory : Object {
     "DELETE FROM Object WHERE upnp_id IN " +
         "(SELECT descendant FROM closure WHERE ancestor = ?)";
 
-    private const string ALL_DETAILS_STRING =
-    "o.type_fk, o.title, m.size, m.mime_type, m.width, " +
-    "m.height, m.creator, m.author, m.album, m.date, m.bitrate, " +
-    "m.sample_freq, m.bits_per_sample, m.channels, m.track, " +
-    "m.color_depth, m.duration, o.upnp_id, o.parent, o.timestamp, " +
-    "o.uri, m.dlna_profile, m.genre, m.disc, m.name, o.object_update_id, " +
-    "o.deleted_child_count, o.container_update_id, o.reference_id ";
-
     private const string ALL_OBJECT_STRING =
     "o.type_fk, o.title, o.upnp_id, o.parent, o.class, o.timestamp, " +
     "o.uri, o.object_update_id, " +
@@ -146,7 +138,6 @@ internal class Rygel.ODID.SQLFactory : Object {
     "SELECT DISTINCT " + ALL_OBJECT_STRING +
     "FROM Object o " +
         "JOIN Closure c ON (o.upnp_id = c.ancestor) " +
-        "LEFT OUTER JOIN meta_data m ON (o.upnp_id = m.object_fk) " +
             "WHERE c.descendant = ? ORDER BY c.depth DESC";
 
     /**
@@ -163,8 +154,6 @@ internal class Rygel.ODID.SQLFactory : Object {
     "SELECT " + ALL_OBJECT_STRING +
     "FROM Object o " +
         "JOIN Closure c ON (o.upnp_id = c.descendant) " +
-        "LEFT OUTER JOIN meta_data m " +
-        "ON c.descendant = m.object_fk " +
     "WHERE c.ancestor = ? AND c.depth = 1 %s" +
     "LIMIT ?,?";
 
@@ -308,7 +297,7 @@ internal class Rygel.ODID.SQLFactory : Object {
                                 "meta_data(author, album);";
 
     private const string EXISTS_CACHE_STRING =
-    "SELECT m.size, o.timestamp, o.uri FROM Object o " +
+    "SELECT DISTINCT m.size, o.timestamp, o.uri FROM Object o " +
         "JOIN meta_data m ON o.upnp_id = m.object_fk";
 
     private const string STATISTICS_STRING =
