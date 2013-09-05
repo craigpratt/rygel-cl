@@ -27,7 +27,6 @@ internal enum Rygel.ODID.DetailColumn {
     MIME_TYPE,
     WIDTH,
     HEIGHT,
-	CLASS,
 	CREATOR,
     AUTHOR,
     ALBUM,
@@ -100,24 +99,25 @@ internal enum Rygel.ODID.SQLString {
 internal class Rygel.ODID.SQLFactory : Object {
     private const string SAVE_META_DATA_STRING =
     "INSERT OR REPLACE INTO meta_data " +
-        "(size, mime_type, width, height, class, " +
+        "(size, mime_type, width, height, " +
          "author, album, date, bitrate, " +
          "sample_freq, bits_per_sample, channels, " +
          "track, color_depth, duration, object_fk, " +
          "dlna_profile, genre, disc, name, creator) VALUES " +
-         "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+         "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private const string INSERT_OBJECT_STRING =
     "INSERT OR REPLACE INTO Object " +
-        "(upnp_id, title, type_fk, parent, timestamp, uri, " +
+        "(upnp_id, title, type_fk, parent, class, timestamp, uri, " +
          "object_update_id, deleted_child_count, container_update_id, " +
          "is_guarded, reference_id) VALUES " +
-        "(?,?,?,?,?,?,?,?,?,?,?)";
+        "(?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private const string UPDATE_GUARDED_OBJECT_STRING =
     "UPDATE Object SET " +
         "type_fk = ?, " +
         "parent = ?, " +
+        "class = ?, " +
         "timestamp = ?, " +
         "uri = ?, " +
         "object_update_id = ?, " +
@@ -131,14 +131,14 @@ internal class Rygel.ODID.SQLFactory : Object {
 
     private const string ALL_DETAILS_STRING =
     "o.type_fk, o.title, m.size, m.mime_type, m.width, " +
-    "m.height, m.class, m.creator, m.author, m.album, m.date, m.bitrate, " +
+    "m.height, m.creator, m.author, m.album, m.date, m.bitrate, " +
     "m.sample_freq, m.bits_per_sample, m.channels, m.track, " +
     "m.color_depth, m.duration, o.upnp_id, o.parent, o.timestamp, " +
     "o.uri, m.dlna_profile, m.genre, m.disc, m.name, o.object_update_id, " +
     "o.deleted_child_count, o.container_update_id, o.reference_id ";
 
     private const string ALL_OBJECT_STRING =
-    "o.type_fk, o.title, o.upnp_id, o.parent, m.class, o.timestamp, " +
+    "o.type_fk, o.title, o.upnp_id, o.parent, o.class, o.timestamp, " +
     "o.uri, o.object_update_id, " +
     "o.deleted_child_count, o.container_update_id, o.reference_id ";
 
@@ -184,7 +184,7 @@ internal class Rygel.ODID.SQLFactory : Object {
     "LIMIT ?,?";
 
     private const string GET_OBJECT_COUNT_BY_FILTER_STRING_WITH_ANCESTOR =
-    "SELECT COUNT(o.type_fk) FROM Object o " +
+    "SELECT DISTINCT COUNT(o.type_fk) FROM Object o " +
         "JOIN Closure c ON o.upnp_id = c.descendant AND c.ancestor = ? " +
         "LEFT OUTER JOIN meta_data m " +
             "ON o.upnp_id = m.object_fk %s";
@@ -216,7 +216,6 @@ internal class Rygel.ODID.SQLFactory : Object {
                             "duration INTEGER, " +
                             "width INTEGER, " +
                             "height INTEGER, " +
-                            "class TEXT NOT NULL, " +
                             "creator TEXT, " +
                             "author TEXT, " +
                             "album TEXT, " +
@@ -244,6 +243,7 @@ internal class Rygel.ODID.SQLFactory : Object {
                           "upnp_id TEXT PRIMARY KEY, " +
                           "type_fk INTEGER, " +
                           "title TEXT NOT NULL, " +
+                          "class TEXT NOT NULL, " +
                           "timestamp INTEGER NOT NULL, " +
                           "uri TEXT, " +
                           "object_update_id INTEGER, " +
@@ -312,7 +312,7 @@ internal class Rygel.ODID.SQLFactory : Object {
         "JOIN meta_data m ON o.upnp_id = m.object_fk";
 
     private const string STATISTICS_STRING =
-    "SELECT class, count(1) FROM meta_data GROUP BY class";
+    "SELECT class, count(1) FROM object GROUP BY class";
 
     private const string RESET_TOKEN_STRING =
     "SELECT reset_token FROM schema_info";

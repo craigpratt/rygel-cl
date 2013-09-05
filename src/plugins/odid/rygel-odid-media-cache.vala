@@ -642,7 +642,6 @@ public class Rygel.ODID.MediaCache : Object {
 									resource.protocol_info.mime_type,
 									-1,
 									-1,
-									item.upnp_class,
 									Database.null (),
 									Database.null (),
 									item.date,
@@ -663,13 +662,13 @@ public class Rygel.ODID.MediaCache : Object {
 				
 			values[2] = resource.width;
 			values[3] = resource.height;
-			values[8] = resource.bitrate;
-			values[9] = resource.sample_freq;
-			values[10] = resource.bits_per_sample;
-			values[11] = resource.audio_channels;
-			values[13] = resource.color_depth;
-			values[14] = resource.duration;
-			values[19] = resource.get_name ();
+			values[7] = resource.bitrate;
+			values[8] = resource.sample_freq;
+			values[9] = resource.bits_per_sample;
+			values[10] = resource.audio_channels;
+			values[12] = resource.color_depth;
+			values[13] = resource.duration;
+			values[18] = resource.get_name ();
 
 			this.db.exec (this.sql.make (SQLString.SAVE_METADATA), values);
 		}
@@ -691,6 +690,7 @@ public class Rygel.ODID.MediaCache : Object {
 
         GLib.Value[] values = { type,
                                 parent,
+                                object.upnp_class,
                                 object.modified,
                                 object.uris.is_empty ? null : object.uris[0],
                                 object.object_update_id,
@@ -726,6 +726,7 @@ public class Rygel.ODID.MediaCache : Object {
                                 object.title,
                                 type,
                                 parent,
+                                object.upnp_class,
                                 object.modified,
                                 object.uris.is_empty ? null : object.uris[0],
                                 object.object_update_id,
@@ -736,8 +737,8 @@ public class Rygel.ODID.MediaCache : Object {
                               };
         if (object is MediaContainer) {
             var container = object as MediaContainer;
-            values[7] = container.total_deleted_child_count;
-            values[8] = container.update_id;
+            values[8] = container.total_deleted_child_count;
+            values[9] = container.update_id;
         }
 
         this.db.exec (this.sql.make (SQLString.INSERT), values);
@@ -853,7 +854,6 @@ public class Rygel.ODID.MediaCache : Object {
     private void fill_item (Statement statement, MediaItem item) {
         // Fill common properties
         //item.date = statement.column_text (DetailColumn.DATE);
-
 		item.media_resources = MediaEngine.get_default ().get_resources_for_uri (item.uris[0]);
     }
 
@@ -934,7 +934,7 @@ public class Rygel.ODID.MediaCache : Object {
                 column = "o.parent";
                 break;
             case "upnp:class":
-                column = "m.class";
+                column = "o.class";
                 break;
             case "dc:title":
                 column = "o.title";
@@ -1020,7 +1020,7 @@ public class Rygel.ODID.MediaCache : Object {
             case SearchCriteriaOp.LEQ:
             case SearchCriteriaOp.GREATER:
             case SearchCriteriaOp.GEQ:
-                if (column == "m.class" &&
+                if (column == "o.class" &&
                     exp.op == SearchCriteriaOp.EQ &&
                     exp.operand2 == "object.container") {
                     operator = new SqlOperator ("=", "o.type_fk");
@@ -1040,7 +1040,7 @@ public class Rygel.ODID.MediaCache : Object {
                 v = exp.operand2;
                 break;
             case SearchCriteriaOp.DERIVED_FROM:
-                if (column == "m.class" &&
+                if (column == "o.class" &&
                     exp.operand2.has_prefix("object.container")) {
                     operator = new SqlOperator ("=", "o.type_fk");
                     v = (int) ObjectType.CONTAINER;

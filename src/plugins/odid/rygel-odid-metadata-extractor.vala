@@ -53,5 +53,6 @@ public class Rygel.ODID.MetadataExtractor: GLib.Object {
 			message ("File item %s", file.get_uri ());
 			this.extraction_done (file);
 		}
+		message ("Done with this file");
     }
 }
