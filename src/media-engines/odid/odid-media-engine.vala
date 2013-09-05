@@ -78,7 +78,6 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     }
 
     public override Gee.List<MediaResource>? get_resources_for_uri(string uri) {
-        message("get_resources_for_uri (%s)", uri);
         var resources = new Gee.ArrayList<MediaResource>();
 		
 		try {
@@ -91,7 +90,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
 			foreach (string name in resourceGroups) {
 				if (keyFile.has_group (name)) {
-					message("get_resources_for_uri: processing %s", name);
+					debug ("Creating MediaResource %s", name);
 
 					var protocol_info = new GUPnP.ProtocolInfo();
 

@@ -303,8 +303,6 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
 
 			item.add_uri (file.get_uri ());
 
-			message ("item id = %s, title = %s", item.id, item.title);
-
 			if (item != null) {
 				item.parent_ref = this.containers.peek_head ();
 				// This is only necessary to generate the proper <objAdd LastChange
