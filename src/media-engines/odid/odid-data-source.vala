@@ -94,8 +94,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     }
 
     private void* thread_func() {
-        var file = File.new_for_commandline_arg (this.uri);
-        message ("Spawned new thread for streaming file %s", this.uri );
+        var file = File.new_for_commandline_arg (this.res.uri);
+        message ("Spawned new thread for streaming file %s", this.res.uri );
         try {
             var mapped = new MappedFile(file.get_path (), false);
             if (this.offsets != null) {
