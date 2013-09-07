@@ -85,7 +85,11 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 			keyFile.load_from_file(File.new_for_uri (uri).get_path (),
 								   KeyFileFlags.KEEP_COMMENTS |
 								   KeyFileFlags.KEEP_TRANSLATIONS);
-		
+
+            string odid_uri = keyFile.get_string ("item", "odid_uri");
+			message ("Get resources for %s", odid_uri);
+
+            // DBG replace section with ODID resource population logic
 			string[] resourceGroups = keyFile.get_string_list ("item", "resources");
 
 			foreach (string name in resourceGroups) {
@@ -121,6 +125,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 					resources.add(res);
 				}
 			}
+            // DBG end of ODID resource population logic
 		} catch (Error error) {
 			warning ("Unable to read item file %s, Message: %s", uri, error.message);
 		}
@@ -147,6 +152,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             message("create_data_source_for_resource: protocol_info " + resource.protocol_info.to_string());
             message("create_data_source_for_resource: profile " + resource.protocol_info.dlna_profile);
         }
+
         return new ODIDDataSource(uri, resource);
     }
 }

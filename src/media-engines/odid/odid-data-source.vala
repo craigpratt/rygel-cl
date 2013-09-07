@@ -52,7 +52,23 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                      + " (" + playspeed.to_float().to_string() + ")");
         }
 
+        // DBG Get ODID directory for datasource
         message ("Starting data source for uri %s", this.uri);
+		try {
+			KeyFile keyFile = new KeyFile();
+			keyFile.load_from_file(File.new_for_uri (uri).get_path (),
+								   KeyFileFlags.KEEP_COMMENTS |
+								   KeyFileFlags.KEEP_TRANSLATIONS);
+
+            string odid_uri = keyFile.get_string ("item", "odid_uri");
+			message ("Start datasource using %s", odid_uri);
+
+		} catch (Error error) {
+			warning ("Unable to read item file %s, Message: %s", uri, error.message);
+		}
+        // Hard coded 1x playback testing
+        this.uri = res.uri;
+        // DBG end
 
         this.thread = new Thread<void*>("ODIDDataSource Serving thread",
                                          this.thread_func);
@@ -89,13 +105,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         this.mutex.lock();
         this.frozen = false;
         this.stop_thread = true;
-        this.cond.broadcast();
+        this.cond.broadcast(); 
         this.mutex.unlock();
     }
 
     private void* thread_func() {
-        var file = File.new_for_commandline_arg (this.res.uri);
-        message ("Spawned new thread for streaming file %s", this.res.uri );
+        var file = File.new_for_commandline_arg (this.uri);
+        message ("Spawned new thread for streaming file %s", this.uri );
         try {
             var mapped = new MappedFile(file.get_path (), false);
             if (this.offsets != null) {
