@@ -30,6 +30,7 @@
  */
 internal class Rygel.HTTPGet : HTTPRequest {
     private const string TRANSFER_MODE_HEADER = "transferMode.dlna.org";
+    private const string SERVER_NAME = "CVP2-RI-DMS";
 
     public Thumbnail thumbnail;
     public Subtitle subtitle;
@@ -147,12 +148,12 @@ internal class Rygel.HTTPGet : HTTPRequest {
         var need_byte_seek = HTTPByteSeek.needed (this);
         var requested_byte_seek = HTTPByteSeek.requested (this);
 
-        if (requested_time_seek && !need_time_seek) {
-            throw new HTTPRequestError.UNACCEPTABLE ("Invalid time seek request");
-        }
-
         if (requested_byte_seek && !need_byte_seek) {
             throw new HTTPRequestError.UNACCEPTABLE ("Invalid byte seek request");
+        }
+
+        if (requested_time_seek && !need_time_seek) {
+            throw new HTTPRequestError.UNACCEPTABLE ("Invalid time seek request");
         }
 
         try {
@@ -164,15 +165,15 @@ internal class Rygel.HTTPGet : HTTPRequest {
                  // DLNA Link protection 7.6.4.2.8 , 7.6.4.2.7
                 if (this.msg.get_http_version() == Soup.HTTPVersion.@1_1) {
                     this.msg.response_headers.append ("Cache-control","no-cache");
-				}
+                }
                 this.msg.response_headers.append ("Pragma","no-cache");
 
             }
 
-            if (need_time_seek && requested_time_seek) {
-                this.seek = new HTTPTimeSeek (this, content_protected);
-            } else if (need_byte_seek && requested_byte_seek) {
+            if (need_byte_seek && requested_byte_seek) {
                 this.seek = new HTTPByteSeek (this, content_protected);
+            } else if (need_time_seek && requested_time_seek) {
+                this.seek = new HTTPTimeSeek (this, content_protected);
             }
             else
             {
@@ -192,9 +193,10 @@ internal class Rygel.HTTPGet : HTTPRequest {
             return;
         }
 
-        // Check for DLNA PlaySpeed request
+        // Check for DLNA PlaySpeed request only if Range or Range.dtcp.com is not
+        // in the request. DLNA 7.5.4.3.3.19.2, DLNA Link Protection : 7.6.4.4.2.12
         try {
-            if (DLNAPlaySpeed.requested(this)) {
+            if (!requested_byte_seek && DLNAPlaySpeed.requested(this)) {
                 this.speed = new DLNAPlaySpeed.from_request(this);
 
                 this.speed.add_response_headers(this);
@@ -222,6 +224,8 @@ internal class Rygel.HTTPGet : HTTPRequest {
             // Set the streaming mode to chunked if the size is unknown
             this.msg.response_headers.set_encoding (Soup.Encoding.CHUNKED);
         }
+
+        this.msg.response_headers.append ("Server",SERVER_NAME);
 
         debug ("Following HTTP headers appended to response:");
         this.msg.response_headers.foreach ((name, value) => {
