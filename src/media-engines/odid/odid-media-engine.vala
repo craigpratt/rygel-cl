@@ -67,43 +67,71 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             //       primary res block
             profiles.append(new DLNAProfile(profile,mimetype));
             // The transcoders will become secondary res blocks
-            this.transcoders.prepend(
-                    new ODIDFakeTranscoder(mimetype,profile,extension) );
         }
     }
-	
+
     public override unowned GLib.List<DLNAProfile> get_renderable_dlna_profiles() {
         message("get_renderable_dlna_profiles");
         return this.profiles;
     }
 
     public override Gee.List<MediaResource>? get_resources_for_uri(string uri) {
-        message("get_resources_for_uri");
         var resources = new Gee.ArrayList<MediaResource>();
-
-        // Note: Here's where we can get the metadata from the ODID info files.
-        // For now, we'll just hobble something together from the config file
-        foreach (var config in config_entries) {
-            message("get_resources_for_uri: processing profile " + config.profile);
-            var res = new MediaResource("BOGUS_" + config.profile);
-            res.duration = 10;
-            res.size = 12345678;
-            res.extension = config.extension;
-
-            var protocol_info = new GUPnP.ProtocolInfo();
-            protocol_info.dlna_profile = "BOGUS_" + config.profile;
-            protocol_info.mime_type = config.mimetype;
-            protocol_info.dlna_operation = DLNAOperation.RANGE;
-            res.protocol_info = protocol_info;
-
-            resources.add(res);
-        }
         
+        try {
+            KeyFile keyFile = new KeyFile();
+            keyFile.load_from_file(File.new_for_uri (uri).get_path (),
+                                   KeyFileFlags.KEEP_COMMENTS |
+                                   KeyFileFlags.KEEP_TRANSLATIONS);
+
+            string odid_uri = keyFile.get_string ("item", "odid_uri");
+            message ("Get resources for %s", odid_uri);
+
+            // DBG replace section with ODID resource population logic
+            string[] resourceGroups = keyFile.get_string_list ("item", "resources");
+
+            foreach (string name in resourceGroups) {
+                if (keyFile.has_group (name)) {
+                    debug ("Creating MediaResource %s", name);
+
+                    var protocol_info = new GUPnP.ProtocolInfo();
+
+                    protocol_info.dlna_profile   = keyFile.get_string (name, "profile");
+                    protocol_info.protocol       = keyFile.get_string (name, "protocol");
+                    protocol_info.mime_type      = keyFile.get_string (name, "mime-type");
+                    protocol_info.dlna_operation = DLNAOperation.RANGE;
+                    protocol_info.dlna_flags = DLNAFlags.DLNA_V15 
+                                       | DLNAFlags.STREAMING_TRANSFER_MODE 
+                                       | DLNAFlags.BACKGROUND_TRANSFER_MODE 
+                                       | DLNAFlags.CONNECTION_STALL;
+
+                    var res = new MediaResource(name);
+                    res.protocol_info   = protocol_info;
+                    res.duration        = keyFile.get_integer (name, "duration");
+                    res.size            = keyFile.get_int64   (name, "size");
+                    res.extension       = keyFile.get_string  (name, "extension");
+                    res.uri             = keyFile.get_string  (name, "uri");
+                    res.color_depth     = keyFile.get_integer (name, "video-color-depth");
+                    res.bitrate         = keyFile.get_integer (name, "bitrate");
+                    res.bits_per_sample = keyFile.get_integer (name, "bits-per-sample");
+                    res.width           = keyFile.get_integer (name, "width");
+                    res.height          = keyFile.get_integer (name, "height");
+                    res.audio_channels  = keyFile.get_integer (name, "audio-channels");
+                    res.sample_freq     = keyFile.get_integer (name, "audio-sample-frequency");
+                    res.cleartext_size  = 12345; // Secret media engine sauce.
+
+                    resources.add(res);
+                }
+            }
+            // DBG end of ODID resource population logic
+        } catch (Error error) {
+            warning ("Unable to read item file %s, Message: %s", uri, error.message);
+        }
+
         return resources;
     }
 
     public override unowned GLib.List<Transcoder>? get_transcoders() {
-        message("get_transcoders");
         return this.transcoders;
     }
 
@@ -122,6 +150,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             message("create_data_source_for_resource: protocol_info " + resource.protocol_info.to_string());
             message("create_data_source_for_resource: profile " + resource.protocol_info.dlna_profile);
         }
+
         return new ODIDDataSource(uri, resource);
     }
 }

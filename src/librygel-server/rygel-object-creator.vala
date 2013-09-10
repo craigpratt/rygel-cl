@@ -145,23 +145,23 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
                                          container.id);
             }
 
-	        if (this.didl_object is DIDLLiteContainer) {
-	            var didl_container = didl_object as DIDLLiteContainer;
-	            var create_classes = didl_container.get_create_classes ();
-		        if (create_classes != null && create_classes.length() > 0) {
-		            foreach (var create_class in didl_container
+            if (this.didl_object is DIDLLiteContainer) {
+                var didl_container = didl_object as DIDLLiteContainer;
+                var create_classes = didl_container.get_create_classes ();
+                if (create_classes != null && create_classes.length() > 0) {
+                    foreach (var create_class in didl_container
                                                  .get_create_classes ()) {
-		                debug ("Create class value is : %s",create_class);
-		                if (!container.can_create (create_class)) {
+                        debug ("Create class value is : %s",create_class);
+                        if (!container.can_create (create_class)) {
                             throw new ContentDirectoryError.BAD_METADATA
                                 ("upnp:createClass has a class %s " +
                                  "that is not supported in %s",
                                  create_class,
                                  container.id);
-		                }
-		            }
-		        }
-	        }
+                        }
+                    }
+                }
+            }
 
             yield this.create_object_from_didl (container);
             if (this.object is MediaItem) {

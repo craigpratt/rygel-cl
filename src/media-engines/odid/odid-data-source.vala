@@ -52,7 +52,23 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                      + " (" + playspeed.to_float().to_string() + ")");
         }
 
+        // DBG Get ODID directory for datasource
         message ("Starting data source for uri %s", this.uri);
+        try {
+            KeyFile keyFile = new KeyFile();
+            keyFile.load_from_file(File.new_for_uri (uri).get_path (),
+                                   KeyFileFlags.KEEP_COMMENTS |
+                                   KeyFileFlags.KEEP_TRANSLATIONS);
+
+            string odid_uri = keyFile.get_string ("item", "odid_uri");
+            message ("Start datasource using %s", odid_uri);
+
+        } catch (Error error) {
+            warning ("Unable to read item file %s, Message: %s", uri, error.message);
+        }
+        // Hard coded 1x playback testing
+        this.uri = res.uri;
+        // DBG end
 
         this.thread = new Thread<void*>("ODIDDataSource Serving thread",
                                          this.thread_func);

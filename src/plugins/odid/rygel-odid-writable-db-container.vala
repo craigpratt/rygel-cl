@@ -66,7 +66,7 @@ internal class Rygel.ODID.WritableDbContainer : TrackableDbContainer,
         if (file.is_native ()) {
             item.modified = int64.MAX;
         }
-        item.id = MediaCache.get_id (file);
+        item.id = MediaCache.get_id (file.get_uri ());
         yield this.add_child_tracked (item);
         this.media_db.make_object_guarded (item);
     }
@@ -85,7 +85,7 @@ internal class Rygel.ODID.WritableDbContainer : TrackableDbContainer,
         case MediaContainer.STORAGE_FOLDER:
         case MediaContainer.UPNP_CLASS:
             var file = File.new_for_uri (container.uris[0]);
-            container.id = MediaCache.get_id (file);
+            container.id = MediaCache.get_id (file.get_uri ());
             if (file.is_native ()) {
                 file.make_directory_with_parents (cancellable);
             }
