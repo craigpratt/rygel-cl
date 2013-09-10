@@ -67,11 +67,9 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             //       primary res block
             profiles.append(new DLNAProfile(profile,mimetype));
             // The transcoders will become secondary res blocks
-//            this.transcoders.prepend(
-//                    new ODIDFakeTranscoder(mimetype,profile,extension) );
         }
     }
-    
+
     public override unowned GLib.List<DLNAProfile> get_renderable_dlna_profiles() {
         message("get_renderable_dlna_profiles");
         return this.profiles;

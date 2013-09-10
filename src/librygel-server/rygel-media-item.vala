@@ -108,7 +108,6 @@ public abstract class Rygel.MediaItem : MediaObject {
                 parent : parent,
                 title : title,
                 upnp_class : upnp_class);
-        message ("MediaItem created : %s", id);
     }
 
     static construct {
@@ -306,12 +305,7 @@ public abstract class Rygel.MediaItem : MediaObject {
     internal virtual void add_proxy_resources (HTTPServer   server,
                                                DIDLLiteItem didl_item)
                                                throws Error {
-        // Proxy resource for the original resources
-        //      server.add_proxy_resource (didl_item, this);
-
         if (!this.place_holder) {
-            // Transcoding resources
-//            server.add_resources (didl_item, this);
             // Temporary way to add MediaResources
             //  (eventually they shouldn't be proxy resources)
             add_media_resources(server, didl_item);

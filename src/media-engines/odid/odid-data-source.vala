@@ -105,7 +105,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         this.mutex.lock();
         this.frozen = false;
         this.stop_thread = true;
-        this.cond.broadcast(); 
+        this.cond.broadcast();
         this.mutex.unlock();
     }
 
