@@ -48,9 +48,9 @@ public class Rygel.ODID.MetadataExtractor: GLib.Object {
     }
 
     public void extract (File file, string content_type) {
-		if (file.get_basename ().has_suffix (".item")) {
-			message ("Extracting item from %s", file.get_uri ());
-			this.extraction_done (file);
-		}
+        if (file.get_basename ().has_suffix (".item")) {
+            message ("Extracting item from %s", file.get_uri ());
+            this.extraction_done (file);
+        }
     }
 }

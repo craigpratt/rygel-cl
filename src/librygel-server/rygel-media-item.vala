@@ -108,7 +108,7 @@ public abstract class Rygel.MediaItem : MediaObject {
                 parent : parent,
                 title : title,
                 upnp_class : upnp_class);
-		message ("MediaItem created : %s", id);
+        message ("MediaItem created : %s", id);
     }
 
     static construct {
@@ -165,7 +165,7 @@ public abstract class Rygel.MediaItem : MediaObject {
                                         (DIDLLiteObject didl_object,
                                          string?        uri,
                                          string         protocol,
-										 MediaResource  resource,
+                                         MediaResource  resource,
                                          string?        import_uri = null)
                                          throws Error {
         var res = base.add_resource (didl_object,
@@ -196,7 +196,7 @@ public abstract class Rygel.MediaItem : MediaObject {
 
         res.size64 = this.size;
 
-		res = resource.write_didl_lite (res);
+        res = resource.write_didl_lite (res);
 
         return res;
     }
@@ -307,7 +307,7 @@ public abstract class Rygel.MediaItem : MediaObject {
                                                DIDLLiteItem didl_item)
                                                throws Error {
         // Proxy resource for the original resources
-	    //      server.add_proxy_resource (didl_item, this);
+        //      server.add_proxy_resource (didl_item, this);
 
         if (!this.place_holder) {
             // Transcoding resources
@@ -336,7 +336,7 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     protected virtual ProtocolInfo get_protocol_info (string? uri,
                                                       string  protocol,
-		                                              MediaResource resource) {
+                                                      MediaResource resource) {
         var protocol_info = new ProtocolInfo ();
 
         protocol_info.mime_type = resource.protocol_info.mime_type;

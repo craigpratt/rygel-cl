@@ -27,7 +27,7 @@ internal enum Rygel.ODID.DetailColumn {
     MIME_TYPE,
     WIDTH,
     HEIGHT,
-	CREATOR,
+    CREATOR,
     AUTHOR,
     ALBUM,
     DATE,
@@ -45,7 +45,7 @@ internal enum Rygel.ODID.DetailColumn {
     DLNA_PROFILE,
     GENRE,
     DISC,
-	NAME,
+    NAME,
     OBJECT_UPDATE_ID,
     DELETED_CHILD_COUNT,
     CONTAINER_UPDATE_ID,
@@ -57,7 +57,7 @@ internal enum Rygel.ODID.ObjectColumn {
     TITLE,
     ID,
     PARENT,
-	CLASS,
+    CLASS,
     TIMESTAMP,
     URI,
     OBJECT_UPDATE_ID,
@@ -216,7 +216,7 @@ internal class Rygel.ODID.SQLFactory : Object {
                             "channels INTEGER, " +
                             "track INTEGER, " +
                             "disc INTEGER, " +
-							"name TEXT NOT NULL, " +
+                            "name TEXT NOT NULL, " +
                             "color_depth INTEGER, " +
                             "object_fk TEXT CONSTRAINT " +
                                 "object_fk_id REFERENCES Object(upnp_id) " +

@@ -285,42 +285,42 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
             this.completed ();
         }
 
-		KeyFile keyFile = new KeyFile();
+        KeyFile keyFile = new KeyFile();
 
-		try {
-			keyFile.load_from_file(file.get_path (),
-								   KeyFileFlags.KEEP_COMMENTS |
-								   KeyFileFlags.KEEP_TRANSLATIONS);
+        try {
+            keyFile.load_from_file(file.get_path (),
+                                   KeyFileFlags.KEEP_COMMENTS |
+                                   KeyFileFlags.KEEP_TRANSLATIONS);
 
-			string id = MediaCache.get_id (file.get_uri ());
+            string id = MediaCache.get_id (file.get_uri ());
 
-			MediaItem item = new VideoItem (id, 
-											this.containers.peek_head (),
+            MediaItem item = new VideoItem (id, 
+                                            this.containers.peek_head (),
                                             keyFile.get_string ("item", "title"));
 
-			item.date = keyFile.get_string ("item", "date");
-			item.media_resources = MediaEngine.get_default ().get_resources_for_uri (file.get_uri ());
+            item.date = keyFile.get_string ("item", "date");
+            item.media_resources = MediaEngine.get_default ().get_resources_for_uri (file.get_uri ());
 
-			item.add_uri (file.get_uri ());
+            item.add_uri (file.get_uri ());
 
-			if (item != null) {
-				item.parent_ref = this.containers.peek_head ();
-				// This is only necessary to generate the proper <objAdd LastChange
-				// entry
-				if (this.files.peek ().known) {
-					(item as UpdatableObject).non_overriding_commit.begin ();
-				} else {
-					var container = item.parent as TrackableContainer;
-					container.add_child_tracked.begin (item) ;
-				}
-			}
+            if (item != null) {
+                item.parent_ref = this.containers.peek_head ();
+                // This is only necessary to generate the proper <objAdd LastChange
+                // entry
+                if (this.files.peek ().known) {
+                    (item as UpdatableObject).non_overriding_commit.begin ();
+                } else {
+                    var container = item.parent as TrackableContainer;
+                    container.add_child_tracked.begin (item) ;
+                }
+            }
 
-			this.files.poll ();
-			this.do_update ();
+            this.files.poll ();
+            this.do_update ();
 
-		} catch (Error error) {
-			warning ("Unable to read item file %s, Message: %s", file.get_path (), error.message);
-		}
+        } catch (Error error) {
+            warning ("Unable to read item file %s, Message: %s", file.get_path (), error.message);
+        }
     }
 
     private void on_extractor_error_cb (File file, Error error) {

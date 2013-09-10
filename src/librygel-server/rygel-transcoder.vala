@@ -114,7 +114,7 @@ public abstract class Rygel.Transcoder : GLib.Object {
         // }
 
         // return res;
-	   return null;
+       return null;
     }
 
     /**
@@ -138,7 +138,7 @@ public abstract class Rygel.Transcoder : GLib.Object {
      */
     public bool has_dtcp_enabled () {
         var config = MetaConfig.get_default();
-	    bool dtcp_enabled = false;
+        bool dtcp_enabled = false;
 
         try {
             dtcp_enabled = config.get_bool ("general","dtcp-enabled");
@@ -165,7 +165,7 @@ public abstract class Rygel.Transcoder : GLib.Object {
                 return dtcp_mime_prefix + ";" + dtcp_host_str + dtcp_host + ";" +
                        dtcp_port_str + dtcp_port + ";" + content_format_str +
                        mime_type;
-		    }
+            }
         } catch (Error err) {
             error ("Error reading dtcp host/port :" + err.message);
         }

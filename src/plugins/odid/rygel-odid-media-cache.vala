@@ -68,7 +68,7 @@ public class Rygel.ODID.MediaCache : Object {
             }
         } catch (Error error) { }
         this.sql = new SQLFactory ();
-		debug ("Opening database %s", db_name);
+        debug ("Opening database %s", db_name);
         this.open_db (db_name);
         this.factory = new ObjectFactory ();
     }
@@ -635,43 +635,43 @@ public class Rygel.ODID.MediaCache : Object {
     }
 
     private void save_metadata (Rygel.MediaItem item) throws Error {
-		foreach (MediaResource resource in item.media_resources)
-		{
-			// Fill common properties
-			GLib.Value[] values = { resource.size,
-									resource.protocol_info.mime_type,
-									-1,
-									-1,
-									Database.null (),
-									Database.null (),
-									item.date,
-									-1,
-									-1,
-									-1,
-									-1,
-									-1,
-									-1,
-									-1,
-									item.id,
-									resource.protocol_info.dlna_profile,
-									Database.null (),
-									-1,
-									item.creator};
-									
+        foreach (MediaResource resource in item.media_resources)
+        {
+            // Fill common properties
+            GLib.Value[] values = { resource.size,
+                                    resource.protocol_info.mime_type,
+                                    -1,
+                                    -1,
+                                    Database.null (),
+                                    Database.null (),
+                                    item.date,
+                                    -1,
+                                    -1,
+                                    -1,
+                                    -1,
+                                    -1,
+                                    -1,
+                                    -1,
+                                    item.id,
+                                    resource.protocol_info.dlna_profile,
+                                    Database.null (),
+                                    -1,
+                                    item.creator};
+                                    
 
-				
-			values[2] = resource.width;
-			values[3] = resource.height;
-			values[7] = resource.bitrate;
-			values[8] = resource.sample_freq;
-			values[9] = resource.bits_per_sample;
-			values[10] = resource.audio_channels;
-			values[12] = resource.color_depth;
-			values[13] = resource.duration;
-			values[18] = resource.get_name ();
+                
+            values[2] = resource.width;
+            values[3] = resource.height;
+            values[7] = resource.bitrate;
+            values[8] = resource.sample_freq;
+            values[9] = resource.bits_per_sample;
+            values[10] = resource.audio_channels;
+            values[12] = resource.color_depth;
+            values[13] = resource.duration;
+            values[18] = resource.get_name ();
 
-			this.db.exec (this.sql.make (SQLString.SAVE_METADATA), values);
-		}
+            this.db.exec (this.sql.make (SQLString.SAVE_METADATA), values);
+        }
     }
 
     private void update_guarded_object (MediaObject object) throws Error {
@@ -854,7 +854,7 @@ public class Rygel.ODID.MediaCache : Object {
     private void fill_item (Statement statement, MediaItem item) {
         // Fill common properties
         //item.date = statement.column_text (DetailColumn.DATE);
-		item.media_resources = MediaEngine.get_default ().get_resources_for_uri (item.uris[0]);
+        item.media_resources = MediaEngine.get_default ().get_resources_for_uri (item.uris[0]);
     }
 
     private static string translate_search_expression

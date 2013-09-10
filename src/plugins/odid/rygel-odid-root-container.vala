@@ -88,7 +88,7 @@ public class Rygel.ODID.RootContainer : TrackableDbContainer {
     public override async MediaObject? find_object (string       id,
                                                     Cancellable? cancellable)
                                                     throws Error {
-		message ("find_object (%s)", id);
+        message ("find_object (%s)", id);
         var object = yield base.find_object (id, cancellable);
 
         if (object != null) {
