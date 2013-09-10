@@ -142,6 +142,7 @@ internal class Rygel.HTTPGet : HTTPRequest {
     }
 
     private async void handle_item_request () throws Error {
+        // Shouldn't "need"/"needed" be "support"/"supported" here?
         var need_time_seek = HTTPTimeSeek.needed (this);
         var requested_time_seek = HTTPTimeSeek.requested (this);
         var need_byte_seek = HTTPByteSeek.needed (this);
