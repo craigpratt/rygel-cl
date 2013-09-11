@@ -155,7 +155,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         string basename = null;
 
         res.protocol_info = new GUPnP.ProtocolInfo();
-        res.protocol_info.protocol = "http"; // Set this temporarily to avoid an assertion error
+        res.protocol_info.protocol = "http-get"; // Set this temporarily to avoid an assertion error
 
         // Process fields set in the resource.info
         {
