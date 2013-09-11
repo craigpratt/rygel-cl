@@ -68,7 +68,7 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     public string description { get; set; default = null; }
 
-    private Gee.List<MediaResource> media_resources;
+    public Gee.List<MediaResource> media_resources { get; set; default = null; }
 
     internal override OCMFlags ocm_flags {
         get {
@@ -164,11 +164,13 @@ public abstract class Rygel.MediaItem : MediaObject {
                                         (DIDLLiteObject didl_object,
                                          string?        uri,
                                          string         protocol,
+                                         MediaResource  resource,
                                          string?        import_uri = null)
                                          throws Error {
         var res = base.add_resource (didl_object,
                                      uri,
                                      protocol,
+                                     resource,
                                      import_uri);
 
         if (uri != null && !this.place_holder) {
@@ -193,8 +195,7 @@ public abstract class Rygel.MediaItem : MediaObject {
 
         res.size64 = this.size;
 
-        /* Protocol info */
-        res.protocol_info = this.get_protocol_info (uri, protocol);
+        res = resource.write_didl_lite (res);
 
         return res;
     }
@@ -304,12 +305,7 @@ public abstract class Rygel.MediaItem : MediaObject {
     internal virtual void add_proxy_resources (HTTPServer   server,
                                                DIDLLiteItem didl_item)
                                                throws Error {
-        // Proxy resource for the original resources
-        server.add_proxy_resource (didl_item, this);
-
         if (!this.place_holder) {
-            // Transcoding resources
-            server.add_resources (didl_item, this);
             // Temporary way to add MediaResources
             //  (eventually they shouldn't be proxy resources)
             add_media_resources(server, didl_item);
@@ -333,11 +329,12 @@ public abstract class Rygel.MediaItem : MediaObject {
     }
 
     protected virtual ProtocolInfo get_protocol_info (string? uri,
-                                                      string  protocol) {
+                                                      string  protocol,
+                                                      MediaResource resource) {
         var protocol_info = new ProtocolInfo ();
 
-        protocol_info.mime_type = this.mime_type;
-        protocol_info.dlna_profile = this.dlna_profile;
+        protocol_info.mime_type = resource.protocol_info.mime_type;
+        protocol_info.dlna_profile = resource.protocol_info.dlna_profile;
         protocol_info.protocol = protocol;
         protocol_info.dlna_flags = DLNAFlags.DLNA_V15 |
                                    DLNAFlags.CONNECTION_STALL |
@@ -380,11 +377,11 @@ public abstract class Rygel.MediaItem : MediaObject {
     protected virtual void add_resources (DIDLLiteItem didl_item,
                                           bool         allow_internal)
                                           throws Error {
-        foreach (var uri in this.uris) {
-            var protocol = this.get_protocol_for_uri (uri);
+        foreach (MediaResource resource in this.media_resources) {
+            var protocol = this.get_protocol_for_uri (this.uris[0]);
 
             if (allow_internal || protocol != "internal") {
-                this.add_resource (didl_item, uri, protocol);
+                this.add_resource (didl_item, this.uris[0], protocol, resource);
             }
         }
     }

@@ -88,11 +88,9 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             //       primary res block
             profiles.append(new DLNAProfile(profile,mimetype));
             // The transcoders will become secondary res blocks
-            this.transcoders.prepend(
-                    new ODIDFakeTranscoder(mimetype,profile,extension) );
         }
     }
-	
+
     public override unowned GLib.List<DLNAProfile> get_renderable_dlna_profiles() {
         message("get_renderable_dlna_profiles");
         return this.profiles;
@@ -101,18 +99,23 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     public override Gee.List<MediaResource>? get_resources_for_uri(string source_uri) {
         message("OdidMediaEngine:get_resources_for_uri");
         var resources = new Gee.ArrayList<MediaResource>();
-
-        // TODO: FIX ME. This will be determined from the source uri
-        string odid_item_path = "file:///home/craig/odid/item-2/";
-
+        string odid_item_path = null;
         try {
+            KeyFile keyFile = new KeyFile();
+            keyFile.load_from_file(File.new_for_uri (source_uri).get_path (),
+                                   KeyFileFlags.KEEP_COMMENTS |
+                                   KeyFileFlags.KEEP_TRANSLATIONS);
+
+            odid_item_path = keyFile.get_string ("item", "odid_uri");
+            message ("Get resources for %s", odid_item_path);
+
             var directory = File.new_for_uri(odid_item_path);
             var enumerator = directory.enumerate_children(FileAttribute.STANDARD_NAME, 0);
 
             FileInfo file_info;
             while ((file_info = enumerator.next_file ()) != null) {
                 if (file_info.get_file_type () == FileType.DIRECTORY) {
-                    message( "OdidMediaEngine:get_resources_for_uri: configuring profile entry: "
+                    message( "OdidMediaEngine:get_resources_for_uri: processing resource directory: "
                              + file_info.get_name());
                     // A directory in an item directory is a resource
                     var res = create_resource_from_resource_dir( odid_item_path
@@ -308,7 +311,6 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     }
                                                         
     public override unowned GLib.List<Transcoder>? get_transcoders() {
-        message("get_transcoders");
         return this.transcoders;
     }
 

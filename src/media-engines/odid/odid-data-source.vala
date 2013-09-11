@@ -13,7 +13,7 @@
  * A simple data source for use with the ODID media engine.
  */
 internal class Rygel.ODIDDataSource : DataSource, Object {
-    private string source_uri;
+    private string source_uri; 
     private Thread<void*> thread;
     private string content_path;
     private Mutex mutex = Mutex ();
@@ -52,8 +52,14 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             message("ODIDDataSource.start: profile: " + res.protocol_info.dlna_profile);
         }
 
-        // TODO: FIX ME. This will be determined from the source uri
-        string odid_item_path = "file:///home/craig/odid/item-2/";
+
+        KeyFile keyFile = new KeyFile();
+        keyFile.load_from_file(File.new_for_uri (source_uri).get_path (),
+                               KeyFileFlags.KEEP_COMMENTS |
+                               KeyFileFlags.KEEP_TRANSLATIONS);
+
+        string odid_item_path = keyFile.get_string ("item", "odid_uri");
+        message ("Start datasource using %s", odid_item_path);
 
         // The resources are published by this engine according to the resource directory name
         string resource_dir = res.get_name();

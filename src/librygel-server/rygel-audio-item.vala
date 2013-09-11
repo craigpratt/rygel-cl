@@ -55,9 +55,10 @@ public class Rygel.AudioItem : MediaItem {
                                         (DIDLLiteObject didl_object,
                                          string?        uri,
                                          string         protocol,
+                                         MediaResource  resource,
                                          string?        import_uri = null)
                                          throws Error {
-        var res = base.add_resource (didl_object, uri, protocol, import_uri);
+        var res = base.add_resource (didl_object, uri, protocol, resource, import_uri);
 
         res.duration = this.duration;
         res.bitrate = this.bitrate;

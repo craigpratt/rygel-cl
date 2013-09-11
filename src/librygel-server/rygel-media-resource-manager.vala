@@ -43,8 +43,6 @@ public class Rygel.MediaResourceManager : GLib.Object {
      * Get the MediaResources the configured MediaEngine supports for the given URI.
      */
     public Gee.List<MediaResource> get_resources_for_source_uri(string uri) {
-        message("MediaResourceManager.get_resources_for_source_uri: " + uri);
-
         Gee.List <MediaResource> resources;
 
         if (resource_table.has_key(uri)) {
@@ -52,12 +50,11 @@ public class Rygel.MediaResourceManager : GLib.Object {
         }
         else
         {
-            message("MediaResourceManager.get_resources_for_source_uri: Calling engine for resources");
             var engine = MediaEngine.get_default();
             Gee.List<MediaResource> engine_resources;
             engine_resources = engine.get_resources_for_uri(uri);
             if (engine_resources == null) {
-                message("MediaResourceManager.get_resources_for_source_uri: No resources found for %s", uri);
+                warning ("MediaResourceManager.get_resources_for_source_uri: No resources found for %s", uri);
             }
             adapt_resources_for_delivery(engine_resources);
             resource_table.set(uri, engine_resources);

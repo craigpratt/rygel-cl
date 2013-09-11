@@ -50,10 +50,6 @@ internal class Rygel.ODID.ObjectFactory : Object {
             return factory.create_from_hashed_id (id, title);
         }
 
-        if (id.has_prefix ("virtual-parent:" + Rygel.PlaylistItem.UPNP_CLASS)) {
-            return new PlaylistRootContainer ();
-        }
-
         // Return a suitable container for the top-level virtual folders.
         // This corresponds to the short-lived NullContainers that
         // we used to save these in the database.
@@ -63,10 +59,6 @@ internal class Rygel.ODID.ObjectFactory : Object {
 
         if (uri == null) {
             return new TrackableDbContainer (id, title);
-        }
-
-        if (id.has_prefix ("playlist:")) {
-            return new PlaylistContainer (id, title);
         }
 
         // Return a writable container for anything with a URI,
@@ -90,16 +82,8 @@ internal class Rygel.ODID.ObjectFactory : Object {
                                        string         title,
                                        string         upnp_class) {
         switch (upnp_class) {
-            case Rygel.MusicItem.UPNP_CLASS:
-            case Rygel.AudioItem.UPNP_CLASS:
-                return new MusicItem (id, parent, title);
             case Rygel.VideoItem.UPNP_CLASS:
                 return new VideoItem (id, parent, title);
-            case Rygel.PhotoItem.UPNP_CLASS:
-            case Rygel.ImageItem.UPNP_CLASS:
-                return new PhotoItem (id, parent, title);
-            case Rygel.PlaylistItem.UPNP_CLASS:
-                return new PlaylistItem (id, parent, title);
             default:
                 assert_not_reached ();
         }

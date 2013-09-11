@@ -96,15 +96,26 @@ public class Rygel.MediaResource : GLib.Object {
     }
     
     public bool supports_limited_byte_seek() {
-        // TODO: Look at LOP params
-        return false;
+        return check_flag (this.protocol_info,DLNAFlags.BYTE_BASED_SEEK);
     }
     
     public bool supports_limited_time_seek() {
-        // TODO: Look at LOP params
-        return false;
+        return check_flag (this.protocol_info,DLNAFlags.TIME_BASED_SEEK);
     }
-    
+
+    public bool supports_limited_cleartext_byte_seek() {
+        return check_flag (this.protocol_info,DLNAFlags.LOP_CLEARTEXT_BYTESEEK);
+    }
+
+    public bool supports_full_cleartext_byte_seek() {
+        return check_flag (this.protocol_info,DLNAFlags.CLEARTEXT_BYTESEEK_FULL);
+    }
+
+    private bool check_flag (ProtocolInfo protocol_info, int flag) {
+        long flag_value = long.parse ("%0.8d".printf (protocol_info.dlna_flags));
+        return ((flag_value & flag) == flag);
+    }
+
     public bool supports_playspeed() {
         return (this.protocol_info.play_speeds.length > 0);
     }

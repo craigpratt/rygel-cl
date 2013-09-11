@@ -280,6 +280,7 @@ public abstract class Rygel.MediaObject : GLib.Object {
                                         (DIDLLiteObject object,
                                          string?        uri,
                                          string         protocol,
+                                         MediaResource  resource,                                       
                                          string?        import_uri = null)
                                          throws Error {
         var res = object.add_resource ();

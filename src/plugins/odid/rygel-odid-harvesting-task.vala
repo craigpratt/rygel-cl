@@ -185,7 +185,7 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
             // we skip the updated signal
             var dummy_parent = parent as DummyContainer;
             if (dummy_parent == null ||
-                !dummy_parent.children.contains (MediaCache.get_id (file))) {
+                !dummy_parent.children.contains (MediaCache.get_id (file.get_uri ()))) {
                 (parent as TrackableContainer).add_child_tracked.begin (container);
             }
 
@@ -280,41 +280,47 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
         return false;
     }
 
-    private void on_extracted_cb (File               file,
-                                  DiscovererInfo?    dlna,
-                                  GUPnPDLNA.Profile? profile,
-                                  FileInfo           file_info) {
+    private void on_extracted_cb (File file) {
         if (this.cancellable.is_cancelled ()) {
             this.completed ();
         }
 
-        MediaItem item;
-        if (dlna == null) {
-            item = ItemFactory.create_simple (this.containers.peek_head (),
-                                              file,
-                                              file_info);
-        } else {
-            item = ItemFactory.create_from_info (this.containers.peek_head (),
-                                                 file,
-                                                 dlna,
-                                                 profile,
-                                                 file_info);
-        }
+        KeyFile keyFile = new KeyFile();
 
-        if (item != null) {
-            item.parent_ref = this.containers.peek_head ();
-            // This is only necessary to generate the proper <objAdd LastChange
-            // entry
-            if (this.files.peek ().known) {
-                (item as UpdatableObject).non_overriding_commit.begin ();
-            } else {
-                var container = item.parent as TrackableContainer;
-                container.add_child_tracked.begin (item) ;
+        try {
+            keyFile.load_from_file(file.get_path (),
+                                   KeyFileFlags.KEEP_COMMENTS |
+                                   KeyFileFlags.KEEP_TRANSLATIONS);
+
+            string id = MediaCache.get_id (file.get_uri ());
+
+            MediaItem item = new VideoItem (id, 
+                                            this.containers.peek_head (),
+                                            keyFile.get_string ("item", "title"));
+
+            item.date = keyFile.get_string ("item", "date");
+            item.media_resources = MediaEngine.get_default ().get_resources_for_uri (file.get_uri ());
+
+            item.add_uri (file.get_uri ());
+
+            if (item != null) {
+                item.parent_ref = this.containers.peek_head ();
+                // This is only necessary to generate the proper <objAdd LastChange
+                // entry
+                if (this.files.peek ().known) {
+                    (item as UpdatableObject).non_overriding_commit.begin ();
+                } else {
+                    var container = item.parent as TrackableContainer;
+                    container.add_child_tracked.begin (item) ;
+                }
             }
-        }
 
-        this.files.poll ();
-        this.do_update ();
+            this.files.poll ();
+            this.do_update ();
+
+        } catch (Error error) {
+            warning ("Unable to read item file %s, Message: %s", file.get_path (), error.message);
+        }
     }
 
     private void on_extractor_error_cb (File file, Error error) {

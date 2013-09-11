@@ -88,6 +88,7 @@ public class Rygel.ODID.RootContainer : TrackableDbContainer {
     public override async MediaObject? find_object (string       id,
                                                     Cancellable? cancellable)
                                                     throws Error {
+        message ("find_object (%s)", id);
         var object = yield base.find_object (id, cancellable);
 
         if (object != null) {
@@ -256,8 +257,6 @@ public class Rygel.ODID.RootContainer : TrackableDbContainer {
                     id += "dc:genre,?";
 
                     break;
-                case MediaContainer.PLAYLIST:
-                    return new PlaylistRootContainer ();
                 default:
                     return null;
             }
@@ -418,7 +417,7 @@ public class Rygel.ODID.RootContainer : TrackableDbContainer {
         // For each location that we want the harvester to scan,
         // remove it from the cache.
         foreach (var file in this.harvester.locations) {
-            ids.remove (MediaCache.get_id (file));
+            ids.remove (MediaCache.get_id (file.get_uri ()));
         }
 
         // Warn about any top-level locations that were known to 
@@ -495,7 +494,7 @@ public class Rygel.ODID.RootContainer : TrackableDbContainer {
             // Make sure we're not trying to harvest the removed URI.
             this.harvester.cancel (file);
             try {
-                this.media_db.remove_by_id (MediaCache.get_id (file));
+                this.media_db.remove_by_id (MediaCache.get_id (file.get_uri ()));
             } catch (DatabaseError error) {
                 warning (_("Failed to remove entry: %s"), error.message);
             }
@@ -576,15 +575,8 @@ public class Rygel.ODID.RootContainer : TrackableDbContainer {
         }
 
         try {
-            this.add_virtual_containers_for_class (_("Music"),
-                                                   Rygel.MusicItem.UPNP_CLASS,
-                                                   VIRTUAL_FOLDERS_MUSIC);
-            this.add_virtual_containers_for_class (_("Pictures"),
-                                                   Rygel.PhotoItem.UPNP_CLASS);
             this.add_virtual_containers_for_class (_("Videos"),
                                                    Rygel.VideoItem.UPNP_CLASS);
-            this.add_virtual_containers_for_class (_("Playlists"),
-                                                   Rygel.PlaylistItem.UPNP_CLASS);
         } catch (Error error) {};
     }
 
