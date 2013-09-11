@@ -122,7 +122,9 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                                                  + file_info.get_name() + "/");
                     if (res != null) {
                         resources.add(res);
-                        message("get_resources_for_uri: created " + res.get_name());
+                        message("get_resources_for_uri: created resource " + res.get_name());
+                        message("get_resources_for_uri: resource " + res.get_name()
+                                + " protocolInfo " + res.protocol_info.to_string() );
                     }
                 }
             }
@@ -133,25 +135,31 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         return resources;
     }
 
-    internal MediaResource ? create_resource_from_resource_dir(string res_dir_path)
+    /**
+     * Construct a MediaResource from an on-disk resource
+     *
+     * @param res_dir_uri URI to the resource directory.
+     * @return MediaResource constructed from the on-disk resource directory
+     */
+    internal MediaResource ? create_resource_from_resource_dir(string res_dir_uri)
          throws Error {
         message( "OdidMediaEngine:create_resource_from_resource_dir: configuring resources for "
-                 + res_dir_path);
+                 + res_dir_uri);
         MediaResource res = null;
 
-        var res_dir = File.new_for_uri(res_dir_path);
+        var res_dir = File.new_for_uri(res_dir_uri);
         FileInfo res_dir_info = res_dir.query_info(GLib.FileAttribute.STANDARD_NAME, 0);
 
         res = new MediaResource(res_dir_info.get_name());
 
         string basename = null;
 
-        // Construct the ProtocolInfo
-        res.protocol_info = create_protocol_info_from_resource_dir(res_dir_path);
+        res.protocol_info = new GUPnP.ProtocolInfo();
+        res.protocol_info.protocol = "http"; // Set this temporarily to avoid an assertion error
 
         // Process fields set in the resource.info
         {
-            File res_info_file = File.new_for_uri(res_dir_path + "/resource.info");
+            File res_info_file = File.new_for_uri(res_dir_uri + "/resource.info");
             var dis = new DataInputStream(res_info_file.read());
             string line;
             while ((line = dis.read_line(null)) != null) {
@@ -159,8 +167,6 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 var equals_pos = line.index_of("=");
                 var name = line[0:equals_pos].strip();
                 var value = line[equals_pos+1:line.length].strip();
-                message( "OdidMediaEngine:create_resource_from_resource_dir: processing resource.info line: "
-                         + line );
                 if (name == "basename") {
                     basename = value;
                     continue;
@@ -172,42 +178,56 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         }
 
         string file_extension;
-        string content_filename;
+        string normal_content_filename;
 
         // Set the size according to the normal-rate file (speed "1/1")
         {
-            content_filename = ODIDMediaEngine.content_filename_for_res_speed (
-                                                                res_dir_path,
+            normal_content_filename = ODIDMediaEngine.content_filename_for_res_speed (
+                                                                res_dir_uri,
                                                                 basename,
                                                                 new DLNAPlaySpeed(1,1),
                                                                 out file_extension );
-            message( "OdidMediaEngine:Getting size for " + res_dir_path + content_filename);
-            File content_file = File.new_for_uri(res_dir_path + content_filename);
+            message( "OdidMediaEngine:Getting size for " + normal_content_filename);
+            File content_file = File.new_for_uri(res_dir_uri + normal_content_filename);
             FileInfo content_info = content_file.query_info(GLib.FileAttribute.STANDARD_SIZE, 0);
             res.size = content_info.get_size();
             res.extension = file_extension;
             message( "OdidMediaEngine:create_resource_from_resource_dir: size for "
-                     + content_filename + " is " + res.size.to_string() );
+                     + normal_content_filename + " is " + res.size.to_string() );
         }
 
-        // Set the duration according to the last entry in the normal-rate index file
-        res.duration = duration_for_content_file(res_dir_path + content_filename);
-        message( "OdidMediaEngine:create_resource_from_resource_dir: duration for "
-                 + content_filename + " is " + res.duration.to_string() );
+        // We currently support RANGE for all resources
+        res.protocol_info.dlna_operation = DLNAOperation.RANGE;
+        
+        // Look for an index file and set fields accordingly if/when found
+        {
+            string index_path = res_dir_uri + normal_content_filename + ".index";
+            File index_file = File.new_for_uri(index_path);
+            if (index_file.query_exists()) {
+                // We support TimeSeekRange for this content
+                res.protocol_info.dlna_operation |= DLNAOperation.TIMESEEK; 
+                // Set the duration according to the last entry in the normal-rate index file
+                res.duration = duration_from_index_file(index_file);
+                message( "OdidMediaEngine:create_resource_from_resource_dir: duration for "
+                         + normal_content_filename + " is " + res.duration.to_string() );
+            } else {
+                message( "OdidMediaEngine:create_resource_from_resource_dir: No index file found for "
+                         + res_dir_uri + normal_content_filename );
+            }
+        }
 
+        // TODO: Populate the ProtocolInfo speed parameter based on the presence of the
+        //       rate-scaled files
         return res;
     }
 
-    internal ProtocolInfo create_protocol_info_from_resource_dir(string res_dir_path)
-         throws Error {
-        // Note: It's not our job to set everything - only fields related to the content.
-        //       e.g. it's the HTTP server's place to set transfer parameters
-        // TODO: Enumerate speed files
-        var protocol_info = new ProtocolInfo();
-
-        return protocol_info;
-    }
-
+    /**
+     * Set a MediaResource field from a resource.info name-value pair
+     *
+     * @param res MediaResource to modify
+     * @param name The field name
+     * @param value The field value
+     */
     void set_resource_field(MediaResource res, string name, string value) {
         if (name == "profile") {
             res.protocol_info.dlna_profile = value;
@@ -271,13 +291,11 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         return content_filename;
     }
 
-    internal static long duration_for_content_file(string content_path)
+    internal static long duration_from_index_file(File index_file)
             throws Error {
         message ("ODIDDataSource.duration_for_content_file: %s",
-                 content_path);
-        string index_path = content_path + ".index";
+                 index_file.get_basename() );
         
-        File index_file = File.new_for_uri(index_path);
         FileInfo index_info = index_file.query_info(GLib.FileAttribute.STANDARD_SIZE, 0);
 
         // Last entry will be 62 bytes from the end of the file...
