@@ -96,9 +96,10 @@ public class Rygel.ImageItem : MediaItem, VisualItem {
                                         (DIDLLiteObject didl_object,
                                          string?      uri,
                                          string       protocol,
+                                         MediaResource resource,
                                          string?      import_uri = null)
                                          throws Error {
-        var res = base.add_resource (didl_object, uri, protocol, import_uri);
+        var res = base.add_resource (didl_object, uri, protocol, resource, import_uri);
 
         this.add_visual_props (res);
 
@@ -117,8 +118,9 @@ public class Rygel.ImageItem : MediaItem, VisualItem {
     }
 
     protected override ProtocolInfo get_protocol_info (string? uri,
-                                                       string  protocol) {
-        var protocol_info = base.get_protocol_info (uri, protocol);
+                                                       string  protocol,
+                                                       MediaResource resource) {
+        var protocol_info = base.get_protocol_info (uri, protocol, resource);
 
         protocol_info.dlna_flags |= DLNAFlags.INTERACTIVE_TRANSFER_MODE;
 

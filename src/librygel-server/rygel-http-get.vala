@@ -143,6 +143,7 @@ internal class Rygel.HTTPGet : HTTPRequest {
     }
 
     private async void handle_item_request () throws Error {
+        // Shouldn't "need"/"needed" be "support"/"supported" here?
         var need_time_seek = HTTPTimeSeek.needed (this);
         var requested_time_seek = HTTPTimeSeek.requested (this);
         var need_byte_seek = HTTPByteSeek.needed (this);
@@ -217,13 +218,22 @@ internal class Rygel.HTTPGet : HTTPRequest {
         } else {
             this.msg.set_status (Soup.KnownStatusCode.OK);
         }
-
-        if (this.handler.knows_size (this)) {
-            this.msg.response_headers.set_encoding (Soup.Encoding.CONTENT_LENGTH);
-        } else {
-            // Set the streaming mode to chunked if the size is unknown
-            this.msg.response_headers.set_encoding (Soup.Encoding.CHUNKED);
-        }
+        
+        if (this.handler is HTTPMediaResourceHandler) {
+			// If Playspeed is requested then send response in chunked mode.
+		    if (this.speed == null || this.speed.to_float() == 1.0) {
+				this.msg.response_headers.set_encoding (Soup.Encoding.CONTENT_LENGTH);
+			} else {
+				this.msg.response_headers.set_encoding (Soup.Encoding.CHUNKED);
+			}
+		} else { // For non HTTPMediaResourceHandler
+            if (this.handler.knows_size (this)) {
+                this.msg.response_headers.set_encoding (Soup.Encoding.CONTENT_LENGTH);
+            } else {
+                // Set the streaming mode to chunked if the size is unknown
+                this.msg.response_headers.set_encoding (Soup.Encoding.CHUNKED);
+            }
+		}
 
         this.msg.response_headers.append ("Server",SERVER_NAME);
 

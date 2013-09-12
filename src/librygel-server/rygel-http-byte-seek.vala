@@ -40,11 +40,15 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
             total_length = request.thumbnail.size;
         } else if (request.subtitle != null) {
             total_length = request.subtitle.size;
-        } else {
+        } else if (request.handler is HTTPMediaResourceHandler) {
             if (range_dtcp == null)
-                total_length = (request.object as MediaItem).size;
-            else // TODO : Call DTCP Lib to get the encrypted size
-                total_length = (request.object as MediaItem).size;
+                total_length = (request.handler as HTTPMediaResourceHandler)
+                                                       .media_resource.size;
+            else // Get the cleartextsize for Range.dtcp.com request.
+                total_length = (request.handler as HTTPMediaResourceHandler)
+                                                       .media_resource.cleartext_size;
+        } else {
+            total_length = (request.object as MediaItem).size;
         }
         var stop = total_length - 1;
 
@@ -156,9 +160,9 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
 
         return force_seek
                || (!(request.object is MediaContainer) && (request.object as MediaItem).size > 0)
-               &&  (is_byte_seek_supported
+               || is_byte_seek_supported
                || (request.thumbnail != null && request.thumbnail.size > 0)
-               || (request.subtitle != null && request.subtitle.size > 0));
+               || (request.subtitle != null && request.subtitle.size > 0);
     }
 
     public static bool requested (HTTPGet request) {

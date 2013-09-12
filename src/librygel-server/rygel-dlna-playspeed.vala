@@ -16,8 +16,8 @@ public errordomain Rygel.DLNAPlaySpeedError {
  * e.g. "2". "1/2", "-1/4"
  */
 public class Rygel.DLNAPlaySpeed : GLib.Object {
-    private int numerator; // Sign of the speed will be attached to the numerator
-    private uint denominator;
+    public int numerator; // Sign of the speed will be attached to the numerator
+    public uint denominator;
     public static const string HTTP_HEADER = "PlaySpeed.dlna.org";
 
     public DLNAPlaySpeed (int numerator, uint denominator) {

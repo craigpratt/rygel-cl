@@ -25,15 +25,9 @@ librygel_odid_la_SOURCES = \
 	rygel-odid-recursive-file-monitor.vala \
 	rygel-odid-harvester.vala \
 	rygel-odid-harvesting-task.vala \
-	rygel-odid-item-factory.vala \
-	rygel-odid-jpeg-writer.vala \
 	rygel-odid-object-factory.vala \
 	rygel-odid-writable-db-container.vala \
-	rygel-odid-playlist-root-container.vala \
-	rygel-odid-playlist-container.vala \
-	rygel-odid-music-item.vala \
 	rygel-odid-video-item.vala \
-	rygel-odid-photo-item.vala \
 	rygel-odid-playlist-item.vala \
 	rygel-odid-trackable-db-container.vala \
 	rygel-odid-updatable-object.vala \

@@ -52,7 +52,7 @@ public class Rygel.MediaResource : GLib.Object {
 
     public void apply_didl_lite (DIDLLiteResource didl_resource) {
         //  Populate the MediaResource from the given DIDLLiteResource
-        // Note: For a DIDLLiteResource, a value of -1 also signals "not set"
+        // Note: For a DIDLLiteResource, a value of -1/null also signals "not set"
         this.uri = didl_resource.uri;
         this.size = didl_resource.size64;
         this.cleartext_size = didl_resource.cleartextSize;
@@ -68,7 +68,7 @@ public class Rygel.MediaResource : GLib.Object {
     }
     
     public DIDLLiteResource write_didl_lite (DIDLLiteResource didl_resource) {
-        // Note: For a DIDLLiteResource, a value of -1 also signals "not set"
+        // Note: For a DIDLLiteResource, a value of -1/null also signals "not set"
         didl_resource.uri = this.uri;
         didl_resource.size64 = this.size;
         didl_resource.cleartextSize = this.cleartext_size;
@@ -130,4 +130,8 @@ public class Rygel.MediaResource : GLib.Object {
         return (this.protocol_info.play_speeds.length > 0);
     }
     
+    public string to_string() {
+        // TODO: incorporate all set fields
+        return name + ":{" + ((protocol_info == null) ? "null" : protocol_info.to_string());
+    }
 }
