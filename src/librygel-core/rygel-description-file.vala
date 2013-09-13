@@ -192,44 +192,41 @@ public class Rygel.DescriptionFile : Object {
             // handled by Rygel transparently.
             var allow_upload = true;
             var allow_delete = false;
-
+            var upload_options = new Gee.ArrayList<string>();;
             try {
                 var config = MetaConfig.get_default ();
                 allow_upload = config.get_allow_upload ();
                 allow_delete = config.get_allow_deletion ();
+                upload_options = config.get_string_list
+                                        ("general", "upload-option");
             } catch (GLib.Error error) { }
 
-            // Disabling Audio and Image Upload
             if (allow_upload) {
-                // if (PluginCapabilities.IMAGE_UPLOAD in capabilities) {
-                //     flags += "image-upload";
-                // }
-
-                if (PluginCapabilities.VIDEO_UPLOAD in capabilities) {
-                    flags += "av-upload";
+                foreach (var option in upload_options) {
+                    if (option == "image-upload" ||
+                        option == "av-upload"    ||
+                        option == "audio-upload") {
+                        flags += option;
+                    }
                 }
 
-                //if (PluginCapabilities.AUDIO_UPLOAD in capabilities) {
-                //    flags += "audio-upload";
-                //}
+                if (PluginCapabilities.TRACK_CHANGES in capabilities) {
+                    flags += "content-synchronization";
+                    flags += "create-child-container";
+                }
+
+                // Might be that the plugin only supports create-child-container but
+                // not change tracking, so we need to add this capability separately
+                if (PluginCapabilities.CREATE_CONTAINERS in capabilities &&
+                    !(PluginCapabilities.TRACK_CHANGES in capabilities)) {
+                    flags += "create-child-container";
+                }
             }
 
             if (allow_delete) {
                 flags += "create-item-with-OCM-destroy-item";
             }
 
-        }
-
-        if (PluginCapabilities.TRACK_CHANGES in capabilities) {
-            flags += "content-synchronization";
-            flags += "create-child-container";
-        }
-
-        // Might be that the plugin only supports create-child-container but
-        // not change tracking, so we need to add this capability separately
-        if (PluginCapabilities.CREATE_CONTAINERS in capabilities &&
-            !(PluginCapabilities.TRACK_CHANGES in capabilities)) {
-            flags += "create-child-container";
         }
 
         // Set the flags we found; otherwise remove whatever is in the
