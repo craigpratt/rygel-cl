@@ -209,7 +209,8 @@ public class Rygel.DescriptionFile : Object {
                         flags += option;
                     }
                 }
-
+                // If DMS implements Content synchronization option,
+                // shall support upload of mandatory DLNA formats.(DLNA 7.4.1.7.8.4)
                 if (PluginCapabilities.TRACK_CHANGES in capabilities) {
                     flags += "content-synchronization";
                     flags += "create-child-container";
@@ -221,10 +222,11 @@ public class Rygel.DescriptionFile : Object {
                     !(PluginCapabilities.TRACK_CHANGES in capabilities)) {
                     flags += "create-child-container";
                 }
-            }
-
-            if (allow_delete) {
-                flags += "create-item-with-OCM-destroy-item";
+                // This shall coexist with atleast one of audio-upload,
+                // av-upload or image-upload. (DLNA 7.4.1.7.4.1 Table 26)
+                if (allow_delete) {
+                    flags += "create-item-with-OCM-destroy-item";
+                }
             }
 
         }
