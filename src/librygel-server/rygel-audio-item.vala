@@ -30,6 +30,8 @@ using GUPnP;
 public class Rygel.AudioItem : MediaItem {
     public new const string UPNP_CLASS = "object.item.audioItem";
 
+    // TODO: These are not properties of Items, but of Resources, correct?
+    //       Everything that uses these fields should be audited.
     public long duration { get; set; default = -1; }  // Duration in seconds
     public int bitrate { get; set; default = -1; }    // Bytes/second
 

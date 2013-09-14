@@ -29,6 +29,8 @@ internal class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
         string[] range_tokens;
         int64 start = 0;
         int64 duration = (request.object as AudioItem).duration * TimeSpan.SECOND;
+        // TODO: Make this reference the MediaResource duration from the request, once it's there
+        //       e.g. duration = request.media_resource.duration *TimeSpan.SECOND;
         int64 stop = duration - TimeSpan.MILLISECOND;
         int64 parsed_value = 0;
         bool parsing_start = true;
@@ -97,16 +99,19 @@ internal class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
             force_seek = hack.force_seek ();
         } catch (Error error) { }
 
+        // TODO: This needs to incorporate some delegation. And the whole function should
+        //       really be called "suppported" (if it even exists here). (if there's a
+        //       "TimeSeekRange supported" query it should be on a ContentResource...)
         return force_seek
                || ( request.object is AudioItem
-                    && (request.object as AudioItem).duration > 0
-                    && ( request.handler is HTTPTranscodeHandler
-                         || ( request.handler is HTTPMediaResourceHandler
-                              && (request.handler as HTTPMediaResourceHandler)
-                                 .media_resource.supports_arbitrary_time_seek() )
-                         || ( request.thumbnail == null
-                              && request.subtitle == null
-                              && (request.object as MediaItem).is_live_stream () ) ) );
+                    && ( request.object as AudioItem).duration > 0
+                         && ( request.handler is HTTPTranscodeHandler
+                              || ( request.thumbnail == null
+                                   && request.subtitle == null
+                                   && (request.object as MediaItem).is_live_stream () ) ) )
+               || ( request.handler is HTTPMediaResourceHandler
+                    && (request.handler as HTTPMediaResourceHandler)
+                        .media_resource.supports_arbitrary_time_seek() );
     }
 
     public static bool requested (HTTPGet request) {
@@ -116,6 +121,9 @@ internal class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
 
     public override void add_response_headers () {
         // TimeSeekRange.dlna.org: npt=START_TIME-END_TIME/DURATION
+        // TODO: This isn't compliant with DLNA 7.5.4.3.2.24.5/.7 since the response needs
+        //       to indicate the actual byte and time range returned. Think a way for the
+        //       DataSource to return response headers needs to be investigated...
         double start = (double) this.start / TimeSpan.SECOND;
         double stop = (double) this.stop / TimeSpan.SECOND;
         double total = (double) this.total_length / TimeSpan.SECOND;

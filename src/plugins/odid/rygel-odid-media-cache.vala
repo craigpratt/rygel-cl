@@ -854,7 +854,9 @@ public class Rygel.ODID.MediaCache : Object {
     private void fill_item (Statement statement, MediaItem item) {
         // Fill common properties
         //item.date = statement.column_text (DetailColumn.DATE);
-        item.media_resources = MediaEngine.get_default ().get_resources_for_uri (item.uris[0]);
+        // item.media_resources = MediaEngine.get_default ().get_resources_for_uri (item.uris[0]);
+        item.media_resources = MediaResourceManager
+                               .get_default().get_resources_for_source_uri (item.uris[0]);
     }
 
     private static string translate_search_expression

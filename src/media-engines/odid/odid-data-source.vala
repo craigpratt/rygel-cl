@@ -22,7 +22,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     private uint64 last_byte = 0;
     private bool frozen = false;
     private bool stop_thread = false;
-    private HTTPSeek offsets = null;
+    private HTTPSeek offsets;
     private DLNAPlaySpeed playspeed = null;
     private MediaResource res;
 
@@ -75,8 +75,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                                             basename,
                                                             playspeed,
                                                             out file_extension );
-        uint64 file_offset_start, file_offset_end;
-        
+        // Process HTTPSeek
         if (offsets == null) {
             message ("ODIDDataSource.start: Received null seek");
         } else if (offsets.seek_type == HTTPSeekType.TIME) {
@@ -87,12 +86,17 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             string index_path = resource_path + "/" + content_filename + ".index";
             bool is_reverse = (playspeed != null) && (playspeed.numerator < 0);
             offsets_for_time_range(index_path, ref time_offset_start, ref time_offset_end,
-                                   is_reverse, out file_offset_start, out file_offset_end);
+                                   is_reverse, out this.first_byte, out this.last_byte);
+            message ("ODIDDataSource.start: Data range for time seek: bytes %lld to %lld",
+                     this.first_byte, this.last_byte);
         } else if (offsets.seek_type == HTTPSeekType.BYTE) {
             message ("ODIDDataSource.start: Received data seek (bytes %lld to %lld)",
                      offsets.start, offsets.stop);
+            this.first_byte = offsets.start;
+            this.last_byte = offsets.stop;
         }
-        
+
+        // Process PlaySpeed
         if (playspeed == null) {
             message ("ODIDDataSource.start: Received null playspeed");
         } else {
@@ -106,8 +110,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                          this.thread_func);
     }
     
-    void offsets_for_time_range(string index_path, ref uint64 start_time, ref uint64 end_time,
-                                bool is_reverse, out uint64 start_offset, out uint64 end_offset)
+    internal void offsets_for_time_range(string index_path, ref uint64 start_time, ref uint64 end_time,
+                                         bool is_reverse, out uint64 start_offset, out uint64 end_offset)
          throws Error {
         message ("ODIDDataSource.offsets_for_time_range: %s, %lld-%lld\n",
                  index_path,start_time,end_time);
@@ -265,12 +269,14 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         message ("Spawned new thread for streaming %s", this.content_path);
         try {
             var mapped = new MappedFile(file.get_path (), false);
-            if (this.offsets != null) {
-                this.first_byte = this.offsets.start;
-                this.last_byte = this.offsets.stop + 1;
-            } else {
-                this.last_byte = mapped.get_length ();
+
+            if (this.last_byte == 0) {
+                this.last_byte = mapped.get_length();
             }
+            
+            message ( "Sending bytes %lld-%lld (%lld bytes) of %s",
+                      this.first_byte, this.last_byte, this.last_byte-this.first_byte,
+                      this.content_path );
 
             while (true) {
                 bool exit;
@@ -295,12 +301,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
                 unowned uint8[] data = (uint8[]) mapped.get_contents ();
                 data.length = (int) mapped.get_length ();
+
+                // message ( "Sending range %lld-%lld (%ld bytes)",
+                //           start, stop, stop-start );
+
                 uint8[] slice = data[start:stop];
                 this.first_byte = stop;
                 
-                // message ( "Sending range %lld-%lld (%ld bytes of %ld)",
-                //           start, stop, slice.length, data.length );
-
                 // There's a potential race condition here.
                 Idle.add ( () => {
                     if (!this.stop_thread) {

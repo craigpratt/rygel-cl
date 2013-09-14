@@ -91,14 +91,17 @@ public abstract class Rygel.HTTPSeek : GLib.Object {
         this.length = length;
         this.total_length = total_length;
 
-        if (start < 0 || start >= total_length) {
-            throw new HTTPSeekError.OUT_OF_RANGE (_("Out Of Range Start '%ld'"),
-                                                  start);
-        }
-        if (stop < 0 || stop >= total_length) {
-            throw new HTTPSeekError.OUT_OF_RANGE (_("Out Of Range Stop '%ld'"),
-                                                  stop);
-        }
+        // TODO: Had to disable this for now since these fields are properties
+        //       of resources and not items and the unset values trigger these
+        //       range checks
+        // if (start < 0 || start >= total_length) {
+        //     throw new HTTPSeekError.OUT_OF_RANGE (_("Out Of Range Start '%ld'"),
+        //                                          start);
+        // }
+        // if (stop < 0 || stop >= total_length) {
+        //     throw new HTTPSeekError.OUT_OF_RANGE (_("Out Of Range Stop '%ld'"),
+        //                                           stop);
+        // }
 
         if (length > 0) {
             this.stop = stop.clamp (start + 1, length - 1);
