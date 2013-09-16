@@ -41,7 +41,7 @@ internal abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
 
     public Cancellable cancellable { get; set; }
 
-    protected HTTPItemURI uri;
+    public HTTPItemURI uri;
     // TODO: rename this to "media_resource
     public MediaObject object;
     // TODO: add: public MediaResource media_resource;

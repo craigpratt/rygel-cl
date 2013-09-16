@@ -64,20 +64,6 @@ internal abstract class Rygel.GstTranscoder : Rygel.Transcoder {
     }
 
     /**
-     * Returns if the media engine is capable of handling dtcp request
-     */
-    public override bool has_mediaengine_dtcp () {
-	    return false;
-    }
-
-    /**
-     * Returns if the content is protected
-     */
-    public override bool is_item_protected (MediaItem item) {
-	    return false;
-    }
-
-    /**
      * Creates a transcoding source.
      *
      * @param src the media item to create the transcoding source for

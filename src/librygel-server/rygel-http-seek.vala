@@ -80,17 +80,28 @@ public abstract class Rygel.HTTPSeek : GLib.Object {
      */
     public int64 total_length { get; private set; }
 
+    /**
+     * The resource name which has been requested as string.
+     */
+    public string resource_name { get; protected set;}
+
+    /**
+     * If the request includes a protected content.
+     */
+    public bool content_protected { get; protected set;}
+
     public HTTPSeek (Soup.Message msg,
                      int64        start,
                      int64        stop,
                      int64        step,
-                     int64        total_length) throws HTTPSeekError {
+                     int64        total_length,
+                     bool         is_protected) throws HTTPSeekError {
         this.msg = msg;
         this.start = start;
         this.stop = stop;
         this.length = length;
         this.total_length = total_length;
-
+        this.content_protected = is_protected;
         // TODO: Had to disable this for now since these fields are properties
         //       of resources and not items and the unset values trigger these
         //       range checks

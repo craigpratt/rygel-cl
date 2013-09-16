@@ -34,12 +34,6 @@ using GUPnP;
  * by the same media engine.
  */
 public abstract class Rygel.Transcoder : GLib.Object {
-    public const string dtcp_mime_prefix = "application/x-dtcp1";
-    public const string dtcp_host_str = "DTCP1HOST=";
-    public const string dtcp_port_str = "DTCP1PORT=";
-    public const string content_format_str = "CONTENTFORMAT=";
-    public const string dtcp_prefix = "DTCP_";
-
     public string mime_type { get; construct; }
     public string dlna_profile { get; construct; }
     public string extension { get; construct; }
@@ -83,7 +77,7 @@ public abstract class Rygel.Transcoder : GLib.Object {
                                                    MediaItem        item,
                                                    TranscodeManager manager)
                                                    throws Error {
-       return null;
+        return null;
     }
 
     /**
@@ -100,57 +94,6 @@ public abstract class Rygel.Transcoder : GLib.Object {
     public bool can_handle (string target) {
         return target == this.dlna_profile;
     }
-
-    /**
-     * Returns if dtcp is enabled Rygel wide,
-     * with DTCP (keys, host, port) values.
-     */
-    public bool has_dtcp_enabled () {
-        var config = MetaConfig.get_default();
-        bool dtcp_enabled = false;
-
-        try {
-            dtcp_enabled = config.get_bool ("general","dtcp-enabled");
-        } catch (Error err) {
-            error("Error reading dtcp enabled property :"+ err.message);
-        }
-        return dtcp_enabled;
-    }
-
-     /**
-      * Modify mime type if the item is protected.
-      * This can call into a custom class that will have knowledge.
-      */
-    public string handle_mime_item_protected (string mime_type) {
-        string dtcp_host;
-        string dtcp_port;
-
-        var config = MetaConfig.get_default();
-        try {
-            dtcp_host = config.get_string ("general","dtcp-host");
-            dtcp_port = config.get_string ("general", "dtcp-port");
-
-            if (dtcp_host != "" && dtcp_port != "") {
-                return dtcp_mime_prefix + ";" + dtcp_host_str + dtcp_host + ";" +
-                       dtcp_port_str + dtcp_port + ";" + content_format_str +
-                       mime_type;
-            }
-        } catch (Error err) {
-            error ("Error reading dtcp host/port :" + err.message);
-        }
-
-        return mime_type;
-    }
-
-    /**
-     * Returns if the media engine is capable of handling dtcp request
-     */
-    public abstract bool has_mediaengine_dtcp ();
-
-    /**
-     * Returns if the content is protected
-     */
-    public abstract bool is_item_protected (MediaItem item);
 
     /**
      * Gets a numeric value that gives an gives an estimate of how hard

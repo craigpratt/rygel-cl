@@ -23,52 +23,110 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+using GUPnP;
+
 internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
-    public HTTPByteSeek (HTTPGet request) throws HTTPSeekError, HTTPRequestError {
+
+    public HTTPByteSeek (HTTPGet request, bool content_protected) throws HTTPSeekError,
+                                                                         HTTPRequestError {
         Soup.Range[] ranges;
         int64 start = 0, total_length;
+        string[] parsed_headers;
         unowned string range = request.msg.request_headers.get_one ("Range");
         unowned string range_dtcp = request.msg.request_headers.get_one ("Range.dtcp.com");
         string range_header_str = null;
+
         if (request.thumbnail != null) {
             total_length = request.thumbnail.size;
         } else if (request.subtitle != null) {
             total_length = request.subtitle.size;
+        } else if (request.handler is HTTPMediaResourceHandler) {
+            if (range_dtcp == null)
+                total_length = (request.handler as HTTPMediaResourceHandler)
+                                                       .media_resource.size;
+            else // Get the cleartextsize for Range.dtcp.com request.
+                total_length = (request.handler as HTTPMediaResourceHandler)
+                                                       .media_resource.cleartext_size;
         } else {
             total_length = (request.object as MediaItem).size;
         }
         var stop = total_length - 1;
 
+        // Check if both Range and Range.dtcp.com is present in headers
         if (range != null && range_dtcp != null)
         {
             // The return status code must be 406(not acceptable)
             throw new HTTPRequestError.UNACCEPTABLE (_
                   ("Invalid combination of Range and Range.dtcp.com"));
-        } else if (range != null) {
-            range_header_str = range;
         } else if (range_dtcp != null) {
             range_header_str = range_dtcp;
-        }
 
-        if (range_header_str != null) {
+            if (!content_protected) {
+                    throw new HTTPSeekError.INVALID_RANGE (_
+                              ("Range.dtcp.com not valid for unprotected content"));
+            }
+
+            parsed_headers = RygelHTTPRequestUtil.parse_dtcp_range_header (range_header_str);
+
+            if (parsed_headers.length == 2) {
+                // Start byte must be present and non empty string
+                if (parsed_headers[0] == null || parsed_headers[0] == "" ||
+                    parsed_headers[1] == null) {
+                    throw new HTTPSeekError.INVALID_RANGE (_
+                              ("Invalid Range.dtcp.com '%s'"), range_header_str);
+                }
+
+               start = (int64)(double.parse (parsed_headers[0]));
+
+               if (parsed_headers[1] == "") {
+                   stop = total_length - 1;
+               } else {
+                   stop = (int64)(double.parse (parsed_headers[1]));
+
+                   if (request.handler is HTTPMediaResourceHandler) {
+                       //Get the transport stream packet size for the profile
+                       string profile_name = (request.handler as HTTPMediaResourceHandler)
+                                              .media_resource.protocol_info.dlna_profile;
+
+                       // Align the bytes to transport packet boundaries
+                       int64 packet_size = RygelHTTPRequestUtil.get_profile_packet_size(profile_name);
+                       if (packet_size > 0) {
+                       // DLNA Link Protection : 8.9.5.4.2
+                       stop = RygelHTTPRequestUtil.get_dtcp_algined_end
+                              (start,
+                               stop,
+                               RygelHTTPRequestUtil.get_profile_packet_size(profile_name));
+                        }
+                   }
+                   if (stop > total_length) {
+                       stop = total_length -1;
+                   }
+               }
+            } else {
+                // Range header was present but invalid
+                throw new HTTPSeekError.INVALID_RANGE (_
+                          ("Invalid Range.dtcp.com '%s'"), range_header_str);
+            }
+        } else if (range != null) {
+            // Range is present, get the values from libsoup
+            range_header_str = range;
             if (request.msg.request_headers.get_ranges (total_length,
                                                         out ranges)) {
                 // TODO: Somehow deal with multipart/byterange properly
                 start = ranges[0].start;
                 stop = ranges[0].end;
             } else {
-                // Range header was present but invalid
                 throw new HTTPSeekError.INVALID_RANGE (_("Invalid Range '%s'"),
-                                                       range);
-            }
-
-            if (start > stop) {
-                throw new HTTPSeekError.INVALID_RANGE (_("Invalid Range '%s'"),
-                                                       range);
+                                                       range_header_str);
             }
         }
 
-        base (request.msg, start, stop, 1, total_length);
+        if (start > stop) {
+                throw new HTTPSeekError.INVALID_RANGE (_("Invalid Range '%s'"),
+                                                       range_header_str);
+        }
+
+        base (request.msg, start, stop, 1, total_length, content_protected);
         this.seek_type = HTTPSeekType.BYTE;
     }
 
@@ -80,11 +138,29 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
             force_seek = hack.force_seek ();
         } catch (Error error) { }
 
+        bool is_byte_seek_supported = false;
+
+        if (request.msg.request_headers.get_one ("Range.dtcp.com") != null) {
+            if (!(request.handler is HTTPMediaResourceHandler)) {
+                is_byte_seek_supported = false;
+            } else {
+                is_byte_seek_supported = (request.handler is HTTPMediaResourceHandler
+                                            && (request.handler as HTTPMediaResourceHandler)
+                                               .media_resource.is_cleartext_range_support_enabled());
+            }
+        } else if (request.msg.request_headers.get_one ("Range") != null) {
+            if (!(request.handler is HTTPMediaResourceHandler)) {
+                is_byte_seek_supported = true;
+            } else {
+                is_byte_seek_supported = request.handler is HTTPMediaResourceHandler
+                                       && (request.handler as HTTPMediaResourceHandler)
+                                            .media_resource.supports_arbitrary_byte_seek();
+			}
+        }
+
         return force_seek
                || (!(request.object is MediaContainer) && (request.object as MediaItem).size > 0)
-               || ( request.handler is HTTPMediaResourceHandler
-                    && (request.handler as HTTPMediaResourceHandler)
-                       .media_resource.supports_arbitrary_byte_seek() )
+               || is_byte_seek_supported
                || (request.thumbnail != null && request.thumbnail.size > 0)
                || (request.subtitle != null && request.subtitle.size > 0);
     }
@@ -96,18 +172,23 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
 
     public override void add_response_headers () {
         // Content-Range: bytes START_BYTE-STOP_BYTE/TOTAL_LENGTH
-        var range = "bytes ";
+        var range_str = "bytes ";
         unowned Soup.MessageHeaders headers = this.msg.response_headers;
         headers.append ("Accept-Ranges", "bytes");
-
-        range += this.start.to_string () + "-" +
+        range_str += this.start.to_string () + "-" +
                  this.stop.to_string () + "/" +
                  this.total_length.to_string ();
-        if (this.msg.request_headers.get_one ("Range") != null)
-            headers.append ("Content-Range", range);
-        else if (this.msg.request_headers.get_one ("Range.dtcp.com") != null)
-            headers.append ("Content-Range.dtcp.com", range);
-
-        headers.set_content_length (this.length);
+        if (this.msg.request_headers.get_one ("Range") != null) {
+            headers.append("Content-Range", range_str);
+            if (this.content_protected) // TODO : Call DTCP Lib to get the encrypted size 
+                headers.set_content_length (this.length);
+            else
+                headers.set_content_length (this.length);
+        } else if (this.msg.request_headers.get_one
+                                           ("Range.dtcp.com") != null) {
+            headers.append("Content-Range.dtcp.com", range_str);
+            // TODO : Call DTCP Lib to get the encrypted size
+            headers.set_content_length (this.length);
+        }
     }
 }

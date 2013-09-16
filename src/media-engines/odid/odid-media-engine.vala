@@ -171,6 +171,17 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                     basename = value;
                     continue;
                 }
+                // Check if the media-engine dtcp-ip support (Rygel Wide & Media-Engine) and then if
+                // protected property is set to true, then overwrite the profile name with DTCP prefix and mime-type
+                if (RygelHTTPRequestUtil.is_rygel_dtcp_enabled()
+                    && has_mediaengine_dtcp ()
+                    && (name == "protected" && value == "true")) {
+                    string dtcp_mime_type = RygelHTTPRequestUtil.handle_mime_item_protected 
+                                                                  (res.protocol_info.mime_type);
+                    set_resource_field(res, "profile", "DTCP_" + res.protocol_info.dlna_profile);
+                    set_resource_field(res, "mime-type", dtcp_mime_type);
+                    continue;
+                }
                 if (name.length > 0 && value.length > 0) {
                     set_resource_field(res, name, value);
                 }
@@ -195,8 +206,23 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                      + normal_content_filename + " is " + res.size.to_string() );
         }
 
-        // We currently support RANGE for all resources
-        res.protocol_info.dlna_operation = DLNAOperation.RANGE;
+        res.protocol_info.dlna_flags = DLNAFlags.DLNA_V15
+                                        | DLNAFlags.STREAMING_TRANSFER_MODE
+                                        | DLNAFlags.BACKGROUND_TRANSFER_MODE
+                                        | DLNAFlags.CONNECTION_STALL;
+        // We currently support RANGE for all resources except DTCP content
+        if (res.protocol_info.dlna_profile.has_prefix ("DTCP_")) {
+            res.protocol_info.dlna_flags |= DLNAFlags.LINK_PROTECTED_CONTENT |
+				                            DLNAFlags.CLEARTEXT_BYTESEEK_FULL;
+            res.protocol_info.dlna_operation = DLNAOperation.NONE;
+
+            res.cleartext_size = res.size;
+            // TODO : Call encrypted size calculation lib after DTCP lib integration
+            res.size = res.size + 1000;
+        }
+        else {
+            res.protocol_info.dlna_operation = DLNAOperation.RANGE;
+        }
         
         // Look for an index file and set fields accordingly if/when found
         {
@@ -349,6 +375,21 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         }
         
         return new ODIDDataSource(uri, resource);
+    }
+
+     /**
+     * Returns if the media engine is capable of handling dtcp request
+     */
+    public override bool has_mediaengine_dtcp () {
+        var config = MetaConfig.get_default();
+        bool dtcp_supported = false;
+        try {
+            dtcp_supported = config.get_bool ("OdidMediaEngine","engine-dtcp");
+        } catch (Error err) {
+            error("Error reading dtcp property for media engine :" + err.message);
+        }
+
+        return dtcp_supported;
     }
 }
 
