@@ -35,10 +35,6 @@ private errordomain Rygel.MediaItemError {
  * These objects correspond to items in the UPnP ContentDirectory's DIDL-Lite XML.
  */
 public abstract class Rygel.MediaItem : MediaObject {
-    public string date { get; set; }
-
-    public string creator { get; set; }
-
     // TODO: Add List of MediaResources. Note that subclasses will also need to be changed
     //       to store media resource parameters in a MediaResource
 
@@ -298,9 +294,7 @@ public abstract class Rygel.MediaItem : MediaObject {
     }
 
     internal void add_media_resources(HTTPServer server, DIDLLiteItem didl_item) {
-        message("MediaItem.add_media_resources");
         foreach (var resource in media_resources) {
-            message("Found resource %s", resource.get_name());
             var uri = server.create_uri_for_item (this,
                                                    -1,
                                                    -1,

@@ -20,36 +20,24 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-internal enum Rygel.ODID.DetailColumn {
-    TYPE,
-    TITLE,
+internal enum Rygel.ODID.ResourceColumn {
     SIZE,
-    MIME_TYPE,
+    PROTOCOL_INFO,
+    CLEARTEXT_SIZE,
+    DURATION,
     WIDTH,
     HEIGHT,
-    CREATOR,
-    AUTHOR,
     ALBUM,
-    DATE,
+    GENRE,
     BITRATE,
     SAMPLE_FREQ,
     BITS_PER_SAMPLE,
     CHANNELS,
     TRACK,
-    COLOR_DEPTH,
-    DURATION,
-    ID,
-    PARENT,
-    TIMESTAMP,
-    URI,
-    DLNA_PROFILE,
-    GENRE,
-    DISC,
+    DISK,
     NAME,
-    OBJECT_UPDATE_ID,
-    DELETED_CHILD_COUNT,
-    CONTAINER_UPDATE_ID,
-    REFERENCE_ID
+    EXTENSION,
+    COLOR_DEPTH
 }
 
 internal enum Rygel.ODID.ObjectColumn {
@@ -58,6 +46,8 @@ internal enum Rygel.ODID.ObjectColumn {
     ID,
     PARENT,
     CLASS,
+    DATE,
+    CREATOR,
     TIMESTAMP,
     URI,
     OBJECT_UPDATE_ID,
@@ -67,7 +57,7 @@ internal enum Rygel.ODID.ObjectColumn {
 }
 
 internal enum Rygel.ODID.SQLString {
-    SAVE_METADATA,
+    SAVE_RESOURCE,
     INSERT,
     DELETE,
     GET_OBJECT,
@@ -76,11 +66,12 @@ internal enum Rygel.ODID.SQLString {
     GET_OBJECTS_BY_FILTER_WITH_ANCESTOR,
     GET_OBJECT_COUNT_BY_FILTER,
     GET_OBJECT_COUNT_BY_FILTER_WITH_ANCESTOR,
-    GET_META_DATA_COLUMN,
+    GET_RESOURCES_BY_OBJECT,
+    GET_RESOURCE_COLUMN,
     CHILD_COUNT,
     EXISTS,
     CHILD_IDS,
-    TABLE_METADATA,
+    TABLE_RESOURCE,
     TABLE_CLOSURE,
     TRIGGER_CLOSURE,
     TRIGGER_COMMON,
@@ -97,27 +88,29 @@ internal enum Rygel.ODID.SQLString {
 }
 
 internal class Rygel.ODID.SQLFactory : Object {
-    private const string SAVE_META_DATA_STRING =
-    "INSERT OR REPLACE INTO meta_data " +
-        "(size, mime_type, width, height, " +
-         "author, album, date, bitrate, " +
+    private const string SAVE_RESOURCE_STRING =
+    "INSERT OR REPLACE INTO Resource " +
+        "(size, width, height, " +
+         "author, album, bitrate, " +
          "sample_freq, bits_per_sample, channels, " +
          "track, color_depth, duration, object_fk, " +
-         "dlna_profile, genre, disc, name, creator) VALUES " +
-         "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+         "protocol_info, cleartext_size, genre, disc, name, extension) VALUES " +
+         "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private const string INSERT_OBJECT_STRING =
     "INSERT OR REPLACE INTO Object " +
-        "(upnp_id, title, type_fk, parent, class, timestamp, uri, " +
+        "(upnp_id, title, type_fk, parent, class, date, creator, timestamp, uri, " +
          "object_update_id, deleted_child_count, container_update_id, " +
          "is_guarded, reference_id) VALUES " +
-        "(?,?,?,?,?,?,?,?,?,?,?,?)";
+        "(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private const string UPDATE_GUARDED_OBJECT_STRING =
     "UPDATE Object SET " +
         "type_fk = ?, " +
         "parent = ?, " +
         "class = ?, " +
+        "date = ?, " +
+        "creator = ?, " +
         "timestamp = ?, " +
         "uri = ?, " +
         "object_update_id = ?, " +
@@ -130,9 +123,12 @@ internal class Rygel.ODID.SQLFactory : Object {
         "(SELECT descendant FROM closure WHERE ancestor = ?)";
 
     private const string ALL_OBJECT_STRING =
-    "o.type_fk, o.title, o.upnp_id, o.parent, o.class, o.timestamp, " +
+    "o.type_fk, o.title, o.upnp_id, o.parent, o.class, o.date, o.creator, o.timestamp, " +
     "o.uri, o.object_update_id, " +
     "o.deleted_child_count, o.container_update_id, o.reference_id ";
+
+    private const string ALL_RESOURCE_STRING =
+    "r.size, r.protocol_info, r.cleartext_size, r.duration, r.width, r.height, r.album, r.genre, r.bitrate, r.sample_freq, r.bits_per_sample, r.channels, r.track, r.disc, r.name, r.extension, r.color_depth ";
 
     private const string GET_OBJECT_WITH_PATH =
     "SELECT DISTINCT " + ALL_OBJECT_STRING +
@@ -161,55 +157,57 @@ internal class Rygel.ODID.SQLFactory : Object {
     "SELECT DISTINCT " + ALL_OBJECT_STRING +
     "FROM Object o " +
         "JOIN Closure c ON o.upnp_id = c.descendant AND c.ancestor = ? " +
-        "LEFT OUTER JOIN meta_data m " +
-            "ON o.upnp_id = m.object_fk %s %s " +
+        "LEFT OUTER JOIN Resource r " +
+            "ON o.upnp_id = r.object_fk %s %s " +
     "LIMIT ?,?";
 
     private const string GET_OBJECTS_BY_FILTER_STRING =
     "SELECT DISTINCT " + ALL_OBJECT_STRING +
     "FROM Object o " +
-        "LEFT OUTER JOIN meta_data m " +
-            "ON o.upnp_id = m.object_fk %s %s " +
+        "LEFT OUTER JOIN Resource r " +
+            "ON o.upnp_id = r.object_fk %s %s " +
     "LIMIT ?,?";
 
     private const string GET_OBJECT_COUNT_BY_FILTER_STRING_WITH_ANCESTOR =
     "SELECT DISTINCT COUNT(o.type_fk) FROM Object o " +
         "JOIN Closure c ON o.upnp_id = c.descendant AND c.ancestor = ? " +
-        "LEFT OUTER JOIN meta_data m " +
-            "ON o.upnp_id = m.object_fk %s";
+        "LEFT OUTER JOIN Resource r " +
+            "ON o.upnp_id = r.object_fk %s";
 
     private const string GET_OBJECT_COUNT_BY_FILTER_STRING =
-    "SELECT COUNT(1) FROM meta_data m %s";
+    "SELECT COUNT(1) FROM Resource r %s";
+
+    private const string GET_RESOURCES_BY_OBJECT_STRING = 
+    "SELECT " + ALL_RESOURCE_STRING + " FROM Resource r " +
+        "WHERE r.object_fk = ?";
 
     private const string CHILDREN_COUNT_STRING =
     "SELECT COUNT(upnp_id) FROM Object WHERE Object.parent = ?";
 
     private const string OBJECT_EXISTS_STRING =
-    "SELECT COUNT(1), timestamp, m.size FROM Object " +
-        "JOIN meta_data m ON m.object_fk = upnp_id " +
+    "SELECT COUNT(1), timestamp, r.size FROM Object " +
+        "JOIN Resource r ON r.object_fk = upnp_id " +
         "WHERE Object.uri = ?";
 
     private const string GET_CHILD_ID_STRING =
     "SELECT upnp_id FROM OBJECT WHERE parent = ?";
 
-    private const string GET_META_DATA_COLUMN_STRING =
-    "SELECT DISTINCT %s AS _column FROM meta_data AS m " +
+    private const string GET_RESOURCE_COLUMN_STRING =
+    "SELECT DISTINCT %s AS _column FROM Resource AS r " +
         "WHERE _column IS NOT NULL %s ORDER BY _column COLLATE CASEFOLD " +
     "LIMIT ?,?";
 
     internal const string SCHEMA_VERSION = "1";
-    internal const string CREATE_META_DATA_TABLE_STRING =
-    "CREATE TABLE meta_data (size INTEGER NOT NULL, " +
-                            "mime_type TEXT NOT NULL, " +
-                            "dlna_profile TEXT, " +
+    internal const string CREATE_RESOURCE_TABLE_STRING =
+    "CREATE TABLE resource (size INTEGER, " +
+                            "protocol_info TEXT, " +
+                            "cleartext_size INTEGER, " +
                             "duration INTEGER, " +
                             "width INTEGER, " +
                             "height INTEGER, " +
-                            "creator TEXT, " +
                             "author TEXT, " +
                             "album TEXT, " +
                             "genre TEXT, " +
-                            "date TEXT, " +
                             "bitrate INTEGER, " +
                             "sample_freq INTEGER, " +
                             "bits_per_sample INTEGER, " +
@@ -217,6 +215,7 @@ internal class Rygel.ODID.SQLFactory : Object {
                             "track INTEGER, " +
                             "disc INTEGER, " +
                             "name TEXT NOT NULL, " +
+                            "extension TEXT, " +
                             "color_depth INTEGER, " +
                             "object_fk TEXT CONSTRAINT " +
                                 "object_fk_id REFERENCES Object(upnp_id) " +
@@ -226,13 +225,15 @@ internal class Rygel.ODID.SQLFactory : Object {
     private const string SCHEMA_STRING =
     "CREATE TABLE schema_info (version TEXT NOT NULL, " +
                               "reset_token TEXT); " +
-    CREATE_META_DATA_TABLE_STRING +
+    CREATE_RESOURCE_TABLE_STRING +
     "CREATE TABLE object (parent TEXT CONSTRAINT parent_fk_id " +
                                 "REFERENCES Object(upnp_id), " +
                           "upnp_id TEXT PRIMARY KEY, " +
                           "type_fk INTEGER, " +
                           "title TEXT NOT NULL, " +
                           "class TEXT NOT NULL, " +
+                          "date TEXT, " +
+                          "creator TEXT, " +
                           "timestamp INTEGER NOT NULL, " +
                           "uri TEXT, " +
                           "object_update_id INTEGER, " +
@@ -269,10 +270,10 @@ internal class Rygel.ODID.SQLFactory : Object {
 
     // these triggers emulate ON DELETE CASCADE
     private const string CREATE_TRIGGER_STRING =
-    "CREATE TRIGGER trgr_delete_metadata " +
+    "CREATE TRIGGER trgr_delete_resource " +
     "BEFORE DELETE ON Object " +
     "FOR EACH ROW BEGIN " +
-        "DELETE FROM meta_data WHERE meta_data.object_fk = OLD.upnp_id; "+
+        "DELETE FROM Resource WHERE Resource.object_fk = OLD.upnp_id; "+
     "END;";
 
     private const string DELETE_REFERENCE_TRIGGER_STRING =
@@ -285,20 +286,20 @@ internal class Rygel.ODID.SQLFactory : Object {
     private const string CREATE_INDICES_STRING =
     "CREATE INDEX IF NOT EXISTS idx_parent on Object(parent);" +
     "CREATE INDEX IF NOT EXISTS idx_object_upnp_id on Object(upnp_id);" +
-    "CREATE INDEX IF NOT EXISTS idx_meta_data_fk on meta_data(object_fk);" +
+    "CREATE INDEX IF NOT EXISTS idx_resource_fk on Resource(object_fk);" +
     "CREATE INDEX IF NOT EXISTS idx_closure on Closure(descendant,depth);" +
     "CREATE INDEX IF NOT EXISTS idx_closure_descendant on Closure(descendant);" +
     "CREATE INDEX IF NOT EXISTS idx_closure_ancestor on Closure(ancestor);" +
     "CREATE INDEX IF NOT EXISTS idx_uri on Object(uri);" +
-    "CREATE INDEX IF NOT EXISTS idx_meta_data_date on meta_data(date);" +
-    "CREATE INDEX IF NOT EXISTS idx_meta_data_genre on meta_data(genre);" +
-    "CREATE INDEX IF NOT EXISTS idx_meta_data_album on meta_data(album);" +
-    "CREATE INDEX IF NOT EXISTS idx_meta_data_artist_album on " +
-                                "meta_data(author, album);";
+    "CREATE INDEX IF NOT EXISTS idx_object_date on Object(date);" +
+    "CREATE INDEX IF NOT EXISTS idx_resource_genre on Resource(genre);" +
+    "CREATE INDEX IF NOT EXISTS idx_resource_album on Resource(album);" +
+    "CREATE INDEX IF NOT EXISTS idx_resource_artist_album on " +
+                                "Resource(author, album);";
 
     private const string EXISTS_CACHE_STRING =
-    "SELECT DISTINCT m.size, o.timestamp, o.uri FROM Object o " +
-        "JOIN meta_data m ON o.upnp_id = m.object_fk";
+    "SELECT DISTINCT r.size, o.timestamp, o.uri FROM Object o " +
+        "JOIN Resource r ON o.upnp_id = r.object_fk";
 
     private const string STATISTICS_STRING =
     "SELECT class, count(1) FROM object GROUP BY class";
@@ -317,8 +318,8 @@ internal class Rygel.ODID.SQLFactory : Object {
 
     public unowned string make (SQLString query) {
         switch (query) {
-            case SQLString.SAVE_METADATA:
-                return SAVE_META_DATA_STRING;
+            case SQLString.SAVE_RESOURCE:
+                return SAVE_RESOURCE_STRING;
             case SQLString.INSERT:
                 return INSERT_OBJECT_STRING;
             case SQLString.DELETE:
@@ -335,16 +336,18 @@ internal class Rygel.ODID.SQLFactory : Object {
                 return GET_OBJECT_COUNT_BY_FILTER_STRING;
             case SQLString.GET_OBJECT_COUNT_BY_FILTER_WITH_ANCESTOR:
                 return GET_OBJECT_COUNT_BY_FILTER_STRING_WITH_ANCESTOR;
-            case SQLString.GET_META_DATA_COLUMN:
-                return GET_META_DATA_COLUMN_STRING;
+            case SQLString.GET_RESOURCES_BY_OBJECT:
+                return GET_RESOURCES_BY_OBJECT_STRING;
+            case SQLString.GET_RESOURCE_COLUMN:
+                return GET_RESOURCE_COLUMN_STRING;
             case SQLString.CHILD_COUNT:
                 return CHILDREN_COUNT_STRING;
             case SQLString.EXISTS:
                 return OBJECT_EXISTS_STRING;
             case SQLString.CHILD_IDS:
                 return GET_CHILD_ID_STRING;
-            case SQLString.TABLE_METADATA:
-                return CREATE_META_DATA_TABLE_STRING;
+            case SQLString.TABLE_RESOURCE:
+                return CREATE_RESOURCE_TABLE_STRING;
             case SQLString.TRIGGER_COMMON:
                 return CREATE_TRIGGER_STRING;
             case SQLString.TRIGGER_CLOSURE:

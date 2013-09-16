@@ -41,6 +41,8 @@ public abstract class Rygel.MediaObject : GLib.Object {
     public string id { get; set construct; }
     public string ref_id { get; set; }
     public string upnp_class { get; construct set; }
+    public string date { get; set; }
+    public string creator { get; set; }
     public uint64 modified { get; set; }
     public uint object_update_id { get; set; }
 

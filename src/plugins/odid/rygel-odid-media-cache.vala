@@ -122,7 +122,7 @@ public class Rygel.ODID.MediaCache : Object {
                            bool override_guarded = false) throws Error {
         try {
             db.begin ();
-            save_metadata (item);
+            save_resources (item);
             create_object (item, override_guarded);
             db.commit ();
         } catch (DatabaseError error) {
@@ -441,7 +441,7 @@ public class Rygel.ODID.MediaCache : Object {
 
         var data = new ArrayList<string> ();
 
-        unowned string sql = this.sql.make (SQLString.GET_META_DATA_COLUMN);
+        unowned string sql = this.sql.make (SQLString.GET_RESOURCE_COLUMN);
         var cursor = this.db.exec_cursor (sql.printf (column, filter),
                                           args.values);
         foreach (var statement in cursor) {
@@ -634,43 +634,31 @@ public class Rygel.ODID.MediaCache : Object {
         }
     }
 
-    private void save_metadata (Rygel.MediaItem item) throws Error {
+    private void save_resources (Rygel.MediaItem item) throws Error {
         foreach (MediaResource resource in item.media_resources)
         {
             // Fill common properties
             GLib.Value[] values = { resource.size,
-                                    resource.protocol_info.mime_type,
-                                    -1,
-                                    -1,
+                                    resource.width,
+                                    resource.height,
                                     Database.null (),
                                     Database.null (),
-                                    item.date,
+                                    resource.bitrate,
+                                    resource.sample_freq,
+                                    resource.bits_per_sample,
+                                    resource.audio_channels,
                                     -1,
-                                    -1,
-                                    -1,
-                                    -1,
-                                    -1,
-                                    -1,
-                                    -1,
+                                    resource.color_depth,
+                                    resource.duration,
                                     item.id,
-                                    resource.protocol_info.dlna_profile,
+                                    resource.protocol_info.to_string (),
+                                    resource.cleartext_size,
                                     Database.null (),
                                     -1,
-                                    item.creator};
+                                    resource.get_name (),
+                                    resource.extension};
                                     
-
-                
-            values[2] = resource.width;
-            values[3] = resource.height;
-            values[7] = resource.bitrate;
-            values[8] = resource.sample_freq;
-            values[9] = resource.bits_per_sample;
-            values[10] = resource.audio_channels;
-            values[12] = resource.color_depth;
-            values[13] = resource.duration;
-            values[18] = resource.get_name ();
-
-            this.db.exec (this.sql.make (SQLString.SAVE_METADATA), values);
+            this.db.exec (this.sql.make (SQLString.SAVE_RESOURCE), values);
         }
     }
 
@@ -691,6 +679,8 @@ public class Rygel.ODID.MediaCache : Object {
         GLib.Value[] values = { type,
                                 parent,
                                 object.upnp_class,
+                                object.date,
+                                object.creator,
                                 object.modified,
                                 object.uris.is_empty ? null : object.uris[0],
                                 object.object_update_id,
@@ -727,6 +717,8 @@ public class Rygel.ODID.MediaCache : Object {
                                 type,
                                 parent,
                                 object.upnp_class,
+                                object.date,
+                                object.creator,
                                 object.modified,
                                 object.uris.is_empty ? null : object.uris[0],
                                 object.object_update_id,
@@ -852,11 +844,43 @@ public class Rygel.ODID.MediaCache : Object {
     }
 
     private void fill_item (Statement statement, MediaItem item) {
-        // Fill common properties
-        //item.date = statement.column_text (DetailColumn.DATE);
-        // item.media_resources = MediaEngine.get_default ().get_resources_for_uri (item.uris[0]);
-        item.media_resources = MediaResourceManager
-                               .get_default().get_resources_for_source_uri (item.uris[0]);
+        // Fill common properties and resources from the database
+        item.date = statement.column_text (ObjectColumn.DATE);
+        item.creator = statement.column_text (ObjectColumn.CREATOR);
+        GLib.Value[] values = { item.id };
+
+        var resources = new Gee.ArrayList<MediaResource>();
+
+        try {
+            var cursor = this.exec_cursor (SQLString.GET_RESOURCES_BY_OBJECT,    
+                                              values);
+
+            foreach (var resource_stmt in cursor) {
+                MediaResource res = new MediaResource (resource_stmt.column_text (ResourceColumn.NAME));
+
+                res.protocol_info = new ProtocolInfo.from_string 
+                                    (resource_stmt.column_text (ResourceColumn.PROTOCOL_INFO));
+
+                res.duration        = resource_stmt.column_int (ResourceColumn.DURATION);
+                res.width           = resource_stmt.column_int (ResourceColumn.WIDTH);
+                res.height          = resource_stmt.column_int (ResourceColumn.HEIGHT);
+                res.bitrate         = resource_stmt.column_int (ResourceColumn.BITRATE);
+                res.sample_freq     = resource_stmt.column_int (ResourceColumn.SAMPLE_FREQ);
+                res.bits_per_sample = resource_stmt.column_int (ResourceColumn.BITS_PER_SAMPLE);
+                res.audio_channels  = resource_stmt.column_int (ResourceColumn.CHANNELS);
+                res.extension       = resource_stmt.column_text (ResourceColumn.EXTENSION);
+                res.color_depth     = resource_stmt.column_int (ResourceColumn.COLOR_DEPTH);
+                res.size            = resource_stmt.column_int64 (ResourceColumn.SIZE);
+                res.cleartext_size  = resource_stmt.column_int64 (ResourceColumn.CLEARTEXT_SIZE);
+
+                resources.add(res);
+            }
+
+        } catch (Error error) {
+            warning ("Failed to get update ids: %s", error.message);
+        }
+
+        item.media_resources = resources;                
     }
 
     private static string translate_search_expression
@@ -924,7 +948,7 @@ public class Rygel.ODID.MediaCache : Object {
                 column = "o.uri";
                 break;
             case "res@duration":
-                column = "m.duration";
+                column = "r.duration";
                 break;
             case "@refID":
                 column = "o.reference_id";
@@ -944,35 +968,35 @@ public class Rygel.ODID.MediaCache : Object {
                 break;
             case "upnp:artist":
             case "upnp:author":
-                column = "m.author";
+                column = "r.author";
                 use_collation = true;
                 break;
             case "dc:creator":
-                column = "m.creator";
+                column = "o.creator";
                 use_collation = true;
                 break;
             case "dc:date":
                 if (for_sort) {
-                    column = "m.date";
+                    column = "o.date";
                 } else {
-                    column = "strftime(\"%Y\", m.date)";
+                    column = "strftime(\"%Y\", o.date)";
                 }
                 break;
             case "upnp:album":
-                column = "m.album";
+                column = "r.album";
                 use_collation = true;
                 break;
             case "upnp:genre":
             case "dc:genre":
                 // FIXME: Remove dc:genre, upnp:genre is the correct one
-                column = "m.genre";
+                column = "r.genre";
                 use_collation = true;
                 break;
             case "upnp:originalTrackNumber":
-                column = "m.track";
+                column = "r.track";
                 break;
             case "rygel:originalVolumeNumber":
-                column = "m.disc";
+                column = "r.disc";
                 break;
             case "upnp:objectUpdateID":
                 column = "o.object_update_id";

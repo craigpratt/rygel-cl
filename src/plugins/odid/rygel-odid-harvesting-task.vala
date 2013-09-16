@@ -299,6 +299,7 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
                                             keyFile.get_string ("item", "title"));
 
             item.date = keyFile.get_string ("item", "date");
+
             // Temporary fix until MediaResources are extracted from the DB
             item.media_resources = MediaResourceManager
                                    .get_default().get_resources_for_source_uri (file.get_uri ());
