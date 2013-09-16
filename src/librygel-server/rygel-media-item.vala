@@ -136,8 +136,6 @@ public abstract class Rygel.MediaItem : MediaObject {
             }
         }
 
-        media_resources = MediaResourceManager
-                          .get_default().get_resources_for_source_uri (this.uris.get (0));
         return MediaEngine.get_default ().create_data_source_for_resource (translated_uri, resource);
     }
 
@@ -149,9 +147,6 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     public virtual void add_uri (string uri) {
         this.uris.add (uri);
-        // The MediaItem isn't fully constructed until an URI is present
-        media_resources = MediaResourceManager
-                          .get_default().get_resources_for_source_uri (this.uris.get (0));
     }
 
     internal int compare_transcoders (Transcoder transcoder1,
@@ -192,10 +187,6 @@ public abstract class Rygel.MediaItem : MediaObject {
             // so we just set it to 0.
             res.update_count = 0;
         }
-
-        res.size64 = this.size;
-
-        res = resource.write_didl_lite (res);
 
         return res;
     }
@@ -280,9 +271,8 @@ public abstract class Rygel.MediaItem : MediaObject {
          * there just choose the first one in the list instead of the one they
          * can handle.
          */
-        // TODO: Change this to call serialize() on the list of MediaResource objects
-        this.add_proxy_resources (http_server, didl_item);
         if (!this.place_holder) {
+            this.add_media_resources (http_server, didl_item);
             var host_ip = http_server.context.host_ip;
 
             // then original URIs
@@ -305,11 +295,6 @@ public abstract class Rygel.MediaItem : MediaObject {
     internal virtual void add_proxy_resources (HTTPServer   server,
                                                DIDLLiteItem didl_item)
                                                throws Error {
-        if (!this.place_holder) {
-            // Temporary way to add MediaResources
-            //  (eventually they shouldn't be proxy resources)
-            add_media_resources(server, didl_item);
-        }
     }
 
     internal void add_media_resources(HTTPServer server, DIDLLiteItem didl_item) {

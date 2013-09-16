@@ -42,7 +42,10 @@ internal abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
     public Cancellable cancellable { get; set; }
 
     public HTTPItemURI uri;
+    // TODO: rename this to "media_resource
     public MediaObject object;
+    // TODO: add: public MediaResource media_resource;
+    // Or - to take this further - maybe only the GetHandler should have item/resource references?
 
     internal ClientHacks hack;
 

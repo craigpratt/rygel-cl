@@ -198,7 +198,6 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                                                 basename,
                                                                 new DLNAPlaySpeed(1,1),
                                                                 out file_extension );
-            message( "OdidMediaEngine:Getting size for " + normal_content_filename);
             File content_file = File.new_for_uri(res_dir_uri + normal_content_filename);
             FileInfo content_info = content_file.query_info(GLib.FileAttribute.STANDARD_SIZE, 0);
             res.size = content_info.get_size();
@@ -360,11 +359,12 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
     public override DataSource? create_data_source_for_resource
                                 (string uri, MediaResource ? resource) {
+        message("create_data_source_for_resource: source uri: " + uri);
+
         if (!uri.has_prefix ("file://")) {
             return null;
         }
 
-        message("create_data_source_for_resource: source uri: " + uri);
         if (resource == null) {
             message("create_data_source_for_resource: null resource");
         } else {
