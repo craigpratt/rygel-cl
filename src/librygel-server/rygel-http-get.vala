@@ -223,13 +223,13 @@ internal class Rygel.HTTPGet : HTTPRequest {
             // If Playspeed is requested then send response in chunked mode.
             if (this.speed == null || this.speed.to_float() == 1.0) {
                 this.msg.response_headers.set_encoding (Soup.Encoding.CONTENT_LENGTH);
-            } else {
+            } else if (this.msg.get_http_version() == Soup.HTTPVersion.@1_1) {
                 this.msg.response_headers.set_encoding (Soup.Encoding.CHUNKED);
             }
         } else { // For non HTTPMediaResourceHandler
             if (this.handler.knows_size (this)) {
                 this.msg.response_headers.set_encoding (Soup.Encoding.CONTENT_LENGTH);
-            } else {
+            } else if (this.msg.get_http_version() == Soup.HTTPVersion.@1_1) {
                 // Set the streaming mode to chunked if the size is unknown
                 this.msg.response_headers.set_encoding (Soup.Encoding.CHUNKED);
             }
