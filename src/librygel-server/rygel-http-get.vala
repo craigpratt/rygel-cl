@@ -178,9 +178,18 @@ internal class Rygel.HTTPGet : HTTPRequest {
             }
             else
             {
-                this.msg.response_headers.set_content_length ((this.object as MediaItem).size);
+                int64 size;
+                if (this.handler is HTTPMediaResourceHandler) {
+                    size = (this.handler as HTTPMediaResourceHandler)
+                           .media_resource.size;
+                } else {
+                    size = (this.object as MediaItem).size;
+                }
+
+                this.msg.response_headers.set_content_length (size);
             }
         } catch (HTTPSeekError error) {
+            warning("Caught HTTPSeekError: " + error.message);
             this.server.unpause_message (this.msg);
 
             if (error is HTTPSeekError.INVALID_RANGE) {
@@ -221,9 +230,14 @@ internal class Rygel.HTTPGet : HTTPRequest {
         
         if (this.handler is HTTPMediaResourceHandler) {
             // If Playspeed is requested then send response in chunked mode.
-            if (this.speed == null || this.speed.to_float() == 1.0) {
+            // NOTE: Content-Length for non-Range requests can only be done by the 
+            //       MediaEngine as there isn't currently a way to return a length
+            //       for these requests (e.g. TimeSeekRange and DTCP Range). So
+            //       we'll only support Chunked mode for these request types currently.
+            // TODO: Fix this once response headers can be returned.
+            if (requested_byte_seek || this.msg.get_http_version() == Soup.HTTPVersion.@1_0) {
                 this.msg.response_headers.set_encoding (Soup.Encoding.CONTENT_LENGTH);
-            } else if (this.msg.get_http_version() == Soup.HTTPVersion.@1_1) {
+            } else {
                 this.msg.response_headers.set_encoding (Soup.Encoding.CHUNKED);
             }
         } else { // For non HTTPMediaResourceHandler

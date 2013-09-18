@@ -28,9 +28,16 @@ internal class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
         string range;
         string[] range_tokens;
         int64 start = 0;
-        int64 duration = (request.object as AudioItem).duration * TimeSpan.SECOND;
+        int64 duration;
         // TODO: Make this reference the MediaResource duration from the request, once it's there
         //       e.g. duration = request.media_resource.duration *TimeSpan.SECOND;
+        if (request.handler is HTTPMediaResourceHandler) {
+            duration = (request.handler as HTTPMediaResourceHandler).media_resource.duration
+                       * TimeSpan.SECOND;
+        } else {
+            duration = (request.object as AudioItem).duration * TimeSpan.SECOND;
+        }
+        
         int64 stop = duration - TimeSpan.MILLISECOND;
         int64 parsed_value = 0;
         bool parsing_start = true;

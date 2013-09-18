@@ -113,7 +113,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     internal void offsets_for_time_range(string index_path, ref uint64 start_time, ref uint64 end_time,
                                          bool is_reverse, out uint64 start_offset, out uint64 end_offset)
          throws Error {
-        message ("ODIDDataSource.offsets_for_time_range: %s, %lld-%lld\n",
+        message ("ODIDDataSource.offsets_for_time_range: %s, %lld-%lld",
                  index_path,start_time,end_time);
         bool start_offset_found = false;
         bool end_offset_found = false;
@@ -144,7 +144,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 // Leading "0"s cause parse() to assume the value is octal (see Vala bug 656691)
                 cur_time_offset = uint64.parse(strip_leading_zeros(extended_time_string));
                 cur_data_offset = index_fields[3]; // Convert this only when needed
-                // message ("ODIDDataSource.offsets_for_time_range: keyframe at %s (%s) has offset %s\n",
+                // message ("ODIDDataSource.offsets_for_time_range: keyframe at %s (%s) has offset %s",
                 //          extended_time_string, cur_time_offset.to_string(), cur_data_offset);
                 if (!start_offset_found) {
                     if (!is_reverse) {
@@ -152,7 +152,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                             start_time = last_time_offset;
                             start_offset = uint64.parse(strip_leading_zeros(last_data_offset));
                             start_offset_found = true;
-                            message ("ODIDDataSource.offsets_for_time_range: found start of range (forward): time %lld, offset %lld\n",
+                            message ("ODIDDataSource.offsets_for_time_range: found start of range (forward): time %lld, offset %lld",
                                      start_time, start_offset);
                         }
                     } else {
@@ -160,7 +160,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                             end_time = last_time_offset;
                             start_offset = uint64.parse(strip_leading_zeros(last_data_offset));
                             start_offset_found = true;
-                            message ("ODIDDataSource.offsets_for_time_range: found start of range (reverse): time %lld, offset %lld\n",
+                            message ("ODIDDataSource.offsets_for_time_range: found start of range (reverse): time %lld, offset %lld",
                                      start_time, start_offset);
                         }
                     }
@@ -170,7 +170,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                             end_time = cur_time_offset;
                             end_offset = uint64.parse(strip_leading_zeros(cur_data_offset));
                             end_offset_found = true;
-                            message ("ODIDDataSource.offsets_for_time_range: found end of range (forward): time %lld, offset %lld\n",
+                            message ("ODIDDataSource.offsets_for_time_range: found end of range (forward): time %lld, offset %lld",
                                      end_time, end_offset);
                             break;
                         }
@@ -179,7 +179,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                             start_time = cur_time_offset;
                             end_offset = uint64.parse(strip_leading_zeros(cur_data_offset));
                             end_offset_found = true;
-                            message ("ODIDDataSource.offsets_for_time_range: found end of range (reverse): time %lld, offset %lld\n",
+                            message ("ODIDDataSource.offsets_for_time_range: found end of range (reverse): time %lld, offset %lld",
                                      end_time, end_offset);
                             break;
                         }
@@ -194,12 +194,12 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             if (!is_reverse) {
                 end_time = cur_time_offset;
                 end_offset = uint64.parse(strip_leading_zeros(cur_data_offset));
-                message ("ODIDDataSource.offsets_for_time_range: end of range beyond index range (forward): time %lld, offset %lld\n",
+                message ("ODIDDataSource.offsets_for_time_range: end of range beyond index range (forward): time %lld, offset %lld",
                          end_time, end_offset);
             } else {
                 start_time = cur_time_offset;
                 end_offset = uint64.parse(strip_leading_zeros(cur_data_offset));
-                message ("ODIDDataSource.offsets_for_time_range: end of range beyond index range (reverse): time %lld, offset %lld\n",
+                message ("ODIDDataSource.offsets_for_time_range: end of range beyond index range (reverse): time %lld, offset %lld",
                          end_time, end_offset);
             }
         }
@@ -275,7 +275,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             }
             
             message ( "Sending bytes %lld-%lld (%lld bytes) of %s",
-                      this.first_byte, this.last_byte, this.last_byte-this.first_byte,
+                      this.first_byte, this.last_byte, this.last_byte-this.first_byte+1,
                       this.content_path );
 
             while (true) {
@@ -288,7 +288,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 exit = this.stop_thread;
                 this.mutex.unlock ();
 
-                if (exit || this.first_byte == this.last_byte) {
+                if (exit || this.first_byte >= this.last_byte) {
                     message ("Done streaming!");
                     break;
                 }
@@ -296,15 +296,14 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 var start = this.first_byte;
                 var stop = start + uint16.MAX;
                 if (stop > this.last_byte) {
-                    stop = this.last_byte;
+                    stop = this.last_byte+1; // Need to capture the last byte in the slice...
                 }
-
-                unowned uint8[] data = (uint8[]) mapped.get_contents ();
-                data.length = (int) mapped.get_length ();
 
                 // message ( "Sending range %lld-%lld (%ld bytes)",
                 //           start, stop, stop-start );
 
+                unowned uint8[] data = (uint8[]) mapped.get_contents ();
+                data.length = (int) mapped.get_length ();
                 uint8[] slice = data[start:stop];
                 this.first_byte = stop;
                 

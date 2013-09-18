@@ -282,7 +282,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                                             DLNAPlaySpeed? playspeed,
                                                             out string extension )
             throws Error {
-        message ("ODIDMediaEngine.content_filename_for_res_speed: %s, %s, %s\n",
+        message ("ODIDMediaEngine.content_filename_for_res_speed: %s, %s, %s",
                  resource_dir_path,basename,playspeed.to_string() );
         string rate_string;
         if (playspeed == null) {
@@ -294,7 +294,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         string content_filename = null;
         extension = null;
 
-        message ("ODIDMediaEngine.content_filename_for_res_speed: resource_path: %s\n", resource_dir_path);
+        message ("ODIDMediaEngine.content_filename_for_res_speed: resource_path: %s", resource_dir_path);
 
         var directory = File.new_for_uri(resource_dir_path);
         var enumerator = directory.enumerate_children(GLib.FileAttribute.STANDARD_NAME, 0);
@@ -308,7 +308,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                  && (split_name[0] == basename) && (split_name[1] == rate_string) ) {
                 content_filename = cur_filename;
                 extension = split_name[2];
-                message ("ODIDMediaEngine.content_filename_for_res_speed: FOUND MATCH: %s (extension %s)\n",
+                message ("ODIDMediaEngine.content_filename_for_res_speed: FOUND MATCH: %s (extension %s)",
                          content_filename, extension);
             }
         }
