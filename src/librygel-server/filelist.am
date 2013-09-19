@@ -48,7 +48,6 @@ LIBRYGEL_SERVER_NONVAPI_SOURCE_FILES = \
 	rygel-http-playlist-handler.vala \
 	rygel-http-item-uri.vala \
 	rygel-http-post.vala \
-    rygel-http-request-util.vala \
 	rygel-http-request.vala \
 	rygel-http-response.vala \
 	rygel-http-server.vala \

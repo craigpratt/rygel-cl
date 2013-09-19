@@ -25,8 +25,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-public class Rygel.RygelHTTPRequestUtil : Object {
-    private static RygelHTTPRequestUtil util = null;
+public class Rygel.ODIDUtil : Object {
+    private static ODIDUtil util = null;
     public const int64 PACKET_SIZE_188 = 188;
     public const int64 PACKET_SIZE_192 = 192;
     public const string dtcp_mime_prefix = "application/x-dtcp1";
@@ -35,13 +35,13 @@ public class Rygel.RygelHTTPRequestUtil : Object {
     public const string content_format_str = "CONTENTFORMAT=";
     public const string dtcp_prefix = "DTCP_";
 
-    private RygelHTTPRequestUtil() {
+    private ODIDUtil() {
 
     }
 
-    public static RygelHTTPRequestUtil get_default() {
+    public static ODIDUtil get_default() {
         if (util == null) {
-            util = new RygelHTTPRequestUtil();
+            util = new ODIDUtil();
         }
 
         return util;
@@ -122,18 +122,6 @@ public class Rygel.RygelHTTPRequestUtil : Object {
      */
     public bool is_item_protected (MediaItem item){
         return false;
-    }
-
-    public static string[] parse_dtcp_range_header (string range_header) {
-        string[] range_tokens = null;
-        if (!range_header.has_prefix ("bytes=")) {
-            return range_tokens;
-        }
-
-        debug ("range_header has prefix %s", range_header);
-        range_tokens = range_header.substring (6).split ("-", 2);
-
-        return range_tokens;
     }
 
 }

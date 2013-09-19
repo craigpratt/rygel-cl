@@ -8,7 +8,6 @@
  *
  */
  
-
 /**
  * A simple data source for use with the ODID media engine.
  */
@@ -92,8 +91,9 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         } else if (offsets.seek_type == HTTPSeekType.BYTE) {
             message ("ODIDDataSource.start: Received data seek (bytes %lld to %lld)",
                      offsets.start, offsets.stop);
-            this.first_byte = offsets.start;
-            this.last_byte = offsets.stop;
+            offsets_for_byte_seek ();
+            message ("ODIDDataSource.start: Modified data seek (bytes %lld to %lld)",
+                     this.first_byte, this.last_byte);
         }
 
         // Process PlaySpeed
@@ -109,6 +109,30 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         this.thread = new Thread<void*>("ODIDDataSource Serving thread",
                                          this.thread_func);
     }
+
+    internal void offsets_for_byte_seek () {
+            this.first_byte = this.offsets.start;
+
+            if (this.offsets.msg.request_headers.get_one ("Range.dtcp.com") != null) {
+				//Get the transport stream packet size for the profile
+				string profile_name = res.protocol_info.dlna_profile;
+
+				// Align the bytes to transport packet boundaries
+				int64 packet_size = ODIDUtil.get_profile_packet_size(profile_name);
+				if (packet_size > 0) {
+				// DLNA Link Protection : 8.9.5.4.2
+					this.last_byte = ODIDUtil.get_dtcp_algined_end
+							  (this.offsets.start,
+							   this.offsets.stop,
+							   ODIDUtil.get_profile_packet_size(profile_name));
+				}
+				if (this.last_byte > this.offsets.total_length) {
+				    this.last_byte = this.offsets.total_length -1;
+				}
+            } else {
+                this.last_byte = this.offsets.stop;
+			}
+	}
     
     internal void offsets_for_time_range(string index_path, ref uint64 start_time, ref uint64 end_time,
                                          bool is_reverse, out uint64 start_offset, out uint64 end_offset)

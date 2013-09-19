@@ -173,10 +173,10 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 }
                 // Check if the media-engine dtcp-ip support (Rygel Wide & Media-Engine) and then if
                 // protected property is set to true, then overwrite the profile name with DTCP prefix and mime-type
-                if (RygelHTTPRequestUtil.is_rygel_dtcp_enabled()
+                if (ODIDUtil.is_rygel_dtcp_enabled()
                     && has_mediaengine_dtcp ()
                     && (name == "protected" && value == "true")) {
-                    string dtcp_mime_type = RygelHTTPRequestUtil.handle_mime_item_protected 
+                    string dtcp_mime_type = ODIDUtil.handle_mime_item_protected 
                                                                   (res.protocol_info.mime_type);
                     set_resource_field(res, "profile", "DTCP_" + res.protocol_info.dlna_profile);
                     set_resource_field(res, "mime-type", dtcp_mime_type);

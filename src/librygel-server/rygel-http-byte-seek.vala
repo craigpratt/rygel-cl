@@ -26,9 +26,9 @@
 using GUPnP;
 
 internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
-
-    public HTTPByteSeek (HTTPGet request, bool content_protected) throws HTTPSeekError,
-                                                                         HTTPRequestError {
+    private static bool content_protected = false;
+    public HTTPByteSeek (HTTPGet request) throws HTTPSeekError,
+                                                 HTTPRequestError {
         Soup.Range[] ranges;
         int64 start = 0, total_length;
         string[] parsed_headers;
@@ -41,12 +41,14 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
         } else if (request.subtitle != null) {
             total_length = request.subtitle.size;
         } else if (request.handler is HTTPMediaResourceHandler) {
+			MediaResource resource = (request.handler as HTTPMediaResourceHandler)
+                                              .media_resource;
             if (range_dtcp == null)
-                total_length = (request.handler as HTTPMediaResourceHandler)
-                                                       .media_resource.size;
-            else // Get the cleartextsize for Range.dtcp.com request.
-                total_length = (request.handler as HTTPMediaResourceHandler)
-                                                       .media_resource.cleartext_size;
+              total_length = resource.size;
+			else// Get the cleartextsize for Range.dtcp.com request.
+              total_length = resource.cleartext_size;
+
+            content_protected = resource.is_link_protection_enabled();
         } else {
             total_length = (request.object as MediaItem).size;
         }
@@ -60,13 +62,12 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
                   ("Invalid combination of Range and Range.dtcp.com"));
         } else if (range_dtcp != null) {
             range_header_str = range_dtcp;
-
             if (!content_protected) {
                     throw new HTTPSeekError.INVALID_RANGE (_
                               ("Range.dtcp.com not valid for unprotected content"));
             }
 
-            parsed_headers = RygelHTTPRequestUtil.parse_dtcp_range_header (range_header_str);
+            parsed_headers = parse_dtcp_range_header (range_header_str);
 
             if (parsed_headers.length == 2) {
                 // Start byte must be present and non empty string
@@ -82,25 +83,6 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
                    stop = total_length - 1;
                } else {
                    stop = (int64)(double.parse (parsed_headers[1]));
-
-                   if (request.handler is HTTPMediaResourceHandler) {
-                       //Get the transport stream packet size for the profile
-                       string profile_name = (request.handler as HTTPMediaResourceHandler)
-                                              .media_resource.protocol_info.dlna_profile;
-
-                       // Align the bytes to transport packet boundaries
-                       int64 packet_size = RygelHTTPRequestUtil.get_profile_packet_size(profile_name);
-                       if (packet_size > 0) {
-                       // DLNA Link Protection : 8.9.5.4.2
-                       stop = RygelHTTPRequestUtil.get_dtcp_algined_end
-                              (start,
-                               stop,
-                               RygelHTTPRequestUtil.get_profile_packet_size(profile_name));
-                        }
-                   }
-                   if (stop > total_length) {
-                       stop = total_length -1;
-                   }
                }
             } else {
                 // Range header was present but invalid
@@ -126,7 +108,7 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
                                                        range_header_str);
         }
 
-        base (request.msg, start, stop, 1, total_length, content_protected);
+        base (request.msg, start, stop, 1, total_length);
         this.seek_type = HTTPSeekType.BYTE;
     }
 
@@ -170,6 +152,18 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
                 || request.msg.request_headers.get_one ("Range.dtcp.com") != null);
     }
 
+    public static string[] parse_dtcp_range_header (string range_header) {
+        string[] range_tokens = null;
+        if (!range_header.has_prefix ("bytes=")) {
+            return range_tokens;
+        }
+
+        debug ("range_header has prefix %s", range_header);
+        range_tokens = range_header.substring (6).split ("-", 2);
+
+        return range_tokens;
+    }
+
     public override void add_response_headers () {
         // Content-Range: bytes START_BYTE-STOP_BYTE/TOTAL_LENGTH
         var range_str = "bytes ";
@@ -180,7 +174,7 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
                  this.total_length.to_string ();
         if (this.msg.request_headers.get_one ("Range") != null) {
             headers.append("Content-Range", range_str);
-            if (this.content_protected) // TODO : Call DTCP Lib to get the encrypted size 
+            if (content_protected) // TODO : Call DTCP Lib to get the encrypted size 
                 headers.set_content_length (this.length);
             else
                 headers.set_content_length (this.length);

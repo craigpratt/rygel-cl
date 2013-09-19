@@ -159,22 +159,21 @@ internal class Rygel.HTTPGet : HTTPRequest {
 
         try {
             // Find if the content has link protection flag in protocolInfo
-            bool content_protected = false;
             if (this.handler is HTTPMediaResourceHandler) {
-                content_protected = (this.handler as HTTPMediaResourceHandler)
-                                        .media_resource.is_link_protection_enabled();
-                 // DLNA Link protection 7.6.4.2.8 , 7.6.4.2.7
-                if (this.msg.get_http_version() == Soup.HTTPVersion.@1_1) {
-                    this.msg.response_headers.append ("Cache-control","no-cache");
+                if ((this.handler as HTTPMediaResourceHandler)
+                         .media_resource.is_link_protection_enabled()) {
+                    // DLNA Link protection 7.6.4.2.8 , 7.6.4.2.7
+                    if (this.msg.get_http_version() == Soup.HTTPVersion.@1_1) {
+                        this.msg.response_headers.append ("Cache-control","no-cache");
+                    }
+                    this.msg.response_headers.append ("Pragma","no-cache");
                 }
-                this.msg.response_headers.append ("Pragma","no-cache");
-
             }
 
             if (need_byte_seek && requested_byte_seek) {
-                this.seek = new HTTPByteSeek (this, content_protected);
+                this.seek = new HTTPByteSeek (this);
             } else if (need_time_seek && requested_time_seek) {
-                this.seek = new HTTPTimeSeek (this, content_protected);
+                this.seek = new HTTPTimeSeek (this);
             }
             else
             {
