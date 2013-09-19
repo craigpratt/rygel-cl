@@ -210,6 +210,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                         | DLNAFlags.STREAMING_TRANSFER_MODE
                                         | DLNAFlags.BACKGROUND_TRANSFER_MODE
                                         | DLNAFlags.CONNECTION_STALL;
+
         // We currently support RANGE for all resources except DTCP content
         if (res.protocol_info.dlna_profile.has_prefix ("DTCP_")) {
             res.protocol_info.dlna_flags |= DLNAFlags.LINK_PROTECTED_CONTENT |
@@ -241,8 +242,23 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             }
         }
 
-        // TODO: Populate the ProtocolInfo speed parameter based on the presence of the
-        //       rate-scaled files
+        // Look for scaled files and set fields accordingly if/when found
+        {
+            Gee.List<DLNAPlaySpeed> playspeeds;
+            
+            playspeeds = find_playspeeds_for_res(res_dir_uri, basename);
+
+            if (playspeeds != null) {
+                var speed_array = new string[playspeeds.size];
+                int speed_index = 0;
+                foreach (var speed in playspeeds) {
+                    speed_array[speed_index++] = speed.to_string();
+                }
+                res.protocol_info.play_speeds = speed_array;
+                message( "OdidMediaEngine:create_resource_from_resource_dir: Found %d speeds for "
+                         + res_dir_uri + normal_content_filename, speed_index);
+            }
+        }
         return res;
     }
 
@@ -294,8 +310,6 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         string content_filename = null;
         extension = null;
 
-        message ("ODIDMediaEngine.content_filename_for_res_speed: resource_path: %s", resource_dir_path);
-
         var directory = File.new_for_uri(resource_dir_path);
         var enumerator = directory.enumerate_children(GLib.FileAttribute.STANDARD_NAME, 0);
 
@@ -314,6 +328,40 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         }
 
         return content_filename;
+    }
+
+    internal static Gee.List<DLNAPlaySpeed>? find_playspeeds_for_res( string resource_dir_path,
+                                                                      string basename )
+        throws Error {
+        message ("ODIDMediaEngine.find_playspeeds_for_res: %s, %s",
+                 resource_dir_path,basename );
+        var speeds = new Gee.ArrayList<DLNAPlaySpeed>();
+        
+        var directory = File.new_for_uri(resource_dir_path);
+        var enumerator = directory.enumerate_children(GLib.FileAttribute.STANDARD_NAME, 0);
+
+        FileInfo file_info;
+        while ((file_info = enumerator.next_file ()) != null) {
+            var cur_filename = file_info.get_name();
+            // Check for content file for the requested rate (<basename>.<rate>.<extension>)
+            var split_name = cur_filename.split(".");
+            if ((split_name.length == 3) && (split_name[0] == basename)) {
+                var speed_parts = split_name[1].split("_");
+                if (speed_parts.length != 2) {
+                    warning ("ODIDMediaEngine.find_playspeeds_for_res: Bad speed found in res filename %s (%s)",
+                             cur_filename, split_name[1] );
+                    return null;
+                }
+                var speed = new DLNAPlaySpeed(int.parse(speed_parts[0]),int.parse(speed_parts[1]));
+                if (speed.numerator == 1 && speed.denominator == 1) {
+                    continue; // "1" doesn't count as a valid PlaySpeed
+                }
+                message ("ODIDMediaEngine.find_playspeeds_for_res: Found speed: %s",
+                         speed.to_string());
+                speeds.add(speed);
+            }
+        }
+        return (speeds.size > 0) ? speeds : null;
     }
 
     internal static long duration_from_index_file(File index_file)
