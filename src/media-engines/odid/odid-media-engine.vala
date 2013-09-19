@@ -213,7 +213,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         // We currently support RANGE for all resources except DTCP content
         if (res.protocol_info.dlna_profile.has_prefix ("DTCP_")) {
             res.protocol_info.dlna_flags |= DLNAFlags.LINK_PROTECTED_CONTENT |
-				                            DLNAFlags.CLEARTEXT_BYTESEEK_FULL;
+                                            DLNAFlags.CLEARTEXT_BYTESEEK_FULL;
             res.protocol_info.dlna_operation = DLNAOperation.NONE;
 
             res.cleartext_size = res.size;

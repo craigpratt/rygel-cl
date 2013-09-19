@@ -41,11 +41,11 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
         } else if (request.subtitle != null) {
             total_length = request.subtitle.size;
         } else if (request.handler is HTTPMediaResourceHandler) {
-			MediaResource resource = (request.handler as HTTPMediaResourceHandler)
+            MediaResource resource = (request.handler as HTTPMediaResourceHandler)
                                               .media_resource;
             if (range_dtcp == null)
               total_length = resource.size;
-			else// Get the cleartextsize for Range.dtcp.com request.
+            else// Get the cleartextsize for Range.dtcp.com request.
               total_length = resource.cleartext_size;
 
             content_protected = resource.is_link_protection_enabled();
@@ -137,7 +137,7 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
                 is_byte_seek_supported = request.handler is HTTPMediaResourceHandler
                                        && (request.handler as HTTPMediaResourceHandler)
                                             .media_resource.supports_arbitrary_byte_seek();
-			}
+            }
         }
 
         return force_seek
