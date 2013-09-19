@@ -330,20 +330,26 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         return content_filename;
     }
 
-    internal static Gee.List<DLNAPlaySpeed>? find_playspeeds_for_res( string resource_dir_path,
+    /**
+     * Produce a list of DLNAPlaySpeed corresponding to scaled content files for the given
+     * resource directory and basename.
+     *
+     * @return A List with one DLNAPlaySpeed per scaled-rate content file
+     */
+    internal static Gee.List<DLNAPlaySpeed>? find_playspeeds_for_res( string resource_dir_uri,
                                                                       string basename )
         throws Error {
         message ("ODIDMediaEngine.find_playspeeds_for_res: %s, %s",
-                 resource_dir_path,basename );
+                 resource_dir_uri,basename );
         var speeds = new Gee.ArrayList<DLNAPlaySpeed>();
         
-        var directory = File.new_for_uri(resource_dir_path);
+        var directory = File.new_for_uri(resource_dir_uri);
         var enumerator = directory.enumerate_children(GLib.FileAttribute.STANDARD_NAME, 0);
 
         FileInfo file_info;
         while ((file_info = enumerator.next_file ()) != null) {
             var cur_filename = file_info.get_name();
-            // Check for content file for the requested rate (<basename>.<rate>.<extension>)
+            // Only look for content files (<basename>.<rate>.<extension>)
             var split_name = cur_filename.split(".");
             if ((split_name.length == 3) && (split_name[0] == basename)) {
                 var speed_parts = split_name[1].split("_");
@@ -354,10 +360,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 }
                 var speed = new DLNAPlaySpeed(int.parse(speed_parts[0]),int.parse(speed_parts[1]));
                 if (speed.numerator == 1 && speed.denominator == 1) {
-                    continue; // "1" doesn't count as a valid PlaySpeed
+                    continue; // Rate "1" is implied and not included in the playspeeds - skip it
                 }
-                message ("ODIDMediaEngine.find_playspeeds_for_res: Found speed: %s",
-                         speed.to_string());
                 speeds.add(speed);
             }
         }
