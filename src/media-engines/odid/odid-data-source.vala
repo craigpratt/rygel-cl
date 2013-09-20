@@ -17,8 +17,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     private string content_path;
     private Mutex mutex = Mutex ();
     private Cond cond = Cond ();
-    private uint64 first_byte = 0;
-    private uint64 last_byte = 0;
+    private uint64 range_start = 0;
+    private uint64 range_end = 0; // non-inclusive
     private bool frozen = false;
     private bool stop_thread = false;
     private HTTPSeek offsets;
@@ -85,15 +85,15 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             string index_path = resource_path + "/" + content_filename + ".index";
             bool is_reverse = (playspeed != null) && (playspeed.numerator < 0);
             offsets_for_time_range(index_path, ref time_offset_start, ref time_offset_end,
-                                   is_reverse, out this.first_byte, out this.last_byte);
+                                   is_reverse, out this.range_start, out this.range_end);
             message ("ODIDDataSource.start: Data range for time seek: bytes %lld to %lld",
-                     this.first_byte, this.last_byte);
+                     this.range_start, this.range_end);
         } else if (offsets.seek_type == HTTPSeekType.BYTE) {
             message ("ODIDDataSource.start: Received data seek (bytes %lld to %lld)",
                      offsets.start, offsets.stop);
             offsets_for_byte_seek ();
             message ("ODIDDataSource.start: Modified data seek (bytes %lld to %lld)",
-                     this.first_byte, this.last_byte);
+                     this.range_start, this.range_end);
         }
 
         // Process PlaySpeed
@@ -111,7 +111,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     }
 
     internal void offsets_for_byte_seek () {
-            this.first_byte = this.offsets.start;
+            this.range_start = this.offsets.start;
 
             if (this.offsets.msg.request_headers.get_one ("Range.dtcp.com") != null) {
                 //Get the transport stream packet size for the profile
@@ -121,16 +121,18 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 int64 packet_size = ODIDUtil.get_profile_packet_size(profile_name);
                 if (packet_size > 0) {
                 // DLNA Link Protection : 8.9.5.4.2
-                    this.last_byte = ODIDUtil.get_dtcp_algined_end
+                    this.range_end = ODIDUtil.get_dtcp_algined_end
                               (this.offsets.start,
                                this.offsets.stop,
                                ODIDUtil.get_profile_packet_size(profile_name));
                 }
-                if (this.last_byte > this.offsets.total_length) {
-                    this.last_byte = this.offsets.total_length -1;
+                if (this.range_end > this.offsets.total_length) {
+                    this.range_end = this.offsets.total_length;
                 }
             } else {
-                this.last_byte = this.offsets.stop;
+                // Range requests are inclusive, but range_end is not. So add 1 to capture the
+                //  last range byte
+                this.range_end = this.offsets.stop+1; 
             }
     }
     
@@ -294,12 +296,12 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         try {
             var mapped = new MappedFile(file.get_path (), false);
 
-            if (this.last_byte == 0) {
-                this.last_byte = mapped.get_length();
+            if (this.range_end == 0) {
+                this.range_end = mapped.get_length();
             }
             
             message ( "Sending bytes %lld-%lld (%lld bytes) of %s",
-                      this.first_byte, this.last_byte, this.last_byte-this.first_byte+1,
+                      this.range_start, this.range_end, this.range_end-this.range_start,
                       this.content_path );
 
             while (true) {
@@ -312,15 +314,15 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 exit = this.stop_thread;
                 this.mutex.unlock ();
 
-                if (exit || this.first_byte >= this.last_byte) {
+                if (exit || this.range_start >= this.range_end) {
                     message ("Done streaming!");
                     break;
                 }
 
-                var start = this.first_byte;
+                var start = this.range_start;
                 var stop = start + uint16.MAX;
-                if (stop > this.last_byte) {
-                    stop = this.last_byte+1; // Need to capture the last byte in the slice...
+                if (stop > this.range_end) {
+                    stop = this.range_end;
                 }
 
                 // message ( "Sending range %lld-%lld (%ld bytes)",
@@ -329,7 +331,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 unowned uint8[] data = (uint8[]) mapped.get_contents ();
                 data.length = (int) mapped.get_length ();
                 uint8[] slice = data[start:stop];
-                this.first_byte = stop;
+                this.range_start = stop;
                 
                 // There's a potential race condition here.
                 Idle.add ( () => {
