@@ -29,7 +29,7 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
         parse(speed);
     }
 
-    internal DLNAPlaySpeed.from_request (Rygel.HTTPRequest request) throws DLNAPlaySpeedError {
+    internal DLNAPlaySpeed.from_request (Rygel.HTTPGet request) throws DLNAPlaySpeedError {
         // Format: PlaySpeed.dlna.org: speed=<rate>
         string speed_string = request.msg.request_headers.get_one (HTTP_HEADER);
 
@@ -46,6 +46,24 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
         }
         
         parse(elements[1]);
+
+        // Validate if playspeed is listed in the protocolInfo
+        if (request.handler is HTTPMediaResourceHandler) {
+            MediaResource resource = (request.handler as HTTPMediaResourceHandler)
+                                              .media_resource;
+            string[] speeds = resource.protocol_info.get_play_speeds();
+            bool found_speed = false;
+            foreach (var speed in speeds) {
+                if (int.parse(speed) == numerator/denominator) {
+                    found_speed = true;
+                    break;
+                }
+            }
+
+            if (!found_speed) {
+                throw new DLNAPlaySpeedError.SPEED_NOT_PRESENT("Unknown playspeed requeted.");
+            }
+        }
     }
 
     public bool equals(DLNAPlaySpeed that) {
