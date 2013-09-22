@@ -58,6 +58,7 @@ internal enum Rygel.ODID.ObjectColumn {
 
 internal enum Rygel.ODID.SQLString {
     SAVE_RESOURCE,
+    DELETE_RESOURCES,
     INSERT,
     DELETE,
     GET_OBJECT,
@@ -121,6 +122,9 @@ internal class Rygel.ODID.SQLFactory : Object {
     private const string DELETE_BY_ID_STRING =
     "DELETE FROM Object WHERE upnp_id IN " +
         "(SELECT descendant FROM closure WHERE ancestor = ?)";
+
+    private const string DELETE_RESOURCES_BY_ID_STRING =
+    "DELETE from Resource WHERE object_fk = ?";   
 
     private const string ALL_OBJECT_STRING =
     "o.type_fk, o.title, o.upnp_id, o.parent, o.class, o.date, o.creator, o.timestamp, " +
@@ -320,6 +324,8 @@ internal class Rygel.ODID.SQLFactory : Object {
         switch (query) {
             case SQLString.SAVE_RESOURCE:
                 return SAVE_RESOURCE_STRING;
+            case SQLString.DELETE_RESOURCES:
+                return DELETE_RESOURCES_BY_ID_STRING;
             case SQLString.INSERT:
                 return INSERT_OBJECT_STRING;
             case SQLString.DELETE:

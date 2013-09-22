@@ -635,6 +635,9 @@ public class Rygel.ODID.MediaCache : Object {
     }
 
     private void save_resources (Rygel.MediaItem item) throws Error {
+        // Remove and pre-existing resources
+        this.db.exec (this.sql.make (SQLString.DELETE_RESOURCES), { item.id });
+
         foreach (MediaResource resource in item.media_resources)
         {
             // Fill common properties
@@ -656,7 +659,7 @@ public class Rygel.ODID.MediaCache : Object {
                                     Database.null (),
                                     -1,
                                     resource.get_name (),
-                                    resource.extension};
+                                    resource.extension };
                                     
             this.db.exec (this.sql.make (SQLString.SAVE_RESOURCE), values);
         }
