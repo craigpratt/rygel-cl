@@ -80,7 +80,9 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                                         "application/x-shockwave-flash",
                                         "video/x-ms-asf",
                                         "video/x-xvid",
-                                        "video/x-ms-wmv" };
+                                        "video/x-ms-wmv",
+					"video/vnd.dlna.mpeg-tts",
+					 };
     private static Player player;
 
     private bool is_live;
@@ -141,7 +143,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-    private string[] _allowed_playback_speeds = {"1"};
+    private string[] _allowed_playback_speeds = {"1","2", "4"};
     public string[] allowed_playback_speeds {
         owned get {
             return this._allowed_playback_speeds;
@@ -295,6 +297,20 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
+//siva_fix
+  public int64 byte_position {
+        get {
+            int64 pos;
+
+            if (this.playbin.query_position (Format.BYTES, out pos)) {
+                return pos;
+            } else {
+                return 0;
+            }
+        }
+    }
+
+
     private Player () {
         this.playbin = ElementFactory.make ("playbin", null);
         this.foreign = false;
@@ -327,6 +343,35 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                                   time * Gst.USECOND,
                                   Gst.SeekType.NONE,
                                   -1);
+    }
+
+    public bool seek2 (int64 target, string unit) {
+      var flags = SeekFlags.FLUSH;
+   
+	if(unit == "ABS_TIME" || unit == "REL_TIME"){
+debug("seek2() ABS_TIME or REL_TIME %lld", target);
+		return this.playbin.seek (1.0,
+                                  Format.TIME,
+                                  SeekFlags.FLUSH,
+                                  Gst.SeekType.SET,
+                                  target * Gst.USECOND, 
+                                  Gst.SeekType.NONE,
+                                  -1);
+
+	}else if( unit == "ABS_COUNT" || unit == "REL_COUNT"){
+debug("seek2() ABS_COUNT or REL_COUNT %lld", target);
+    		return this.playbin.seek (1.0,
+                                  Format.BYTES,
+                                  flags,//SeekFlags.FLUSH,
+                                  Gst.SeekType.SET,
+                                  target,
+                                  Gst.SeekType.NONE,
+                                  -1);
+	}else{
+		warning("seek2() wrong unit!!");
+		return false;
+	}
+
     }
 
     public string[] get_protocols () {
