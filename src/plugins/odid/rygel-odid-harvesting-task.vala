@@ -327,6 +327,10 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
                 item.date = keyFile.get_string ("item", "date");
             }
 
+            if (keyFile.has_key ("item", "creator"))    {
+                item.creator = keyFile.get_string ("item", "creator");
+            }
+
             item.media_resources = MediaEngine.get_default( ).get_resources_for_uri (file.get_uri ());
 
             item.add_uri (file.get_uri ());
