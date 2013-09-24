@@ -497,22 +497,21 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
         action.return ();
     }
 
-//siva_fix
- private void x_dlna_get_byte_position_info_cb (Service       service,
-                              		        ServiceAction action) {
+    private void x_dlna_get_byte_position_info_cb (Service       service,
+                              		           ServiceAction action) {
         if (!this.check_instance_id (action)) {
             return;
         }
 
         action.set ("TrackSize",
                         typeof (uint),
-                        uint.MAX, //this.controller.track, siva_fix
+                        uint.MAX, 
                     "RelByte",
 			typeof(int64),
-                        this.player.byte_position,
+                        this.player.position_byte,
                     "AbsByte",
                         typeof (int64),
-                        this.player.byte_position);
+                        this.player.position_byte);
 
         action.return ();
     }
@@ -576,7 +575,7 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
             return;
         }
 
-this.changelog.log ("siva speed", speed);
+	this.changelog.log ("speed specified in play()", speed);
         this.player.playback_state = "PLAYING";
         this.player.playback_speed = speed;
 
@@ -630,10 +629,10 @@ this.changelog.log ("siva speed", speed);
 	case "ABS_COUNT":
         case "REL_COUNT":
 	case "X_DLNA_REL_BYTE":
-            debug ("Seeking byte to %s.", target);
+            debug ("Seeking bytes to %s.", target);
 	    target.scanf("%lld", &count);
 
-            if (!this.player.seek2 (count, "REL_COUNT")) {
+            if (!this.player.seek_dlna (count, "REL_COUNT", double.parse(this.player.playback_speed))) {
                 action.return_error (710, _("Seek mode not supported"));
 
                 return;

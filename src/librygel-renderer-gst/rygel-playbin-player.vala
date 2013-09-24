@@ -297,9 +297,8 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-//siva_fix
-  public int64 byte_position {
-        get {
+    public int64 position_byte {
+       get {
             int64 pos;
 
             if (this.playbin.query_position (Format.BYTES, out pos)) {
@@ -345,12 +344,11 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                                   -1);
     }
 
-    public bool seek2 (int64 target, string unit) {
-      var flags = SeekFlags.FLUSH;
+    public bool seek_dlna (int64 target, string unit, double rate) {
    
 	if(unit == "ABS_TIME" || unit == "REL_TIME"){
-debug("seek2() ABS_TIME or REL_TIME %lld", target);
-		return this.playbin.seek (1.0,
+	debug("seek2() ABS_TIME or REL_TIME %lld", target);
+		return this.playbin.seek (rate,
                                   Format.TIME,
                                   SeekFlags.FLUSH,
                                   Gst.SeekType.SET,
@@ -359,16 +357,16 @@ debug("seek2() ABS_TIME or REL_TIME %lld", target);
                                   -1);
 
 	}else if( unit == "ABS_COUNT" || unit == "REL_COUNT"){
-debug("seek2() ABS_COUNT or REL_COUNT %lld", target);
-    		return this.playbin.seek (1.0,
+	debug("seek2() ABS_COUNT or REL_COUNT %lld", target);
+    		return this.playbin.seek (rate,
                                   Format.BYTES,
-                                  flags,//SeekFlags.FLUSH,
+                                  SeekFlags.FLUSH,
                                   Gst.SeekType.SET,
                                   target,
                                   Gst.SeekType.NONE,
                                   -1);
 	}else{
-		warning("seek2() wrong unit!!");
+		warning("seek_dlna() wrong unit!!");
 		return false;
 	}
 
