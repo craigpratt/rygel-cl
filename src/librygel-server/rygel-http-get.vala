@@ -175,18 +175,6 @@ internal class Rygel.HTTPGet : HTTPRequest {
             } else if (need_time_seek && requested_time_seek) {
                 this.seek = new HTTPTimeSeek (this);
             }
-            else
-            {
-                int64 size;
-                if (this.handler is HTTPMediaResourceHandler) {
-                    size = (this.handler as HTTPMediaResourceHandler)
-                           .media_resource.size;
-                } else {
-                    size = (this.object as MediaItem).size;
-                }
-
-                this.msg.response_headers.set_content_length (size);
-            }
         } catch (HTTPSeekError error) {
             warning("Caught HTTPSeekError: " + error.message);
             this.server.unpause_message (this.msg);
@@ -211,10 +199,29 @@ internal class Rygel.HTTPGet : HTTPRequest {
                 this.speed.add_response_headers(this);
             }
         } catch (DLNAPlaySpeedError error) {
+            this.server.unpause_message (this.msg);
             if (error is DLNAPlaySpeedError.INVALID_SPEED_FORMAT) {
                 this.end (Soup.KnownStatusCode.BAD_REQUEST);
                 // Per DLNA 7.5.4.3.3.16.3
+            } else if (error is DLNAPlaySpeedError.SPEED_NOT_PRESENT) {
+                this.end (Soup.KnownStatusCode.NOT_ACCEPTABLE);
+                 // Per DLNA 7.5.4.3.3.16.5
+            } else {
+                throw error;
             }
+            return;
+        }
+
+        // Calculate the size value for setting content-length header.
+        {
+            int64 size;
+            if (this.handler is HTTPMediaResourceHandler) {
+                size = (this.handler as HTTPMediaResourceHandler)
+                       .media_resource.size;
+            } else {
+                size = (this.object as MediaItem).size;
+            }
+            this.msg.response_headers.set_content_length (size);
         }
 
         // Add headers
