@@ -25,7 +25,7 @@
 
 using Gee;
 
-internal class Rygel.HTTPItemURI : Object {
+public class Rygel.HTTPItemURI : Object {
     public string item_id { get; set; }
     public int thumbnail_index { get; set; default = -1; }
     public int subtitle_index { get; set; default = -1; }

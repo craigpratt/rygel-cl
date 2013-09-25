@@ -1,6 +1,8 @@
 /*
  * Copyright (C) 2013 CableLabs
  *
+ * Author: Craig Pratt <craig@ecaspia.com>
+ *
  * This file is part of Rygel.
  */
 
@@ -61,7 +63,7 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
             }
 
             if (!found_speed) {
-                throw new DLNAPlaySpeedError.SPEED_NOT_PRESENT("Unknown playspeed requeted.");
+                throw new DLNAPlaySpeedError.SPEED_NOT_PRESENT("Unknown playspeed requested.");
             }
         }
     }
@@ -71,6 +73,14 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
 
         return ( (this.numerator == that.numerator)
                  && (this.denominator == that.denominator) );
+    }
+
+    public bool is_positive() {
+        return (this.denominator > 0);
+    }
+
+    public bool is_negative() {
+        return (this.denominator < 0);
     }
 
     public string to_string() {

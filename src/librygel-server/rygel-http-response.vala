@@ -25,7 +25,7 @@
 
 using Soup;
 
-internal class Rygel.HTTPResponse : GLib.Object, Rygel.StateMachine {
+public class Rygel.HTTPResponse : GLib.Object, Rygel.StateMachine {
     public unowned Soup.Server server { get; private set; }
     public Soup.Message msg;
 

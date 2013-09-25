@@ -27,7 +27,7 @@ using GUPnP;
 /**
  * HTTP GET request handler interface.
  */
-internal abstract class Rygel.HTTPGetHandler: GLib.Object {
+public abstract class Rygel.HTTPGetHandler: GLib.Object {
     private const string TRANSFER_MODE_HEADER = "transferMode.dlna.org";
 
     public Cancellable cancellable { get; set; }

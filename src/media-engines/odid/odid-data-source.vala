@@ -17,8 +17,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     private string content_path;
     private Mutex mutex = Mutex ();
     private Cond cond = Cond ();
-    private uint64 range_start = 0;
-    private uint64 range_end = 0; // non-inclusive
+    private int64 range_start = 0;
+    private int64 range_end = 0; // non-inclusive
     private bool frozen = false;
     private bool stop_thread = false;
     private HTTPSeek offsets;
@@ -77,21 +77,67 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         // Process HTTPSeek
         if (offsets == null) {
             message ("ODIDDataSource.start: Received null seek");
-        } else if (offsets.seek_type == HTTPSeekType.TIME) {
+        } else if (offsets is HTTPTimeSeek) {
+            //
+            // Convert the HTTPTimeSeek to a byte range and update the HTTPTimeSeek response params
+            //
+            bool is_reverse = (playspeed != null) && (playspeed.is_negative());
+            
+            var time_seek = offsets as HTTPTimeSeek;
+            int64 time_offset_start = time_seek.requested_start;
+            int64 time_offset_end;
+            if (time_seek.end_time_requested()) {
+                time_offset_end = time_seek.requested_end;
+            } else { // The "end" depends on the direction
+                time_offset_end = is_reverse ? 0 : int64.MAX;
+            }
+                        
             message ("ODIDDataSource.start: Received time seek (time %lld to %lld)",
-                     offsets.start, offsets.stop);
-            uint64 time_offset_start = offsets.start;
-            uint64 time_offset_end = offsets.stop;
+                     time_offset_start, time_offset_end);
             string index_path = resource_path + "/" + content_filename + ".index";
-            bool is_reverse = (playspeed != null) && (playspeed.numerator < 0);
+            
             offsets_for_time_range(index_path, ref time_offset_start, ref time_offset_end,
                                    is_reverse, out this.range_start, out this.range_end);
+
+            // Modify the end byte value to align to start/end of the file, if necessary
+            //  (see DLNA 7.5.4.3.2.24.4)
+            if (is_reverse) {
+                if (!time_seek.end_time_requested()) {
+                    message ("ODIDDataSource.start: No end time direction in reverse scan "
+                             + " - setting end to 0");
+                    this.range_start = 0;
+                }
+            } else {
+                if ( !time_seek.end_time_requested()
+                     || time_seek.requested_end > this.res.duration ) {
+                    this.range_end = this.res.size; // Range end is not inclusive, so no adjustment
+                    message ("ODIDDataSource.start: No end time direction in forward direction"
+                             + " (or end beyond duration) - setting end to %lld", this.range_end);
+                }
+            }
+
             message ("ODIDDataSource.start: Data range for time seek: bytes %lld to %lld",
                      this.range_start, this.range_end);
-        } else if (offsets.seek_type == HTTPSeekType.BYTE) {
+                     
+            // Now set the effective time/data range and duration/size (if known)
+            time_seek.set_effective_time_range(time_offset_start, time_offset_end);
+            if (this.res.duration > 0) {
+                time_seek.total_duration = this.res.duration;
+            }
+            
+            time_seek.set_byte_range(this.range_start, this.range_end+1); // inclusive offset
+            if (this.res.size > 0) {
+                time_seek.total_length = this.res.size;
+            }
+        } else if (offsets is HTTPByteSeek) {
+            //
+            // Byte-based seek - no conversion required (*)
+            //
+            // TODO: Add DTCPRangeSeek class and a "offsets is DTCPRangeSeek" case
+            var byte_seek = offsets as HTTPByteSeek;
             message ("ODIDDataSource.start: Received data seek (bytes %lld to %lld)",
-                     offsets.start, offsets.stop);
-            offsets_for_byte_seek ();
+                     byte_seek.start_byte, byte_seek.end_byte);
+            offsets_for_byte_seek(byte_seek.start_byte, byte_seek.end_byte, byte_seek.total_length);
             message ("ODIDDataSource.start: Modified data seek (bytes %lld to %lld)",
                      this.range_start, this.range_end);
         }
@@ -110,8 +156,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                          this.thread_func);
     }
 
-    internal void offsets_for_byte_seek () {
-            this.range_start = this.offsets.start;
+    internal void offsets_for_byte_seek (int64 start, int64 end, int64 total_length) {
+            this.range_start = start;
 
             if (this.offsets.msg.request_headers.get_one ("Range.dtcp.com") != null) {
                 //Get the transport stream packet size for the profile
@@ -122,22 +168,20 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 if (packet_size > 0) {
                 // DLNA Link Protection : 8.9.5.4.2
                     this.range_end = ODIDUtil.get_dtcp_algined_end
-                              (this.offsets.start,
-                               this.offsets.stop,
-                               ODIDUtil.get_profile_packet_size(profile_name));
+                              (start, end, ODIDUtil.get_profile_packet_size(profile_name));
                 }
-                if (this.range_end > this.offsets.total_length) {
-                    this.range_end = this.offsets.total_length;
+                if (this.range_end > total_length) {
+                    this.range_end = total_length;
                 }
             } else {
                 // Range requests are inclusive, but range_end is not. So add 1 to capture the
                 //  last range byte
-                this.range_end = this.offsets.stop+1; 
+                this.range_end = end+1; 
             }
     }
     
-    internal void offsets_for_time_range(string index_path, ref uint64 start_time, ref uint64 end_time,
-                                         bool is_reverse, out uint64 start_offset, out uint64 end_offset)
+    internal void offsets_for_time_range(string index_path, ref int64 start_time, ref int64 end_time,
+                                         bool is_reverse, out int64 start_offset, out int64 end_offset)
          throws Error {
         message ("ODIDDataSource.offsets_for_time_range: %s, %lld-%lld",
                  index_path,start_time,end_time);
@@ -147,9 +191,9 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         var file = File.new_for_uri(index_path);
         var dis = new DataInputStream(file.read());
         string line;
-        uint64 cur_time_offset = 0;
+        int64 cur_time_offset = 0;
         string cur_data_offset = null;
-        uint64 last_time_offset = 0;
+        int64 last_time_offset = 0;
         string last_data_offset = "0";
         start_offset = 0;
         end_offset = 0;
@@ -168,7 +212,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 string time_offset_string = index_fields[2];
                 string extended_time_string = time_offset_string[0:7]+time_offset_string[8:11]+"000";
                 // Leading "0"s cause parse() to assume the value is octal (see Vala bug 656691)
-                cur_time_offset = uint64.parse(strip_leading_zeros(extended_time_string));
+                cur_time_offset = int64.parse(strip_leading_zeros(extended_time_string));
                 cur_data_offset = index_fields[3]; // Convert this only when needed
                 // message ("ODIDDataSource.offsets_for_time_range: keyframe at %s (%s) has offset %s",
                 //          extended_time_string, cur_time_offset.to_string(), cur_data_offset);
@@ -176,7 +220,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                     if (!is_reverse) {
                         if (cur_time_offset > start_time) {
                             start_time = last_time_offset;
-                            start_offset = uint64.parse(strip_leading_zeros(last_data_offset));
+                            start_offset = int64.parse(strip_leading_zeros(last_data_offset));
                             start_offset_found = true;
                             message ("ODIDDataSource.offsets_for_time_range: found start of range (forward): time %lld, offset %lld",
                                      start_time, start_offset);
@@ -184,7 +228,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                     } else {
                         if (cur_time_offset < end_time) {
                             end_time = last_time_offset;
-                            start_offset = uint64.parse(strip_leading_zeros(last_data_offset));
+                            start_offset = int64.parse(strip_leading_zeros(last_data_offset));
                             start_offset_found = true;
                             message ("ODIDDataSource.offsets_for_time_range: found start of range (reverse): time %lld, offset %lld",
                                      start_time, start_offset);
@@ -194,7 +238,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                     if (!is_reverse) {
                         if (cur_time_offset > end_time) {
                             end_time = cur_time_offset;
-                            end_offset = uint64.parse(strip_leading_zeros(cur_data_offset));
+                            end_offset = int64.parse(strip_leading_zeros(cur_data_offset));
                             end_offset_found = true;
                             message ("ODIDDataSource.offsets_for_time_range: found end of range (forward): time %lld, offset %lld",
                                      end_time, end_offset);
@@ -203,7 +247,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                     } else {
                         if (cur_time_offset < start_time) {
                             start_time = cur_time_offset;
-                            end_offset = uint64.parse(strip_leading_zeros(cur_data_offset));
+                            end_offset = int64.parse(strip_leading_zeros(cur_data_offset));
                             end_offset_found = true;
                             message ("ODIDDataSource.offsets_for_time_range: found end of range (reverse): time %lld, offset %lld",
                                      end_time, end_offset);
@@ -219,12 +263,12 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         if (start_offset_found && !end_offset_found) {
             if (!is_reverse) {
                 end_time = cur_time_offset;
-                end_offset = uint64.parse(strip_leading_zeros(cur_data_offset));
+                end_offset = int64.parse(strip_leading_zeros(cur_data_offset));
                 message ("ODIDDataSource.offsets_for_time_range: end of range beyond index range (forward): time %lld, offset %lld",
                          end_time, end_offset);
             } else {
                 start_time = cur_time_offset;
-                end_offset = uint64.parse(strip_leading_zeros(cur_data_offset));
+                end_offset = int64.parse(strip_leading_zeros(cur_data_offset));
                 message ("ODIDDataSource.offsets_for_time_range: end of range beyond index range (reverse): time %lld, offset %lld",
                          end_time, end_offset);
             }

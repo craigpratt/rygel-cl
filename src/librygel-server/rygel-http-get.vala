@@ -28,7 +28,7 @@
 /**
  * Responsible for handling HTTP GET & HEAD client requests.
  */
-internal class Rygel.HTTPGet : HTTPRequest {
+public class Rygel.HTTPGet : HTTPRequest {
     private const string TRANSFER_MODE_HEADER = "transferMode.dlna.org";
     private const string SERVER_NAME = "CVP2-RI-DMS";
 
@@ -42,7 +42,7 @@ internal class Rygel.HTTPGet : HTTPRequest {
 
     public HTTPGetHandler handler;
 
-    public HTTPGet (HTTPServer   http_server,
+    internal HTTPGet (HTTPServer   http_server,
                     Soup.Server  server,
                     Soup.Message msg) {
         base (http_server, server, msg);
@@ -143,18 +143,43 @@ internal class Rygel.HTTPGet : HTTPRequest {
     }
 
     private async void handle_item_request () throws Error {
-        // Shouldn't "need"/"needed" be "support"/"supported" here?
-        var need_time_seek = HTTPTimeSeek.needed (this);
+        var supports_time_seek = HTTPTimeSeek.supported (this);
         var requested_time_seek = HTTPTimeSeek.requested (this);
-        var need_byte_seek = HTTPByteSeek.needed (this);
+        var supports_byte_seek = HTTPByteSeek.supported (this);
         var requested_byte_seek = HTTPByteSeek.requested (this);
 
-        if (requested_byte_seek && !need_byte_seek) {
+        if (requested_byte_seek && !supports_byte_seek) {
             throw new HTTPRequestError.UNACCEPTABLE ("Invalid byte seek request");
         }
 
-        if (requested_time_seek && !need_time_seek) {
+        if (requested_time_seek && !supports_time_seek) {
             throw new HTTPRequestError.UNACCEPTABLE ("Invalid time seek request");
+        }
+
+        bool positive_rate = true;
+        // Check for DLNA PlaySpeed request only if Range or Range.dtcp.com is not
+        // in the request. DLNA 7.5.4.3.3.19.2, DLNA Link Protection : 7.6.4.4.2.12
+        try {
+            if (!requested_byte_seek && DLNAPlaySpeed.requested(this)) {
+                this.speed = new DLNAPlaySpeed.from_request(this);
+                positive_rate = this.speed.is_positive();
+
+                this.speed.add_response_headers(this);
+            }
+        } catch (DLNAPlaySpeedError error) {
+            this.server.unpause_message (this.msg);
+            if (error is DLNAPlaySpeedError.INVALID_SPEED_FORMAT) {
+                // TODO: log something?
+                this.end (Soup.KnownStatusCode.BAD_REQUEST);
+                // Per DLNA 7.5.4.3.3.16.3
+            } else if (error is DLNAPlaySpeedError.SPEED_NOT_PRESENT) {
+                // TODO: log something?
+                this.end (Soup.KnownStatusCode.NOT_ACCEPTABLE);
+                 // Per DLNA 7.5.4.3.3.16.5
+            } else {
+                throw error;
+            }
+            return;
         }
 
         try {
@@ -170,10 +195,10 @@ internal class Rygel.HTTPGet : HTTPRequest {
                 }
             }
 
-            if (need_byte_seek && requested_byte_seek) {
+            if (supports_byte_seek && requested_byte_seek) {
                 this.seek = new HTTPByteSeek (this);
-            } else if (need_time_seek && requested_time_seek) {
-                this.seek = new HTTPTimeSeek (this);
+            } else if (supports_time_seek && requested_time_seek) {
+                this.seek = new HTTPTimeSeek (this, positive_rate);
             }
         } catch (HTTPSeekError error) {
             warning("Caught HTTPSeekError: " + error.message);
@@ -187,28 +212,6 @@ internal class Rygel.HTTPGet : HTTPRequest {
                 throw error;
             }
 
-            return;
-        }
-
-        // Check for DLNA PlaySpeed request only if Range or Range.dtcp.com is not
-        // in the request. DLNA 7.5.4.3.3.19.2, DLNA Link Protection : 7.6.4.4.2.12
-        try {
-            if (!requested_byte_seek && DLNAPlaySpeed.requested(this)) {
-                this.speed = new DLNAPlaySpeed.from_request(this);
-
-                this.speed.add_response_headers(this);
-            }
-        } catch (DLNAPlaySpeedError error) {
-            this.server.unpause_message (this.msg);
-            if (error is DLNAPlaySpeedError.INVALID_SPEED_FORMAT) {
-                this.end (Soup.KnownStatusCode.BAD_REQUEST);
-                // Per DLNA 7.5.4.3.3.16.3
-            } else if (error is DLNAPlaySpeedError.SPEED_NOT_PRESENT) {
-                this.end (Soup.KnownStatusCode.NOT_ACCEPTABLE);
-                 // Per DLNA 7.5.4.3.3.16.5
-            } else {
-                throw error;
-            }
             return;
         }
 
