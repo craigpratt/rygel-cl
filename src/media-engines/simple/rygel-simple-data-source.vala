@@ -49,7 +49,7 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
         this.stop ();
     }
 
-    public void start (HTTPSeek? offsets, DLNAPlaySpeed? rate) throws Error {
+    public void preroll (HTTPSeek? offsets, DLNAPlaySpeed? rate) throws Error {
         if (offsets != null) {
             if (!(offsets is HTTPByteSeek)) {
                 throw new DataSourceError.SEEK_FAILED
@@ -64,7 +64,9 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
         }
 
         this.offsets = offsets;
+    }
 
+    public void start () throws Error {
         debug ("Starting data source for uri %s", this.uri);
 
         // TODO: Convert to use a thread pool

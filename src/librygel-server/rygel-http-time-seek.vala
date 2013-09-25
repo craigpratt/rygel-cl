@@ -194,7 +194,7 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
     /**
      * Unset the total duration for the seek response.
      *
-     * If the the effective time range is set, a TimeSeekRange response will be generated
+     * If the the effective time range is unset, a TimeSeekRange response will be generated
      * when add_response_headers() is called with the duration portion of the "npt=" field
      * unspecified (set to "*").
      */

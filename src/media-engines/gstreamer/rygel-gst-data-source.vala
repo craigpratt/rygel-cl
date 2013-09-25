@@ -58,13 +58,31 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
         this.src = element;
     }
 
-    public void start (HTTPSeek? offsets, DLNAPlaySpeed? rate) throws Error {
+    public void preroll (HTTPSeek? seek, DLNAPlaySpeed? rate) throws Error {
         if (rate != null) {
             throw new DataSourceError.PLAYSPEED_FAILED
                                     (_("Playspeed not supported"));
         }
 
-        this.seek = offsets;
+        if (seek is HTTPByteSeek) {
+            // Supported - and no reponse values required...
+        } else if (seek is HTTPTimeSeek) {
+            var time_seek = seek as HTTPTimeSeek;
+            
+            // TODO: Align this with actual time positions returned
+            // For now, set the effective TimeSeekRange response range to the requested range
+            time_seek.set_effective_time_range(time_seek.requested_start, time_seek.requested_end);
+            time_seek.total_duration = res.duration;
+        } else {
+            // Unknown/unsupported seek type
+            throw new DataSourceError.SEEK_FAILED
+                                    (_("HTTPSeek type unsupported"));
+        }
+            
+        this.seek = seek;
+    }
+    
+    public void start () throws Error {
         this.prepare_pipeline ("RygelGstDataSource", this.src);
         if (this.seek != null) {
             this.pipeline.set_state (State.PAUSED);
@@ -238,11 +256,6 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
             flags |= SeekFlags.KEY_UNIT;
             start = time_seek.requested_start * Gst.USECOND;
             stop = time_seek.requested_end * Gst.USECOND;
-            // TODO: Align this with actual time positions returned
-            // For now, set the effective TimeSeekRange response range to the requested range
-            time_seek.set_effective_time_range(start,stop);
-            time_seek.total_duration = res.duration;
-            
         } else if (this.seek is HTTPByteSeek) {
             format = Format.BYTES;
             flags |= SeekFlags.ACCURATE;

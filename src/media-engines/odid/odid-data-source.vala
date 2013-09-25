@@ -36,19 +36,19 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         message ("Stopped data source");
     }
 
-    public void start (HTTPSeek? offsets, DLNAPlaySpeed? playspeed) throws Error {
-        message("ODIDDataSource.start: source uri: " + source_uri);
+    public void preroll (HTTPSeek? offsets, DLNAPlaySpeed? playspeed) throws Error {
+        message("source uri: " + source_uri);
 
         this.offsets = offsets;
         this.playspeed = playspeed;
 
         if (res == null) {
-            message("ODIDDataSource.start: null resource");
+            message("null resource");
         } else {
-            message("ODIDDataSource.start: size: %lld", res.size);
-            message("ODIDDataSource.start: duration: %lld", res.duration);
-            message("ODIDDataSource.start: protocol_info: " + res.protocol_info.to_string());
-            message("ODIDDataSource.start: profile: " + res.protocol_info.dlna_profile);
+            message("size: %lld", res.size);
+            message("duration: %lld", res.duration);
+            message("protocol_info: " + res.protocol_info.to_string());
+            message("profile: " + res.protocol_info.dlna_profile);
         }
 
 
@@ -65,7 +65,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         string resource_path = odid_item_path + resource_dir + "/";
 
         string basename = get_resource_property(resource_path,"basename");
-        message ("ODIDDataSource.start: basename is " + basename);
+        message ("basename is " + basename);
 
         string file_extension;
 
@@ -76,7 +76,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                                             out file_extension );
         // Process HTTPSeek
         if (offsets == null) {
-            message ("ODIDDataSource.start: Received null seek");
+            message ("Received null seek");
         } else if (offsets is HTTPTimeSeek) {
             //
             // Convert the HTTPTimeSeek to a byte range and update the HTTPTimeSeek response params
@@ -92,7 +92,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 time_offset_end = is_reverse ? 0 : int64.MAX;
             }
                         
-            message ("ODIDDataSource.start: Received time seek (time %lld to %lld)",
+            message ("Received time seek (time %lld to %lld)",
                      time_offset_start, time_offset_end);
             string index_path = resource_path + "/" + content_filename + ".index";
             
@@ -103,7 +103,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             //  (see DLNA 7.5.4.3.2.24.4)
             if (is_reverse) {
                 if (!time_seek.end_time_requested()) {
-                    message ("ODIDDataSource.start: No end time direction in reverse scan "
+                    message ("No end time direction in reverse scan "
                              + " - setting end to 0");
                     this.range_start = 0;
                 }
@@ -111,12 +111,12 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 if ( !time_seek.end_time_requested()
                      || time_seek.requested_end > this.res.duration ) {
                     this.range_end = this.res.size; // Range end is not inclusive, so no adjustment
-                    message ("ODIDDataSource.start: No end time direction in forward direction"
+                    message ("No end time direction in forward direction"
                              + " (or end beyond duration) - setting end to %lld", this.range_end);
                 }
             }
 
-            message ("ODIDDataSource.start: Data range for time seek: bytes %lld to %lld",
+            message ("Data range for time seek: bytes %lld to %lld",
                      this.range_start, this.range_end);
                      
             // Now set the effective time/data range and duration/size (if known)
@@ -135,25 +135,23 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             //
             // TODO: Add DTCPRangeSeek class and a "offsets is DTCPRangeSeek" case
             var byte_seek = offsets as HTTPByteSeek;
-            message ("ODIDDataSource.start: Received data seek (bytes %lld to %lld)",
+            message ("Received data seek (bytes %lld to %lld)",
                      byte_seek.start_byte, byte_seek.end_byte);
             offsets_for_byte_seek(byte_seek.start_byte, byte_seek.end_byte, byte_seek.total_length);
-            message ("ODIDDataSource.start: Modified data seek (bytes %lld to %lld)",
+            message ("Modified data seek (bytes %lld to %lld)",
                      this.range_start, this.range_end);
         }
 
         // Process PlaySpeed
         if (playspeed == null) {
-            message ("ODIDDataSource.start: Received null playspeed");
+            message ("Received null playspeed");
         } else {
-            message ("ODIDDataSource.start: Received playspeed " + playspeed.to_string()
+            message ("Received playspeed " + playspeed.to_string()
                      + " (" + playspeed.to_float().to_string() + ")");
+            // TODO: Set the framerate response field on the playspeed 
         }
         content_path = resource_path + content_filename;
-        message ("Starting data source for %s", content_path);
-
-        this.thread = new Thread<void*>("ODIDDataSource Serving thread",
-                                         this.thread_func);
+        // Wait for a start() before sending anything
     }
 
     internal void offsets_for_byte_seek (int64 start, int64 end, int64 total_length) {
@@ -297,6 +295,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         }
 
         return null;
+    }
+
+    public void start () throws Error {
+        message ("Starting data source for %s", content_path);
+
+        this.thread = new Thread<void*>("ODIDDataSource Serving thread",
+                                         this.thread_func);
     }
 
     public void freeze () {

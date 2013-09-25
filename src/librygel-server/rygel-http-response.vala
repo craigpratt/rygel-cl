@@ -101,10 +101,14 @@ public class Rygel.HTTPResponse : GLib.Object, Rygel.StateMachine {
         }
     }
 
+    public void preroll () throws Error {
+        this.src.preroll (seek, speed);
+    }
+
     public async void run () {
         this.run_continue = run.callback;
         try {
-            this.src.start (this.seek, this.speed);
+            this.src.start ();
         } catch (Error error) {
             Idle.add (() => {
                 this.end (false, KnownStatusCode.NONE);

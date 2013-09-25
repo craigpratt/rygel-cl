@@ -20,30 +20,39 @@ public errordomain Rygel.DLNAPlaySpeedError {
 public class Rygel.DLNAPlaySpeed : GLib.Object {
     public int numerator; // Sign of the speed will be attached to the numerator
     public uint denominator;
-    public static const string HTTP_HEADER = "PlaySpeed.dlna.org";
+    public static const string PLAYSPEED_HEADER = "PlaySpeed.dlna.org";
+    public static const string FRAMERATE_HEADER = "FrameRateInTrickMode.dlna.org";
+    public static const int UNSPECIFIED_FRAMERATE = -1;
+    /**
+     * The framerate supported for the given rate, in frames per second
+     */
+    public int framerate;
+
 
     public DLNAPlaySpeed (int numerator, uint denominator) {
         this.numerator = numerator;
         this.denominator = denominator;
+        this.framerate = UNSPECIFIED_FRAMERATE;
     }
 
     public DLNAPlaySpeed.from_string (string speed) throws DLNAPlaySpeedError {
         parse(speed);
+        this.framerate = UNSPECIFIED_FRAMERATE;
     }
 
     internal DLNAPlaySpeed.from_request (Rygel.HTTPGet request) throws DLNAPlaySpeedError {
         // Format: PlaySpeed.dlna.org: speed=<rate>
-        string speed_string = request.msg.request_headers.get_one (HTTP_HEADER);
+        string speed_string = request.msg.request_headers.get_one (PLAYSPEED_HEADER);
 
         if (speed_string == null) {
-            throw new DLNAPlaySpeedError.SPEED_NOT_PRESENT("Could not find header " + HTTP_HEADER);
+            throw new DLNAPlaySpeedError.SPEED_NOT_PRESENT("Could not find header " + PLAYSPEED_HEADER);
         }
         
         var elements = speed_string.split("=");
 
         if ((elements.length != 2) || (elements[0] != "speed")) {
             throw new DLNAPlaySpeedError.INVALID_SPEED_FORMAT( "ill-formed value for "
-                                                               + HTTP_HEADER + ": "
+                                                               + PLAYSPEED_HEADER + ": "
                                                                + speed_string );
         }
         
@@ -66,6 +75,7 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
                 throw new DLNAPlaySpeedError.SPEED_NOT_PRESENT("Unknown playspeed requested.");
             }
         }
+        this.framerate = UNSPECIFIED_FRAMERATE;
     }
 
     public bool equals(DLNAPlaySpeed that) {
@@ -117,12 +127,53 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
         }
     }
 
+    /**
+     * Set the framerate for the playspeed response.
+     *
+     * @param framerate Framerate in frames per second
+     *
+     * If the the framerate is set, a FrameRateInTrickMode response header will
+     * be generated when add_response_headers() is called with the "rate=" field
+     * set to the framerate.
+     */
+    public void set_framerate(int framerate) {
+        this.framerate = framerate;
+    }
+
+    /**
+     * Unset the framerate for the playspeed response.
+     *
+     * If the the framerate is unset, a FrameRateInTrickMode response header will
+     * not be generated when add_response_headers() is called.
+     */
+    public void unset_framerate() {
+        this.framerate = UNSPECIFIED_FRAMERATE;
+    }
+
+    /**
+     * Return true if the framerate is set.
+     *
+     * When true, a FrameRateInTrickMode response will be generated when add_response_headers()
+     * is called with the "rate=" field set to the framerate.
+     *
+     * When false, a FrameRateInTrickMode response header will not be generated when
+     * add_response_headers() is called..
+     */
+    public bool framerate_set() {
+        return (this.framerate != UNSPECIFIED_FRAMERATE);
+    }
+
     internal static bool requested (HTTPGet request) {
-        return request.msg.request_headers.get_one (HTTP_HEADER) != null;
+        return request.msg.request_headers.get_one (PLAYSPEED_HEADER) != null;
     }
     
     internal void add_response_headers (Rygel.HTTPRequest request) {
         // Format: PlaySpeed.dlna.org: speed=<rate>
-        request.msg.response_headers.append (HTTP_HEADER, "speed=" + this.to_string());
+        request.msg.response_headers.append (PLAYSPEED_HEADER, "speed=" + this.to_string());
+        if (framerate_set()) {
+            // Format: FrameRateInTrickMode.dlna.org: rate=<framerate>
+            request.msg.response_headers.append ( FRAMERATE_HEADER,
+                                                  "rate=" + this.framerate.to_string() );
+        }
     }
 }

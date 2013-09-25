@@ -28,10 +28,6 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
                                                throws HTTPRequestError {
         request.msg.response_headers.append ("Content-Type",
                                              this.media_resource.protocol_info.mime_type);
-        if (request.seek != null) {
-            request.seek.add_response_headers ();
-        }
-
         // Chain-up
         base.add_response_headers (request);
     }
