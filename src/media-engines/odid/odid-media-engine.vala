@@ -70,15 +70,19 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         ushort dtcp_port = 8999; // Default set it to 8999.
 
         try {
-            dtcp_storage = config.get_string ("general", "dtcp-storage");
-            dtcp_port = (ushort)config.get_int ("general", "dtcp-port", 6000, 8999);
             dtcp_supported = config.get_bool ("OdidMediaEngine", "engine-dtcp");
             profiles_config = config.get_string_list( "OdidMediaEngine", "profiles");
         } catch (Error err) {
             error("Error reading CL-ODIDMediaEngine properties " + err.message);
         }
 
-        if (dtcp_supported) {
+        if (ODIDUtil.is_rygel_dtcp_enabled() && dtcp_supported) {
+            try {
+                dtcp_storage = config.get_string ("general", "dtcp-storage");
+                dtcp_port = (ushort)config.get_int ("general", "dtcp-port", 6000, 8999);
+            } catch (Error err) {
+                error("Error reading CL-ODIDMediaEngine dtcp properties " + err.message);
+            }
             if (Dtcpip.init_dtcp_library (dtcp_storage) != 0){
                 warning ("DTCP-IP storage path set failed : %s",dtcp_storage);
             } else {
