@@ -76,8 +76,6 @@ public abstract class Rygel.HTTPGetHandler: GLib.Object {
                 request.msg.response_headers.append ("CaptionInfo.sec",
                                                      caption_uri);
         }
-
-        request.msg.response_headers.append ("Connection", "close");
     }
 
     public virtual bool knows_size (HTTPGet request) {

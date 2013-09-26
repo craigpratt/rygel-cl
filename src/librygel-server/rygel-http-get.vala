@@ -147,6 +147,8 @@ public class Rygel.HTTPGet : HTTPRequest {
         var requested_time_seek = HTTPTimeSeek.requested (this);
         var supports_byte_seek = HTTPByteSeek.supported (this);
         var requested_byte_seek = HTTPByteSeek.requested (this);
+        // var supports_dtcp_seek = DTCPByteSeek.supported (this);
+        // var requested_dtcp_seek = DTCPByteSeek.requested (this);
 
         if (requested_byte_seek && !supports_byte_seek) {
             throw new HTTPRequestError.UNACCEPTABLE ("Invalid byte seek request");
@@ -196,6 +198,9 @@ public class Rygel.HTTPGet : HTTPRequest {
             }
 
             // Order is intentional here. Byte-range seek takes precedence
+            // TODO: Add DTCPByteSeek logic
+            // if (supports_dtcp_seek && requested_dtcp_seek) {
+            //     this.seek = new DTCPByteSeek (this);
             if (supports_byte_seek && requested_byte_seek) {
                 this.seek = new HTTPByteSeek (this);
             } else if (supports_time_seek && requested_time_seek) {
@@ -220,6 +225,7 @@ public class Rygel.HTTPGet : HTTPRequest {
 
         // Add headers
         // TODO: Should we have this after preroll()?
+        // TODO: How much of the logic in this method should be in the base HTTPGetHandler?
         this.handler.add_response_headers (this);
 
         this.msg.response_headers.append ("Server",SERVER_NAME);
@@ -237,9 +243,8 @@ public class Rygel.HTTPGet : HTTPRequest {
         int64 response_size;
         // Determine the size value and response code
         {
-            int response_code;
             if (this.seek != null) {
-                response_code = Soup.KnownStatusCode.PARTIAL_CONTENT;
+                // See DLNA 7.5.4.3.2.22.4
                 if (this.seek.byte_range_set()) {
                     // Note: This will work with all seek subtypes (when they set the byte range)
                     response_size = this.seek.length;
@@ -248,38 +253,35 @@ public class Rygel.HTTPGet : HTTPRequest {
                 }
             } else if (this.handler is HTTPMediaResourceHandler) {
                 // If a seek isn't included, we'll be returning the entire resource binary
-                response_code = Soup.KnownStatusCode.OK;
                 response_size = (this.handler as HTTPMediaResourceHandler)
                                 .media_resource.size;
             } else if (this.handler.knows_size (this)) {
                 // Still supporting the concept of MediaItem size (for now)
-                response_code = Soup.KnownStatusCode.OK;
                 response_size = (this.object as MediaItem).size;
             } else {
-                response_code = Soup.KnownStatusCode.OK;
                 response_size = 0;
             }
             if (response_size > 0) {
                 this.msg.response_headers.set_content_length (response_size);
             }
-            this.msg.set_status (response_code);
             // size will factor into other logic below...
         }
 
         // Determine the transfer mode encoding
         {
             Soup.Encoding response_body_encoding;
-            if (response_size > 0) {
-                if (this.speed != null) {
-                    // We'll want the option to insert PlaySpeed position information
-                    //  even when we know the length (see DLNA 7.5.4.3.3.17)
-                    response_body_encoding = Soup.Encoding.CHUNKED;
-                } else {
-                    response_body_encoding = Soup.Encoding.CONTENT_LENGTH;
-                }
+            // See DLNA 7.5.4.3.2.15 for requirements
+            if ( (this.speed != null) && (this.msg.get_http_version() != Soup.HTTPVersion.@1_0) ) {
+                // We'll want the option to insert PlaySpeed position information
+                //  whether or not we know the length (see DLNA 7.5.4.3.3.17)
+                response_body_encoding = Soup.Encoding.CHUNKED;
+            } else if (response_size > 0) {
+                // TODO: Incorporate ChunkEncodingMode.dlna.org request into this logic
+                response_body_encoding = Soup.Encoding.CONTENT_LENGTH;
             } else { // Response size is 0
                 if (this.msg.get_http_version() == Soup.HTTPVersion.@1_0) {
                     // Can't sent the length and can't send chunked (in HTTP 1.0)...
+                    // this.msg.response_headers.append ("Connection", "close");
                     response_body_encoding = Soup.Encoding.EOF;
                 } else {
                     response_body_encoding = Soup.Encoding.CHUNKED;
@@ -297,15 +299,25 @@ public class Rygel.HTTPGet : HTTPRequest {
         if (this.speed != null) {
             this.speed.add_response_headers(this);
         }
-                
-        debug ("Following HTTP headers appended to response:");
+
+        // Determine the status code
+        {
+            int response_code;
+            if (this.msg.response_headers.get_one ("Content-Range") != null) {
+                response_code = Soup.KnownStatusCode.PARTIAL_CONTENT;
+            } else {
+                response_code = Soup.KnownStatusCode.OK;
+            }
+            this.msg.set_status (response_code);
+        }
+
+        message ("Following HTTP headers appended to response:");
         this.msg.response_headers.foreach ((name, value) => {
-            debug ("%s : %s", name, value);
+            message ("%s : %s", name, value);
         });
 
         if (this.msg.method == "HEAD") {
             // Only headers requested, no need to send contents
-            this.msg.set_status (Soup.KnownStatusCode.OK);
             this.server.unpause_message (this.msg);
 
             return;

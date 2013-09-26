@@ -91,7 +91,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             } else { // The "end" depends on the direction
                 time_offset_end = is_reverse ? 0 : int64.MAX;
             }
-                        
+
             message ("Received time seek (time %lld to %lld)",
                      time_offset_start, time_offset_end);
             string index_path = resource_path + "/" + content_filename + ".index";
@@ -103,29 +103,27 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             //  (see DLNA 7.5.4.3.2.24.4)
             if (is_reverse) {
                 if (!time_seek.end_time_requested()) {
-                    message ("No end time direction in reverse scan "
-                             + " - setting end to 0");
+                    message ("No end time direction in reverse scan - setting end to 0");
                     this.range_start = 0;
                 }
             } else {
-                if ( !time_seek.end_time_requested()
-                     || time_seek.requested_end > this.res.duration ) {
-                    this.range_end = this.res.size; // Range end is not inclusive, so no adjustment
+                if (!time_seek.end_time_requested()) {
+                    this.range_end = this.res.size; // range_end is not inclusive, so no adjustment
                     message ("No end time direction in forward direction"
                              + " (or end beyond duration) - setting end to %lld", this.range_end);
                 }
             }
 
-            message ("Data range for time seek: bytes %lld to %lld",
-                     this.range_start, this.range_end);
+            message ("Data range for time seek: bytes %lld through %lld",
+                     this.range_start, this.range_end-1);
                      
             // Now set the effective time/data range and duration/size (if known)
             time_seek.set_effective_time_range(time_offset_start, time_offset_end);
             if (this.res.duration > 0) {
-                time_seek.total_duration = this.res.duration;
+                time_seek.set_total_duration(this.res.duration * TimeSpan.SECOND);
             }
             
-            time_seek.set_byte_range(this.range_start, this.range_end+1); // inclusive offset
+            time_seek.set_byte_range(this.range_start, this.range_end-1); // inclusive offset
             if (this.res.size > 0) {
                 time_seek.total_length = this.res.size;
             }
@@ -140,6 +138,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             offsets_for_byte_seek(byte_seek.start_byte, byte_seek.end_byte, byte_seek.total_length);
             message ("Modified data seek (bytes %lld to %lld)",
                      this.range_start, this.range_end);
+        } else {
+            throw new DataSourceError.SEEK_FAILED("Unsupported seek type");
         }
 
         // Process PlaySpeed

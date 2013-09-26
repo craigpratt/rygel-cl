@@ -61,7 +61,7 @@ public interface Rygel.DataSource : GLib.Object {
     /**
      * Preroll the data with the given seek and playspeed.
      *
-     * @param offsets optional limits of the stream for partial streaming. If supported
+     * @param seek    optional limits of the stream for partial streaming. If supported
      *                by the DataSource, the known response parameters on the seek must be
      *                specified before returning (e.g. the byte range must be set if known).
      * @param playspeed optional playback rate for the stream. If supported

@@ -80,15 +80,6 @@ public abstract class Rygel.HTTPSeek : GLib.Object {
         this.start_byte = start;
         this.end_byte = stop;
 
-        if (start < 0 || start >= total_length) {
-            throw new HTTPSeekError.OUT_OF_RANGE (_("Start byte Out Of Range: Start '%ld', Range '%ld'"),
-                                                 start, total_length);
-        }
-        if (stop < 0 || stop >= total_length) {
-            throw new HTTPSeekError.OUT_OF_RANGE (_("Stop byte Out Of Range: Stop '%ld', Range '%ld'"),
-                                                  stop, total_length);
-        }
-
         // Byte ranges only go upward (at least DLNA 7.5.4.3.2.24.4 doesn't say otherwise)
         if (start > stop) {
             throw new HTTPSeekError.OUT_OF_RANGE (_("Range stop byte before start: Start '%ld', Stop '%ld'"),

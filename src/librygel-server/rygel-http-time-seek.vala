@@ -35,40 +35,40 @@
  * data- and time-based seek are supported. (see DLNA 7.5.4.3.2.24.5)
  */
 public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
-    public static const string HTTP_HEADER = "TimeSeekRange.dlna.org";
+    public static const string TIMESEEKRANGE_HEADER = "TimeSeekRange.dlna.org";
     public static const int64 UNSPECIFIED_TIME = -1;
     
     /**
-     * Requested range start time, in milliseconds 
+     * Requested range start time, in microseconds 
      */
-    public int64 requested_start { get; private set; }
+    public int64 requested_start;
 
     /**
-     * Requested range end time, in milliseconds 
+     * Requested range end time, in microseconds 
      */
-    public int64 requested_end { get; private set; }
+    public int64 requested_end;
 
     /**
-     * Requested range duration, in milliseconds
+     * Requested range duration, in microseconds
      */
-    public int64 requested_duration { get; private set; }
+    public int64 requested_duration;
 
     /**
-     * Effective range start time, in milliseconds. This is the actual start time that
+     * Effective range start time, in microseconds. This is the actual start time that
      * could be honored.
      */
-    public int64 effective_start { get; private set; }
+    private int64 effective_start;
 
     /**
-     * Effective range end time, in milliseconds. This is the actual end time that
+     * Effective range end time, in microseconds. This is the actual end time that
      * could be honored.
      */
-    public int64 effective_end { get; private set; }
+    private int64 effective_end;
 
     /**
-     * The total duration of the resource, in milliseconds
+     * The total duration of the resource, in microseconds
      */
-    public int64 total_duration { get; set; }
+    private int64 total_duration;
 
     /**
      * Create a HTTPTimeSeek corresponding with a HTTPGet that contains a TimeSeekRange.dlna.org
@@ -78,6 +78,9 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
      * @param positive_rate Indicates if playback is in the positive or negative direction
      */
     internal HTTPTimeSeek (HTTPGet request, bool positive_rate) throws HTTPSeekError {
+        // Initialize the base first or accessing our members will fault...
+        base (request.msg);
+        
         if (request.handler is HTTPMediaResourceHandler) {
             this.total_duration = (request.handler as HTTPMediaResourceHandler)
                                   .media_resource.duration * TimeSpan.SECOND;
@@ -85,15 +88,15 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
             this.total_duration = (request.object as AudioItem).duration * TimeSpan.SECOND;
         }
 
-        var range = request.msg.request_headers.get_one (HTTP_HEADER);
+        var range = request.msg.request_headers.get_one (TIMESEEKRANGE_HEADER);
 
         if (range == null) {
-            throw new HTTPSeekError.INVALID_RANGE ("%s not present", HTTP_HEADER);
+            throw new HTTPSeekError.INVALID_RANGE ("%s not present", TIMESEEKRANGE_HEADER);
         }
         
         if (!range.has_prefix ("npt=")) {
             throw new HTTPSeekError.INVALID_RANGE ("Invalid %s value (missing npt field): '%s'",
-                                                   HTTP_HEADER, range);
+                                                   TIMESEEKRANGE_HEADER, range);
         }
 
         var range_tokens = range.substring (4).split ("-", 2);
@@ -101,7 +104,7 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
         int64 start = UNSPECIFIED_TIME;
         if (!parse_npt_time (range_tokens[0], ref start)) {
             throw new HTTPSeekError.INVALID_RANGE("Invalid %s value (no start): '%s'",
-                                                  HTTP_HEADER, range);
+                                                  TIMESEEKRANGE_HEADER, range);
         }
         this.requested_start = start;
 
@@ -110,33 +113,32 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
             // The end time was specified in the npt ("start-end")
             this.requested_end = end;
             if (positive_rate) {
-                this.requested_duration = this.requested_end - this.requested_start;
+                this.requested_duration = end - start;
                 if (this.requested_duration <= 0) {
                     throw new HTTPSeekError.INVALID_RANGE (
                         "Invalid %s value (start time after end time - forward scan): '%s'",
-                        HTTP_HEADER, range );
+                        TIMESEEKRANGE_HEADER, range );
                 }
                 
-                this.requested_duration = this.total_duration - this.requested_start;
+                this.requested_duration = this.total_duration - start;
             } else { // Negative rate
-                this.requested_duration = this.requested_start - this.requested_end;
+                this.requested_duration = start - end;
                 if (this.requested_duration <= 0) {
                     throw new HTTPSeekError.INVALID_RANGE (
                         "Invalid %s value (start time before end time - reverse scan): '%s'",
-                        HTTP_HEADER, range);
+                        TIMESEEKRANGE_HEADER, range);
                 }
             }
-        } else { // The end time not specified in the npt ("start-")
+        } else { // End time not specified in the npt field ("start-")
             // See DLNA 7.5.4.3.2.24.4
-            this.requested_end = UNSPECIFIED_TIME; // Will indicate "end of binary"
+            this.requested_end = UNSPECIFIED_TIME; // Will indicate "end/beginning of binary"
             if (positive_rate) {
-                this.requested_duration = this.total_duration - this.requested_start;
+                this.requested_duration = this.total_duration - start;
             } else { // Negative rate
-                this.requested_duration = this.requested_start; // Going from start to 0 time
+                this.requested_duration = start; // Going backward from start to 0
             }
         }
         
-        base (request.msg);
         // The corresponding byte range and total resource length is unknown at
         // the time of construction. The effective time/byte values need to be set
         // in a media/system-specific way via set_effective_time_range() and set_byte_range(),
@@ -146,7 +148,7 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
     }
 
     public bool end_time_requested() {
-        return (requested_end != int64.MAX);
+        return (requested_end != UNSPECIFIED_TIME);
     }
 
     public bool implies_negative_rate() {
@@ -163,8 +165,8 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
      * add_response_headers() is called with the range portion "npt=" field of the
      * TimeSeekRange response populated.
      *
-     * @param start_time The effective start time of the range, in milliseconds
-     * @param end_time The effective start time of the range, in milliseconds
+     * @param start_time The effective start time of the range, in microseconds
+     * @param end_time The effective start time of the range, in microseconds
      */
     public void set_effective_time_range(int64 start_time, int64 end_time) {
         this.effective_start = start_time;
@@ -188,15 +190,27 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
      * populated.
      */
     public bool effective_time_range_set() {
-        return (this.effective_start == UNSPECIFIED_TIME);
+        return (this.effective_start != UNSPECIFIED_TIME);
     }
 
     /**
+     * Set the total duration for the seek response.
+     *
+     * When set, and the the effective time range is set, a TimeSeekRange response
+     * will be generated when add_response_headers() is called with the duration portion
+     * of the "npt=" field set to the total duration.
+     *
+     */
+    public void set_total_duration(int64 duration) {
+        this.total_duration = duration;
+    }
+    
+    /**
      * Unset the total duration for the seek response.
      *
-     * If the the effective time range is unset, a TimeSeekRange response will be generated
-     * when add_response_headers() is called with the duration portion of the "npt=" field
-     * unspecified (set to "*").
+     * When unset, and the the effective time range is set, a TimeSeekRange response
+     * will be generated when add_response_headers() is called with the duration portion
+     * of the "npt=" field unspecified (set to "*").
      */
     public void unset_total_duration() {
         this.total_duration = UNSPECIFIED_TIME;
@@ -207,14 +221,14 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
      *
      * When true, and the the effective time range is set, a TimeSeekRange response
      * will be generated when add_response_headers() is called with the duration portion
-     * of the "npt=" field specified.
+     * of the "npt=" field set to the total duration set.
      *
      * When false, and the the effective time range is set, a TimeSeekRange response
      * will be generated when add_response_headers() is called with the duration portion
      * of the "npt=" field unspecified (set to "*").
      */
     public bool total_duration_set() {
-        return (this.total_duration == UNSPECIFIED_TIME);
+        return (this.total_duration != UNSPECIFIED_TIME);
     }
 
     /**
@@ -251,7 +265,7 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
      * Return true of the HTTPGet contains a TimeSeekRange request.
      */
     public static bool requested (HTTPGet request) {
-        return (request.msg.request_headers.get_one (HTTP_HEADER) != null);
+        return (request.msg.request_headers.get_one (TIMESEEKRANGE_HEADER) != null);
     }
 
     public override void add_response_headers () {

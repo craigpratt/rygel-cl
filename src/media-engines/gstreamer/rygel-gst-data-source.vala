@@ -72,7 +72,7 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
             // TODO: Align this with actual time positions returned
             // For now, set the effective TimeSeekRange response range to the requested range
             time_seek.set_effective_time_range(time_seek.requested_start, time_seek.requested_end);
-            time_seek.total_duration = res.duration;
+            time_seek.set_total_duration(res.duration);
         } else {
             // Unknown/unsupported seek type
             throw new DataSourceError.SEEK_FAILED

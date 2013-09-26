@@ -130,11 +130,11 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
     /**
      * Set the framerate for the playspeed response.
      *
-     * @param framerate Framerate in frames per second
-     *
      * If the the framerate is set, a FrameRateInTrickMode response header will
      * be generated when add_response_headers() is called with the "rate=" field
      * set to the framerate.
+     * 
+     * @param framerate Framerate in frames per second
      */
     public void set_framerate(int framerate) {
         this.framerate = framerate;
