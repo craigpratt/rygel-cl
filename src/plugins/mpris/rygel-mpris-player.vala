@@ -151,6 +151,13 @@ public class Rygel.MPRIS.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
+    public int64 position_byte {
+        get {
+            return this.actual_player.position_byte;
+        }
+    }
+
+
     public Player (Plugin plugin) {
         this.actual_player = plugin.actual_player;
         this.mime_types = plugin.mime_types;
@@ -164,6 +171,17 @@ public class Rygel.MPRIS.Player : GLib.Object, Rygel.MediaPlayer {
 
         try {
             this.actual_player.seek (time);
+            ret = true;
+        } catch (Error error) {}
+
+        return ret;
+    }
+
+    public bool seek_dlna (int64 target, string unit, double rate) {
+        var ret = false;
+
+        try {
+            this.actual_player.seek_dlna (target, unit, rate);
             ret = true;
         } catch (Error error) {}
 

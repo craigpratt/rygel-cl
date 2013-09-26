@@ -11,6 +11,7 @@
 /**
  * A simple data source for use with the ODID media engine.
  */
+ using Dtcpip;
 internal class Rygel.ODIDDataSource : DataSource, Object {
     private string source_uri; 
     private Thread<void*> thread;
@@ -24,6 +25,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     private HTTPSeek offsets;
     private DLNAPlaySpeed playspeed = null;
     private MediaResource res;
+    private int session_handle = -1;
 
     public ODIDDataSource(string source_uri, MediaResource ? res) {
         message ("Creating a data source for URI %s", source_uri);
@@ -33,6 +35,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
     ~ODIDDataSource() {
         this.stop ();
+        this.clear_dtcp_session();
         message ("Stopped data source");
     }
 
@@ -51,6 +54,18 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             message("profile: " + res.protocol_info.dlna_profile);
         }
 
+        if (res != null &&
+            res.protocol_info.dlna_profile.has_prefix ("DTCP_") &&
+            ODIDMediaEngine.is_dtcp_loaded()) {
+            debug ("Entering DTCP-IP streaming mode");
+            Dtcpip.server_dtcp_open (out session_handle, 0);
+        }
+
+        if (session_handle == -1) {
+            warning ("DTCP-IP open server session failed");
+        } else {
+            debug ("Got DTCP-IP session handle : %d", session_handle);
+        }
 
         KeyFile keyFile = new KeyFile();
         keyFile.load_from_file(File.new_for_uri (source_uri).get_path (),
@@ -339,6 +354,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         this.mutex.unlock();
     }
 
+    public void clear_dtcp_session() {
+        if (session_handle != -1) {
+            int ret_close = Dtcpip.server_dtcp_close (session_handle);
+            message ("Dtcp session closed : %d",ret_close);
+            session_handle = -1;
+        }
+    }
     private void* thread_func() {
         var file = File.new_for_uri (this.content_path);
         message ("Spawned new thread for streaming %s", this.content_path);
@@ -380,14 +402,40 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 unowned uint8[] data = (uint8[]) mapped.get_contents ();
                 data.length = (int) mapped.get_length ();
                 uint8[] slice = data[start:stop];
+
+                // Encrypted data has to be unowned as the reference will be passed
+                // to DTCP libraries to perform the cleanup, else vala will be
+                //performing the cleanup by default.
+                unowned uint8[] encrypted_data = null;
+                int64 encrypted_data_length =-1;
+                uchar cci = 0x3;
+
+                // Encrypt the data here
+                if (this.session_handle != -1) {
+                    int return_value = Dtcpip.server_dtcp_encrypt (session_handle, cci, slice, out encrypted_data);
+                    encrypted_data_length = encrypted_data.length;
+                    debug ("Encryption returned : %d and the encryption size : %lld",return_value,encrypted_data_length);
+                }
+
                 this.range_start = stop;
-                
+
                 // There's a potential race condition here.
                 Idle.add ( () => {
                     if (!this.stop_thread) {
-                        this.data_available (slice);
+                        if (this.session_handle != -1) {
+                            debug ("Sending encrypted data.");
+                            this.data_available (encrypted_data);
+                        } else {
+                            debug ("Sending unencrypted data.");
+                            this.data_available (slice);
+                        }
+
                     }
 
+                    if (encrypted_data != null) {
+                        int ret_free = Dtcpip.server_dtcp_free (encrypted_data);
+                        debug ("DTCP-IP data reference freed : %d", ret_free);
+                    }
                     return false;
                 });
             }

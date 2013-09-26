@@ -156,7 +156,17 @@ public class Rygel.Example.PlayerVala : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
+    public int64 position_byte {
+        get {
+            return this._position;
+        }
+    }
+
     public bool seek (int64 time) {
+        return false;
+    }
+
+    public bool seek_dlna (int64 target, string unit, double rate) {
         return false;
     }
 

@@ -42,6 +42,7 @@ public interface Rygel.MPRIS.MediaPlayer.PlayerProxy : DBusProxy,
 
     public abstract double volume { get; set; }
     public abstract int64 position { get; }
+    public abstract int64 position_byte { get; }
     public abstract HashTable<string,Variant> metadata { owned get; }
 
     public abstract void pause () throws DBusError;
@@ -49,5 +50,6 @@ public interface Rygel.MPRIS.MediaPlayer.PlayerProxy : DBusProxy,
     public abstract void stop () throws DBusError;
     public abstract void play () throws DBusError;
     public abstract void seek (int64 offset) throws DBusError;
+    public abstract void seek_dlna (int64 offset, string unit, double rate) throws DBusError;
     public abstract void open_uri (string uri) throws DBusError;
 }
