@@ -5,6 +5,7 @@
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jens Georg <jensg@openismus.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -25,7 +26,7 @@
 
 using GUPnP;
 
-internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
+public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
     private static bool content_protected = false;
     public HTTPByteSeek (HTTPGet request) throws HTTPSeekError,
                                                  HTTPRequestError {
@@ -103,16 +104,14 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
             }
         }
 
-        if (start > stop) {
-                throw new HTTPSeekError.INVALID_RANGE (_("Invalid Range '%s'"),
-                                                       range_header_str);
-        }
-
-        base (request.msg, start, stop, 1, total_length);
-        this.seek_type = HTTPSeekType.BYTE;
+        base (request.msg);
+        // A HTTP Range request is just bytes, which can live in the base
+        set_byte_range(start, stop);
+        // TODO: Deal with cases where length is not known (e.g. live/in-progress sources)
+        this.total_length = total_length;
     }
 
-    public static bool needed (HTTPGet request) {
+    public static bool supported (HTTPGet request) {
         bool force_seek = false;
 
         try {
@@ -165,12 +164,12 @@ internal class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
     }
 
     public override void add_response_headers () {
-        // Content-Range: bytes START_BYTE-STOP_BYTE/TOTAL_LENGTH
+        // Content-Range: bytes START_BYTE-END_BYTE/TOTAL_LENGTH
         var range_str = "bytes ";
         unowned Soup.MessageHeaders headers = this.msg.response_headers;
         headers.append ("Accept-Ranges", "bytes");
-        range_str += this.start.to_string () + "-" +
-                 this.stop.to_string () + "/" +
+        range_str += this.start_byte.to_string () + "-" +
+                 this.end_byte.to_string () + "/" +
                  this.total_length.to_string ();
         if (this.msg.request_headers.get_one ("Range") != null) {
             headers.append("Content-Range", range_str);

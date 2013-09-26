@@ -49,11 +49,11 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
         this.stop ();
     }
 
-    public void start (HTTPSeek? offsets, DLNAPlaySpeed? rate) throws Error {
+    public void preroll (HTTPSeek? offsets, DLNAPlaySpeed? rate) throws Error {
         if (offsets != null) {
-            if (offsets.seek_type == HTTPSeekType.TIME) {
+            if (!(offsets is HTTPByteSeek)) {
                 throw new DataSourceError.SEEK_FAILED
-                                        (_("Time-based seek not supported"));
+                                        (_("Only byte-based seek supported"));
 
             }
         }
@@ -64,7 +64,9 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
         }
 
         this.offsets = offsets;
+    }
 
+    public void start () throws Error {
         debug ("Starting data source for uri %s", this.uri);
 
         // TODO: Convert to use a thread pool
@@ -111,8 +113,8 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
         try {
             var mapped = new MappedFile (file.get_path (), false);
             if (this.offsets != null) {
-                this.first_byte = this.offsets.start;
-                this.last_byte = this.offsets.stop + 1;
+                this.first_byte = this.offsets.start_byte;
+                this.last_byte = this.offsets.end_byte + 1;
             } else {
                 this.last_byte = mapped.get_length ();
             }

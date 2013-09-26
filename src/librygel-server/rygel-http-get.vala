@@ -28,7 +28,7 @@
 /**
  * Responsible for handling HTTP GET & HEAD client requests.
  */
-internal class Rygel.HTTPGet : HTTPRequest {
+public class Rygel.HTTPGet : HTTPRequest {
     private const string TRANSFER_MODE_HEADER = "transferMode.dlna.org";
     private const string SERVER_NAME = "CVP2-RI-DMS";
 
@@ -42,7 +42,7 @@ internal class Rygel.HTTPGet : HTTPRequest {
 
     public HTTPGetHandler handler;
 
-    public HTTPGet (HTTPServer   http_server,
+    internal HTTPGet (HTTPServer   http_server,
                     Soup.Server  server,
                     Soup.Message msg) {
         base (http_server, server, msg);
@@ -143,18 +143,45 @@ internal class Rygel.HTTPGet : HTTPRequest {
     }
 
     private async void handle_item_request () throws Error {
-        // Shouldn't "need"/"needed" be "support"/"supported" here?
-        var need_time_seek = HTTPTimeSeek.needed (this);
+        var supports_time_seek = HTTPTimeSeek.supported (this);
         var requested_time_seek = HTTPTimeSeek.requested (this);
-        var need_byte_seek = HTTPByteSeek.needed (this);
+        var supports_byte_seek = HTTPByteSeek.supported (this);
         var requested_byte_seek = HTTPByteSeek.requested (this);
+        // var supports_dtcp_seek = DTCPByteSeek.supported (this);
+        // var requested_dtcp_seek = DTCPByteSeek.requested (this);
 
-        if (requested_byte_seek && !need_byte_seek) {
+        if (requested_byte_seek && !supports_byte_seek) {
             throw new HTTPRequestError.UNACCEPTABLE ("Invalid byte seek request");
         }
 
-        if (requested_time_seek && !need_time_seek) {
+        if (requested_time_seek && !supports_time_seek) {
             throw new HTTPRequestError.UNACCEPTABLE ("Invalid time seek request");
+        }
+
+        bool positive_rate = true;
+        // Check for DLNA PlaySpeed request only if Range or Range.dtcp.com is not
+        // in the request. DLNA 7.5.4.3.3.19.2, DLNA Link Protection : 7.6.4.4.2.12
+        try {
+            if (!requested_byte_seek && DLNAPlaySpeed.requested(this)) {
+                this.speed = new DLNAPlaySpeed.from_request(this);
+                positive_rate = this.speed.is_positive();
+            } else {
+                this.speed = null;
+            }
+        } catch (DLNAPlaySpeedError error) {
+            this.server.unpause_message (this.msg);
+            if (error is DLNAPlaySpeedError.INVALID_SPEED_FORMAT) {
+                // TODO: log something?
+                this.end (Soup.KnownStatusCode.BAD_REQUEST);
+                // Per DLNA 7.5.4.3.3.16.3
+            } else if (error is DLNAPlaySpeedError.SPEED_NOT_PRESENT) {
+                // TODO: log something?
+                this.end (Soup.KnownStatusCode.NOT_ACCEPTABLE);
+                 // Per DLNA 7.5.4.3.3.16.5
+            } else {
+                throw error;
+            }
+            return;
         }
 
         try {
@@ -170,10 +197,16 @@ internal class Rygel.HTTPGet : HTTPRequest {
                 }
             }
 
-            if (need_byte_seek && requested_byte_seek) {
+            // Order is intentional here. Byte-range seek takes precedence
+            // TODO: Add DTCPByteSeek logic
+            // if (supports_dtcp_seek && requested_dtcp_seek) {
+            //     this.seek = new DTCPByteSeek (this);
+            if (supports_byte_seek && requested_byte_seek) {
                 this.seek = new HTTPByteSeek (this);
-            } else if (need_time_seek && requested_time_seek) {
-                this.seek = new HTTPTimeSeek (this);
+            } else if (supports_time_seek && requested_time_seek) {
+                this.seek = new HTTPTimeSeek (this, positive_rate);
+            } else {
+                this.seek = null;
             }
         } catch (HTTPSeekError error) {
             warning("Caught HTTPSeekError: " + error.message);
@@ -190,76 +223,97 @@ internal class Rygel.HTTPGet : HTTPRequest {
             return;
         }
 
-        // Check for DLNA PlaySpeed request only if Range or Range.dtcp.com is not
-        // in the request. DLNA 7.5.4.3.3.19.2, DLNA Link Protection : 7.6.4.4.2.12
-        try {
-            if (!requested_byte_seek && DLNAPlaySpeed.requested(this)) {
-                this.speed = new DLNAPlaySpeed.from_request(this);
-
-                this.speed.add_response_headers(this);
-            }
-        } catch (DLNAPlaySpeedError error) {
-            this.server.unpause_message (this.msg);
-            if (error is DLNAPlaySpeedError.INVALID_SPEED_FORMAT) {
-                this.end (Soup.KnownStatusCode.BAD_REQUEST);
-                // Per DLNA 7.5.4.3.3.16.3
-            } else if (error is DLNAPlaySpeedError.SPEED_NOT_PRESENT) {
-                this.end (Soup.KnownStatusCode.NOT_ACCEPTABLE);
-                 // Per DLNA 7.5.4.3.3.16.5
-            } else {
-                throw error;
-            }
-            return;
-        }
-
-        // Calculate the size value for setting content-length header.
-        {
-            int64 size;
-            if (this.handler is HTTPMediaResourceHandler) {
-                size = (this.handler as HTTPMediaResourceHandler)
-                       .media_resource.size;
-            } else {
-                size = (this.object as MediaItem).size;
-            }
-            this.msg.response_headers.set_content_length (size);
-        }
-
         // Add headers
+        // TODO: Should we have this after preroll()?
+        // TODO: How much of the logic in this method should be in the base HTTPGetHandler?
         this.handler.add_response_headers (this);
-
-        // Add general headers
-        if (this.msg.request_headers.get_one ("Range") != null) {
-            this.msg.set_status (Soup.KnownStatusCode.PARTIAL_CONTENT);
-        } else {
-            this.msg.set_status (Soup.KnownStatusCode.OK);
-        }
-        
-        if (this.handler is HTTPMediaResourceHandler) {
-            // If Playspeed is requested then send response in chunked mode.
-            // NOTE: Content-Length for non-Range requests can only be done by the 
-            //       MediaEngine as there isn't currently a way to return a length
-            //       for these requests (e.g. TimeSeekRange and DTCP Range). So
-            //       we'll only support Chunked mode for these request types currently.
-            // TODO: Fix this once response headers can be returned.
-            if (requested_byte_seek || this.msg.get_http_version() == Soup.HTTPVersion.@1_0) {
-                this.msg.response_headers.set_encoding (Soup.Encoding.CONTENT_LENGTH);
-            } else {
-                this.msg.response_headers.set_encoding (Soup.Encoding.CHUNKED);
-            }
-        } else { // For non HTTPMediaResourceHandler
-            if (this.handler.knows_size (this)) {
-                this.msg.response_headers.set_encoding (Soup.Encoding.CONTENT_LENGTH);
-            } else if (this.msg.get_http_version() == Soup.HTTPVersion.@1_1) {
-                // Set the streaming mode to chunked if the size is unknown
-                this.msg.response_headers.set_encoding (Soup.Encoding.CHUNKED);
-            }
-        }
 
         this.msg.response_headers.append ("Server",SERVER_NAME);
 
-        debug ("Following HTTP headers appended to response:");
+        HTTPResponse response = this.handler.render_body (this);
+
+        // Have the response process the seek/speed request
+        response.preroll();
+        
+        //
+        // All response header generation below here depends upon the seek range/speed response
+        //  fields being set (preroll() will have touched our seek/speed request-related
+        //  response parameters)
+
+        int64 response_size;
+        // Determine the size value and response code
+        {
+            if (this.seek != null) {
+                // See DLNA 7.5.4.3.2.22.4
+                if (this.seek.byte_range_set()) {
+                    // Note: This will work with all seek subtypes (when they set the byte range)
+                    response_size = this.seek.length;
+                } else { // A valid seek was requested, so we won't be sending the entire binary
+                    response_size = 0;
+                }
+            } else if (this.handler is HTTPMediaResourceHandler) {
+                // If a seek isn't included, we'll be returning the entire resource binary
+                response_size = (this.handler as HTTPMediaResourceHandler)
+                                .media_resource.size;
+            } else if (this.handler.knows_size (this)) {
+                // Still supporting the concept of MediaItem size (for now)
+                response_size = (this.object as MediaItem).size;
+            } else {
+                response_size = 0;
+            }
+            if (response_size > 0) {
+                this.msg.response_headers.set_content_length (response_size);
+            }
+            // size will factor into other logic below...
+        }
+
+        // Determine the transfer mode encoding
+        {
+            Soup.Encoding response_body_encoding;
+            // See DLNA 7.5.4.3.2.15 for requirements
+            if ( (this.speed != null) && (this.msg.get_http_version() != Soup.HTTPVersion.@1_0) ) {
+                // We'll want the option to insert PlaySpeed position information
+                //  whether or not we know the length (see DLNA 7.5.4.3.3.17)
+                response_body_encoding = Soup.Encoding.CHUNKED;
+            } else if (response_size > 0) {
+                // TODO: Incorporate ChunkEncodingMode.dlna.org request into this logic
+                response_body_encoding = Soup.Encoding.CONTENT_LENGTH;
+            } else { // Response size is 0
+                if (this.msg.get_http_version() == Soup.HTTPVersion.@1_0) {
+                    // Can't sent the length and can't send chunked (in HTTP 1.0)...
+                    // this.msg.response_headers.append ("Connection", "close");
+                    response_body_encoding = Soup.Encoding.EOF;
+                } else {
+                    response_body_encoding = Soup.Encoding.CHUNKED;
+                }
+            }
+            this.msg.response_headers.set_encoding (response_body_encoding);
+        }
+
+        // Insert the seek-related response headers
+        if (this.seek != null) {
+            this.seek.add_response_headers();
+        }
+
+        // Insert the speed-related response headers
+        if (this.speed != null) {
+            this.speed.add_response_headers(this);
+        }
+
+        // Determine the status code
+        {
+            int response_code;
+            if (this.msg.response_headers.get_one ("Content-Range") != null) {
+                response_code = Soup.KnownStatusCode.PARTIAL_CONTENT;
+            } else {
+                response_code = Soup.KnownStatusCode.OK;
+            }
+            this.msg.set_status (response_code);
+        }
+
+        message ("Following HTTP headers appended to response:");
         this.msg.response_headers.foreach ((name, value) => {
-            debug ("%s : %s", name, value);
+            message ("%s : %s", name, value);
         });
 
         if (this.msg.method == "HEAD") {
@@ -268,8 +322,6 @@ internal class Rygel.HTTPGet : HTTPRequest {
 
             return;
         }
-
-        var response = this.handler.render_body (this);
 
         yield response.run ();
 

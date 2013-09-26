@@ -23,7 +23,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-internal errordomain Rygel.HTTPRequestError {
+public errordomain Rygel.HTTPRequestError {
     UNACCEPTABLE = Soup.KnownStatusCode.NOT_ACCEPTABLE,
     BAD_REQUEST = Soup.KnownStatusCode.BAD_REQUEST,
     NOT_FOUND = Soup.KnownStatusCode.NOT_FOUND,
@@ -33,7 +33,7 @@ internal errordomain Rygel.HTTPRequestError {
 /**
  * Base class for HTTP client requests.
  */
-internal abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
+public abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
     public unowned HTTPServer http_server;
     private MediaContainer root_container;
     public unowned Soup.Server server;

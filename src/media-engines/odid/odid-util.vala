@@ -65,14 +65,18 @@ public class Rygel.ODIDUtil : Object {
     // TODO : Identify the packet size from the profile
     public static int64 get_profile_packet_size (string profile) {
         // TODO : Need to consider mime types other than MPEG.
-        if (profile.has_prefix ("DTCP_MPEG_TS") && profile.has_suffix ("_ISO")) {
+        if ((profile.has_prefix ("DTCP_MPEG_TS") ||
+             profile.has_prefix ("DTCP_AVC_TS")) &&
+             profile.has_suffix ("_ISO")) {
             return PACKET_SIZE_188;
         }
-        // For Timestamped 192 byte packets
-        if (profile.has_prefix ("DTCP_MPEG_TS") && !profile.has_suffix ("_ISO")){
+        // For Timestamped 192 byte packets for non ISO profiles
+        if ((profile.has_prefix ("DTCP_MPEG_TS") ||
+             profile.has_prefix ("DTCP_AVC_TS")) &&
+             !profile.has_suffix ("_ISO")){
             return PACKET_SIZE_192;
         }
-        //TODO : Handle MPEG_PS content alignment.(DLna Link Protection 8.9.5.1.1)
+        //TODO : Handle MPEG_PS content alignment.(DLNA Link Protection 8.9.5.1.1)
         return 0;
     }
 

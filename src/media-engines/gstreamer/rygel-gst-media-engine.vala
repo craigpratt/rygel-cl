@@ -124,7 +124,7 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
     public override DataSource? create_data_source_for_resource
                                 (string uri, MediaResource ? resource) {
         try {
-            return new GstDataSource (uri);
+            return new GstDataSource (uri, resource);
         } catch (Error error) {
             warning (_("Failed to create GStreamer data source for %s: %s"),
                      uri,

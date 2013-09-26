@@ -5,6 +5,7 @@
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jens Georg <jensg@openismus.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -28,89 +29,91 @@ public errordomain Rygel.HTTPSeekError {
     OUT_OF_RANGE = Soup.KnownStatusCode.REQUESTED_RANGE_NOT_SATISFIABLE,
 }
 
-public enum Rygel.HTTPSeekType {
-    BYTE,
-    TIME
-}
-
 /**
  * HTTPSeek is an abstract representation of a ranged HTTP request.
  *
- * It can be one of:
- *
- *  - The classic Range request (seek_type == HTTPSeekType.BYTE), with start and stop in bytes.
- *  - The DLNA-Specific "TimeSeekRange.dlna.org" request (seek_type == HTTPSeekType.TIME) with start and stop in microseconds.
+ * Note that subclasses can represent different types of intra-resource requests
+ * (e.g. HTTP Range, DLNA TimeSeekRange request). The base class represents the
+ * byte-level request/response and the common interface for the request processing
+ * and response generation. 
  */
 public abstract class Rygel.HTTPSeek : GLib.Object {
-
-    /**
-     * Identifies whether this is a class Range request or a DLNA-specific
-     * "TimeSeekRange.dlna.org" request.
-     */
-    public HTTPSeekType seek_type { get; protected set; }
+    public static const int64 UNSPECIFIED_RANGE_VAL = -1;
+    
     public Soup.Message msg { get; private set; }
 
     /**
-     * The start of the range as a number of bytes (classic) or as microseconds 
-     * (DLNA-specific). See seek_type.
+     * The start of the range in bytes 
      */
-    public int64 start { get; private set; }
+    public int64 start_byte { get; set; }
 
     /**
-     * The end of the range as a number of bytes (classic) or as microseconds 
-     * (DLNA-specific). See seek_type.
+     * The end of the range in bytes (inclusive)
      */
-    public int64 stop { get; private set; }
+    public int64 end_byte { get; set; }
 
     /**
-     * Either 1 byte (classic) or as 1000 G_TIME_SPAN_MILLISECOND microseconds 
-     * (DLNA-specific). See seek_type.
-     */
-    public int64 step { get; private set; }
-
-    /**
-     * The length of the range as a number of bytes (classic) or as microseconds 
-     * (DLNA-specific). See seek_type.
+     * The length of the range in bytes
      */
     public int64 length { get; private set; }
 
     /**
-     * The length of the media file as a number of bytes (classic) or as microseconds 
-     * (DLNA-specific). See seek_type.
+     * The length of the resource in bytes
      */
-    public int64 total_length { get; private set; }
+    public int64 total_length { get; set; }
 
-    /**
-     * The resource name which has been requested as string.
-     */
-    public string resource_name { get; protected set;}
-
-    public HTTPSeek (Soup.Message msg,
-                     int64        start,
-                     int64        stop,
-                     int64        step,
-                     int64        total_length) throws HTTPSeekError {
+    public HTTPSeek (Soup.Message msg) {
         this.msg = msg;
-        this.start = start;
-        this.stop = stop;
-        this.length = length;
-        this.total_length = total_length;
-
-        if (start < 0 || start >= total_length) {
-            throw new HTTPSeekError.OUT_OF_RANGE (_("Out Of Range Start '%ld', Range '%ld'"),
-                                                 start, total_length);
-        }
-        if (stop < 0 || stop >= total_length) {
-            throw new HTTPSeekError.OUT_OF_RANGE (_("Out Of Range Stop '%ld', Range '%ld'"),
-                                                  stop, total_length);
-        }
-
-        if (length > 0) {
-            this.stop = stop.clamp (start + 1, length - 1);
-        }
-
-        this.length = stop + step - start;
+        unset_byte_range();
+        unset_total_length();
     }
 
+    /**
+     * Set the byte range that corresponds with the seek and the total size of the resource
+     *
+     * @param start The start byte offset of the byte range
+     * @param stop The stop byte offset of the off set (inclusive)
+     * @param total_length The total length of the resource
+     */
+    public void set_byte_range (int64   start,
+                                int64   stop) throws HTTPSeekError {
+        this.start_byte = start;
+        this.end_byte = stop;
+
+        // Byte ranges only go upward (at least DLNA 7.5.4.3.2.24.4 doesn't say otherwise)
+        if (start > stop) {
+            throw new HTTPSeekError.OUT_OF_RANGE (_("Range stop byte before start: Start '%ld', Stop '%ld'"),
+                                                  start, stop);
+        }
+
+        this.length = stop - start + 1; // Range is inclusive, so add 1 to capture byte at stop
+    }
+
+    public void unset_byte_range() {
+        this.start_byte = UNSPECIFIED_RANGE_VAL;
+        this.end_byte = UNSPECIFIED_RANGE_VAL;
+    }
+
+    /**
+     * Return true of the byte range is set.
+     */
+    public bool byte_range_set() {
+        return (this.start_byte != UNSPECIFIED_RANGE_VAL);
+    }    
+
+    public void unset_total_length() {
+        this.total_length = UNSPECIFIED_RANGE_VAL;
+    }
+    
+    /**
+     * Return true of the length is set.
+     */
+    public bool total_length_set() {
+        return (this.total_length != UNSPECIFIED_RANGE_VAL);
+    }
+
+    /**
+     * Set the reponse headers on the associated HTTP Message corresponding to the seek request 
+     */
     public abstract void add_response_headers ();
 }

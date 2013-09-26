@@ -123,6 +123,7 @@ internal class Rygel.AVTransport : Service {
         action_invoked["GetMediaInfo_Ext"].connect (this.get_media_info_ex_cb);
         action_invoked["GetTransportInfo"].connect (this.get_transport_info_cb);
         action_invoked["GetPositionInfo"].connect (this.get_position_info_cb);
+action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_position_info_cb); //siva_fix
         action_invoked["GetDeviceCapabilities"].connect
                                         (this.get_device_capabilities_cb);
         action_invoked["GetTransportSettings"].connect
@@ -496,6 +497,25 @@ internal class Rygel.AVTransport : Service {
         action.return ();
     }
 
+    private void x_dlna_get_byte_position_info_cb (Service       service,
+                              		           ServiceAction action) {
+        if (!this.check_instance_id (action)) {
+            return;
+        }
+
+        action.set ("TrackSize",
+                        typeof (uint),
+                        uint.MAX, 
+                    "RelByte",
+			typeof(int64),
+                        this.player.position_byte,
+                    "AbsByte",
+                        typeof (int64),
+                        this.player.position_byte);
+
+        action.return ();
+    }
+
     private void get_device_capabilities_cb (Service       service,
                                              ServiceAction action) {
         if (!this.check_instance_id (action)) {
@@ -555,6 +575,7 @@ internal class Rygel.AVTransport : Service {
             return;
         }
 
+	this.changelog.log ("speed specified in play()", speed);
         this.player.playback_state = "PLAYING";
         this.player.playback_speed = speed;
 
@@ -583,6 +604,7 @@ internal class Rygel.AVTransport : Service {
         }
 
         string unit, target;
+	int64 count=0;
 
         action.get ("Unit",
                         typeof (string),
@@ -596,6 +618,21 @@ internal class Rygel.AVTransport : Service {
             debug ("Seeking to %s.", target);
 
             if (!this.player.seek (TimeUtils.time_from_string (target))) {
+                action.return_error (710, _("Seek mode not supported"));
+
+                return;
+            }
+
+            action.return ();
+
+            return;
+	case "ABS_COUNT":
+        case "REL_COUNT":
+	case "X_DLNA_REL_BYTE":
+            debug ("Seeking bytes to %s.", target);
+	    target.scanf("%lld", &count);
+
+            if (!this.player.seek_dlna (count, "REL_COUNT", double.parse(this.player.playback_speed))) {
                 action.return_error (710, _("Seek mode not supported"));
 
                 return;

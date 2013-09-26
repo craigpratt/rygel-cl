@@ -45,16 +45,6 @@ internal class Rygel.HTTPIdentityHandler : Rygel.HTTPGetHandler {
                                                  (request.object as MediaItem).mime_type);
         }
 
-        if (request.seek != null) {
-            request.seek.add_response_headers ();
-        } else {
-            var size = this.get_size (request);
-
-            if (size > 0) {
-                request.msg.response_headers.set_content_length (size);
-            }
-        }
-
         // Chain-up
         base.add_response_headers (request);
     }
