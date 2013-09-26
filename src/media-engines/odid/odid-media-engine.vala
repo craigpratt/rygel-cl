@@ -9,7 +9,7 @@
 
 using Gee;
 using GUPnP;
-
+using Dtcpip;
 /**
  * This media engine is intended to be the basis for the CL 
  * reference DMS. Long-term, this could be moved outside the Rygel
@@ -56,17 +56,46 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
     private GLib.List<ConfigProfileEntry> config_entries = null;
 
+    //DTCP Related variabled
+    private static bool dtcp_supported = false;
+    private static bool dtcp_loaded = false;
+    private string dtcp_storage = null;
+
     public ODIDMediaEngine() {
         message("constructing");
-
         var profiles_config = new Gee.ArrayList<string>();
         config_entries = new GLib.List<ConfigProfileEntry>();
-                
         var config = MetaConfig.get_default();
+        //char version_str[512];
+        ushort dtcp_port = 8999; // Default set it to 8999.
+
         try {
+            dtcp_storage = config.get_string ("general", "dtcp-storage");
+            dtcp_port = (ushort)config.get_int ("general", "dtcp-port", 6000, 8999);
+            dtcp_supported = config.get_bool ("OdidMediaEngine", "engine-dtcp");
             profiles_config = config.get_string_list( "OdidMediaEngine", "profiles");
         } catch (Error err) {
-            error("Error reading CL-ODIDMediaEngine profiles: " + err.message);
+            error("Error reading CL-ODIDMediaEngine properties " + err.message);
+        }
+
+        if (dtcp_supported) {
+            if (Dtcpip.init_dtcp_library (dtcp_storage) != 0){
+                warning ("DTCP-IP storage path set failed : %s",dtcp_storage);
+            } else {
+                message ("DTCP-IP storage loaded successfully");
+            }
+
+            //else {
+                //cmn_get_version (version_str, 512);
+                //message ("DTCP String version : %s",(string)version_str);
+            //}
+
+            if (Dtcpip.server_dtcp_init (8999) != 0) {
+                warning ("DTCP-IP source init failed.");
+            } else {
+                message ("DTCP-IP source initialized");
+                dtcp_loaded = true;
+            }
         }
 
         foreach (var row in profiles_config) {
@@ -89,6 +118,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             profiles.append(new DLNAProfile(profile,mimetype));
             // The transcoders will become secondary res blocks
         }
+
     }
 
     public override unowned GLib.List<DLNAProfile> get_renderable_dlna_profiles() {
@@ -433,16 +463,16 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
      * Returns if the media engine is capable of handling dtcp request
      */
     public override bool has_mediaengine_dtcp () {
-        var config = MetaConfig.get_default();
-        bool dtcp_supported = false;
-        try {
-            dtcp_supported = config.get_bool ("OdidMediaEngine","engine-dtcp");
-        } catch (Error err) {
-            error("Error reading dtcp property for media engine :" + err.message);
-        }
-
         return dtcp_supported;
     }
+
+     /**
+     * Returns if dtcp libraries are initialized successfully
+     */
+    public static bool is_dtcp_loaded () {
+        return dtcp_loaded;
+    }
+
 }
 
 public static Rygel.MediaEngine module_get_instance() {

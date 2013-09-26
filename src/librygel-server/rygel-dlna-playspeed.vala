@@ -54,7 +54,8 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
             string[] speeds = resource.protocol_info.get_play_speeds();
             bool found_speed = false;
             foreach (var speed in speeds) {
-                if (int.parse(speed) == numerator/denominator) {
+                var cur_speed = new DLNAPlaySpeed.from_string (speed);
+                if (this.equals(cur_speed)) {
                     found_speed = true;
                     break;
                 }
