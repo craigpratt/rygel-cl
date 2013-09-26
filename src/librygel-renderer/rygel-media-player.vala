@@ -81,6 +81,9 @@ public interface Rygel.MediaPlayer : GLib.Object {
     /// Position in the current media in microseconds
     public abstract int64 position { get; }
 
+    ///Position in the current media in bytes
+    public abstract int64 position_byte { get; }
+
     /// The position as a human-readable string, in HH:MM:SS format
     public string position_as_str {
         owned get {
@@ -93,6 +96,13 @@ public interface Rygel.MediaPlayer : GLib.Object {
      * this many microseconds after the start.
      */
     public abstract bool seek (int64 time);
+
+
+    /**
+     * Seek to a point in the current media that is
+     * this many microseconds or bytes after the start.
+     */
+    public abstract bool seek_dlna (int64 target, string unit, double rate);
 
     /**
      * Return the protocols supported by this renderer,
