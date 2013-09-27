@@ -10,6 +10,13 @@
 using Gee;
 using GUPnP;
 using Dtcpip;
+
+
+public errordomain Rygel.ODIDMediaEngineError {
+    CONFIG_ERROR,
+    INDEX_FILE_ERROR
+}
+
 /**
  * This media engine is intended to be the basis for the CL 
  * reference DMS. Long-term, this could be moved outside the Rygel
@@ -73,7 +80,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             dtcp_supported = config.get_bool ("OdidMediaEngine", "engine-dtcp");
             profiles_config = config.get_string_list( "OdidMediaEngine", "profiles");
         } catch (Error err) {
-            error("Error reading CL-ODIDMediaEngine properties " + err.message);
+            error("Error reading ODIDMediaEngine property: " + err.message);
         }
 
         if (ODIDUtil.is_rygel_dtcp_enabled() && dtcp_supported) {
@@ -81,7 +88,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 dtcp_storage = config.get_string ("general", "dtcp-storage");
                 dtcp_port = (ushort)config.get_int ("general", "dtcp-port", 6000, 8999);
             } catch (Error err) {
-                error("Error reading CL-ODIDMediaEngine dtcp properties " + err.message);
+                error("Error reading ODIDMediaEngine dtcp property: " + err.message);
             }
             if (Dtcpip.init_dtcp_library (dtcp_storage) != 0){
                 warning ("DTCP-IP storage path set failed : %s",dtcp_storage);
@@ -94,6 +101,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 //message ("DTCP String version : %s",(string)version_str);
             //}
 
+            // TODO: This doesn't seem to be using the configured port?
             if (Dtcpip.server_dtcp_init (8999) != 0) {
                 warning ("DTCP-IP source init failed.");
             } else {
@@ -106,7 +114,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             var columns = row.split(",");
             if (columns.length < 3)
             {
-                message( "OdidMediaEngine profile entry \""
+                warning( "OdidMediaEngine profile entry \""
                          + row + "\" is malformed: Expected 3 entries and found "
                          + columns.length.to_string() );
                 break;
@@ -115,23 +123,21 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             string mimetype = columns[1];
             string extension = columns[2];
 
-            message("OdidMediaEngine: configuring profile entry: " + row);
+            message("configuring profile entry: " + row);
             config_entries.append(new ConfigProfileEntry(profile, mimetype, extension));
             // Note: This profile list won't affect what profiles are included in the 
             //       primary res block
             profiles.append(new DLNAProfile(profile,mimetype));
-            // The transcoders will become secondary res blocks
         }
-
     }
 
     public override unowned GLib.List<DLNAProfile> get_renderable_dlna_profiles() {
-        message("get_renderable_dlna_profiles");
+        debug("get_renderable_dlna_profiles");
         return this.profiles;
     }
 
     public override Gee.List<MediaResource>? get_resources_for_uri(string source_uri) {
-        message("OdidMediaEngine:get_resources_for_uri");
+        debug("OdidMediaEngine:get_resources_for_uri: " + source_uri);
         var resources = new Gee.ArrayList<MediaResource>();
         string odid_item_path = null;
         try {
@@ -141,24 +147,32 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                    KeyFileFlags.KEEP_TRANSLATIONS);
 
             odid_item_path = keyFile.get_string ("item", "odid_uri");
-            message ("Get resources for %s", odid_item_path);
+
+            message("get_resources_for_uri: processing item directory: " + odid_item_path);
 
             var directory = File.new_for_uri(odid_item_path);
+            
             var enumerator = directory.enumerate_children(FileAttribute.STANDARD_NAME, 0);
 
             FileInfo file_info;
             while ((file_info = enumerator.next_file ()) != null) {
                 if (file_info.get_file_type () == FileType.DIRECTORY) {
-                    message( "OdidMediaEngine:get_resources_for_uri: processing resource directory: "
+                    message( "get_resources_for_uri:   processing resource directory: "
                              + file_info.get_name());
                     // A directory in an item directory is a resource
-                    var res = create_resource_from_resource_dir( odid_item_path
-                                                                 + file_info.get_name() + "/");
-                    if (res != null) {
-                        resources.add(res);
-                        message("get_resources_for_uri: created resource " + res.get_name());
-                        message("get_resources_for_uri: resource " + res.get_name()
-                                + " protocolInfo " + res.protocol_info.to_string() );
+                    try {
+                        var res = create_resource_from_resource_dir( odid_item_path
+                                                                     + file_info.get_name() + "/");
+                        if (res != null) {
+                            resources.add(res);
+                            message("get_resources_for_uri:     created resource: " + res.get_name());
+                            message("get_resources_for_uri:       resource profile: "
+                                    + res.protocol_info.to_string());
+                        }
+                    } catch (Error err) {
+                        error("Error processing item resource %s: %s",
+                              odid_item_path + file_info.get_name(), err.message);
+                        // Continue processing other resources
                     }
                 }
             }
@@ -177,7 +191,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
      */
     internal MediaResource ? create_resource_from_resource_dir(string res_dir_uri)
          throws Error {
-        message( "OdidMediaEngine:create_resource_from_resource_dir: configuring resources for "
+        debug( "OdidMediaEngine:create_resource_from_resource_dir: configuring resources for "
                  + res_dir_uri);
         MediaResource res = null;
 
@@ -185,6 +199,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         FileInfo res_dir_info = res_dir.query_info(GLib.FileAttribute.STANDARD_NAME, 0);
 
         res = new MediaResource(res_dir_info.get_name());
+        // Assert: All res values are set to sane/unset defaults
 
         string basename = null;
 
@@ -225,6 +240,17 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         string file_extension;
         string normal_content_filename;
 
+        if (res.uri != null) {
+            // Our URI (and content) is not Rygel-hosted. So no need to look for content
+            //  (there really shouldn't be any...)
+            return res;
+        }
+
+        // Check for required properties
+        if (basename == null) {
+            throw new ODIDMediaEngineError.CONFIG_ERROR("No basename property set for resource");
+        }
+            
         // Set the size according to the normal-rate file (speed "1/1")
         {
             normal_content_filename = ODIDMediaEngine.content_filename_for_res_speed (
@@ -236,10 +262,11 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             FileInfo content_info = content_file.query_info(GLib.FileAttribute.STANDARD_SIZE, 0);
             res.size = content_info.get_size();
             res.extension = file_extension;
-            message( "OdidMediaEngine:create_resource_from_resource_dir: size for "
+            debug( "create_resource_from_resource_dir: size for "
                      + normal_content_filename + " is " + res.size.to_string() );
         }
 
+        // TODO: Make any/more of these flags resource-configurable (in resource.info)
         res.protocol_info.dlna_flags = DLNAFlags.DLNA_V15
                                         | DLNAFlags.STREAMING_TRANSFER_MODE
                                         | DLNAFlags.BACKGROUND_TRANSFER_MODE
@@ -250,7 +277,6 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             res.protocol_info.dlna_flags |= DLNAFlags.LINK_PROTECTED_CONTENT |
                                             DLNAFlags.CLEARTEXT_BYTESEEK_FULL;
             res.protocol_info.dlna_operation = DLNAOperation.NONE;
-
             res.cleartext_size = res.size;
             // TODO : Call encrypted size calculation lib after DTCP lib integration
             res.size = res.size + 1000;
@@ -268,11 +294,11 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 res.protocol_info.dlna_operation |= DLNAOperation.TIMESEEK; 
                 // Set the duration according to the last entry in the normal-rate index file
                 res.duration = duration_from_index_file(index_file);
-                message( "OdidMediaEngine:create_resource_from_resource_dir: duration for "
-                         + normal_content_filename + " is " + res.duration.to_string() );
+                debug( "create_resource_from_resource_dir: duration for "
+                       + normal_content_filename + " is " + res.duration.to_string() );
             } else {
-                message( "OdidMediaEngine:create_resource_from_resource_dir: No index file found for "
-                         + res_dir_uri + normal_content_filename );
+                debug( "create_resource_from_resource_dir: No index file found for "
+                       + res_dir_uri + normal_content_filename );
             }
         }
 
@@ -289,8 +315,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                     speed_array[speed_index++] = speed.to_string();
                 }
                 res.protocol_info.play_speeds = speed_array;
-                message( "OdidMediaEngine:create_resource_from_resource_dir: Found %d speeds for "
-                         + res_dir_uri + normal_content_filename, speed_index);
+                debug( "create_resource_from_resource_dir: Found %d speeds for "
+                       + res_dir_uri + normal_content_filename, speed_index);
             }
         }
         return res;
@@ -303,28 +329,80 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
      * @param name The field name
      * @param value The field value
      */
-    void set_resource_field(MediaResource res, string name, string value) {
+    void set_resource_field(MediaResource res, string name, string value) throws Error {
         if (name == "profile") {
             res.protocol_info.dlna_profile = value;
         } else if (name == "mime-type") {
             res.protocol_info.mime_type = value;
-        } else if (name == "uri") {
-            res.uri = value;
         } else if (name == "bitrate") {
             res.bitrate = int.parse(value);
+            if (res.bitrate <= 0) {
+                throw new ODIDMediaEngineError.CONFIG_ERROR(
+                            "Invalid denominator: " + value);
+            }
         } else if (name == "audio-bits-per-sample") {
             res.bits_per_sample = int.parse(value);
+            if (res.bits_per_sample <= 0) {
+                throw new ODIDMediaEngineError.CONFIG_ERROR(
+                            "Bad odid resource audio-bits-per-sample value: " + value);
+            }
         } else if (name == "video-color-depth") {
             res.color_depth = int.parse(value);
+            if (res.color_depth <= 0) {
+                throw new ODIDMediaEngineError.CONFIG_ERROR(
+                            "Bad odid resource video-color-depth value: " + value);
+            }
         } else if (name == "video-resolution") {
             var res_fields = value.split("x");
+            if (res_fields.length != 2) {
+                throw new ODIDMediaEngineError.CONFIG_ERROR(
+                            "Bad odid resource video-resolution value: " + value);
+            }
             res.width = int.parse(res_fields[0]);
+            if (res.width <= 0) {
+                throw new ODIDMediaEngineError.CONFIG_ERROR(
+                            "Bad odid resource video-resolution x value: " + value);
+            }
             res.height = int.parse(res_fields[1]);
+            if (res.height <= 0) {
+                throw new ODIDMediaEngineError.CONFIG_ERROR(
+                            "Bad odid resource video-resolution y value: " + value);
+            }
         } else if (name == "audio-channels") {
             res.audio_channels = int.parse(value);
+            if (res.audio_channels <= 0) {
+                throw new ODIDMediaEngineError.CONFIG_ERROR(
+                            "Bad odid resource audio-channels value: " + value);
+            }
         } else if (name == "audio-sample-frequency") {
             res.sample_freq = int.parse(value);
-        }
+            if (res.sample_freq <= 0) {
+                throw new ODIDMediaEngineError.CONFIG_ERROR(
+                            "Bad odid resource audio-sample-frequency value: " + value);
+            }
+        // Note: The entries below here are for remotely-hosted content (e.g. MPEG-DASH)
+        //       Other than uri, not sure if/how/why these would be set...
+        } else if (name == "uri") {
+            res.uri = value;
+        } else if (name == "size") {
+            int64 size;
+            bool parsed = int64.try_parse(value, out size);
+            if (parsed) {
+                res.size = size;
+            } else {
+                throw new ODIDMediaEngineError.CONFIG_ERROR("Bad odid resource size value: "
+                                                            + value);
+            }
+        } else if (name == "duration") {
+            int64 duration;
+            bool parsed = int64.try_parse(value, out duration);
+            if (parsed) {
+                res.duration = (long)duration;
+            } else {
+               throw new ODIDMediaEngineError.CONFIG_ERROR("Bad odid resource duration value: "
+                                                           + value);
+            }
+        } // TODO: Add any other ProtocolInfo values we want to allow for remote hosting override
     }
 
     internal static string? content_filename_for_res_speed( string resource_dir_path,
@@ -332,8 +410,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                                             DLNAPlaySpeed? playspeed,
                                                             out string extension )
             throws Error {
-        message ("ODIDMediaEngine.content_filename_for_res_speed: %s, %s, %s",
-                 resource_dir_path,basename,playspeed.to_string() );
+        debug ("ODIDMediaEngine.content_filename_for_res_speed: %s, %s, %s",
+                 resource_dir_path,basename, (playspeed != null) ? playspeed.to_string() : null );
         string rate_string;
         if (playspeed == null) {
             rate_string = "1_1";
@@ -356,7 +434,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                  && (split_name[0] == basename) && (split_name[1] == rate_string) ) {
                 content_filename = cur_filename;
                 extension = split_name[2];
-                message ("ODIDMediaEngine.content_filename_for_res_speed: FOUND MATCH: %s (extension %s)",
+                debug ("ODIDMediaEngine.content_filename_for_res_speed: FOUND MATCH: %s (extension %s)",
                          content_filename, extension);
             }
         }
@@ -373,7 +451,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     internal static Gee.List<DLNAPlaySpeed>? find_playspeeds_for_res( string resource_dir_uri,
                                                                       string basename )
         throws Error {
-        message ("ODIDMediaEngine.find_playspeeds_for_res: %s, %s",
+        debug ("ODIDMediaEngine.find_playspeeds_for_res: %s, %s",
                  resource_dir_uri,basename );
         var speeds = new Gee.ArrayList<DLNAPlaySpeed>();
         
@@ -388,9 +466,9 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             if ((split_name.length == 3) && (split_name[0] == basename)) {
                 var speed_parts = split_name[1].split("_");
                 if (speed_parts.length != 2) {
-                    warning ("ODIDMediaEngine.find_playspeeds_for_res: Bad speed found in res filename %s (%s)",
-                             cur_filename, split_name[1] );
-                    return null;
+                    throw new ODIDMediaEngineError.CONFIG_ERROR(
+                                "Bad  speed found in res filename %s (%s)",
+                                cur_filename, split_name[1]);
                 }
                 var speed = new DLNAPlaySpeed(int.parse(speed_parts[0]),int.parse(speed_parts[1]));
                 if (speed.numerator == 1 && speed.denominator == 1) {
@@ -404,14 +482,15 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
     internal static long duration_from_index_file(File index_file)
             throws Error {
-        message ("ODIDDataSource.duration_for_content_file: %s",
+        debug ("ODIDDataSource.duration_for_content_file: %s",
                  index_file.get_basename() );
         
         FileInfo index_info = index_file.query_info(GLib.FileAttribute.STANDARD_SIZE, 0);
-
-        // Last entry will be 62 bytes from the end of the file...
-
         var dis = new DataInputStream(index_file.read());
+
+        // We don't need to parse the whole file.
+        // The Last entry will be X bytes from the end of the file...
+
         dis.skip((size_t)(index_info.get_size()-INDEXFILE_ROW_SIZE));
         string line = dis.read_line(null);
         
@@ -421,9 +500,11 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         double duration_val;
         if (double.try_parse(seconds_field, out duration_val))
         {
-            return (long)(duration_val+0.5); // For rounding
+            return (long)(duration_val+0.99); // For rounding
         } else {
-            throw new IOError.FAILED("Ill-formed duration in last index file entry: " + line, index_file);
+            throw new ODIDMediaEngineError.INDEX_FILE_ERROR(
+                        "Ill-formed duration in last index file entry of %s: '%s'",
+                        index_file, line);
         }
     }
 
@@ -445,20 +526,21 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
     public override DataSource? create_data_source_for_resource
                                 (string uri, MediaResource ? resource) {
-        message("create_data_source_for_resource: source uri: " + uri);
+        if (resource == null) {
+            warning("create_data_source_for_resource: null resource");
+            return null;
+        }
+        debug("create_data_source_for_resource: source %s, resource %s", uri, resource.get_name());
 
         if (!uri.has_prefix ("file://")) {
+            warning("create_data_source_for_resource: can't process non-file uri " + uri);
             return null;
         }
 
-        if (resource == null) {
-            message("create_data_source_for_resource: null resource");
-        } else {
-            message("create_data_source_for_resource: size: %lld", resource.size);
-            message("create_data_source_for_resource: duration: %lld", resource.duration);
-            message("create_data_source_for_resource: protocol_info: " + resource.protocol_info.to_string());
-            message("create_data_source_for_resource: profile: " + resource.protocol_info.dlna_profile);
-        }
+        debug("create_data_source_for_resource: size: %lld", resource.size);
+        debug("create_data_source_for_resource: duration: %lld", resource.duration);
+        debug("create_data_source_for_resource: protocol_info: " + resource.protocol_info.to_string());
+        debug("create_data_source_for_resource: profile: " + resource.protocol_info.dlna_profile);
         
         return new ODIDDataSource(uri, resource);
     }
@@ -480,7 +562,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 }
 
 public static Rygel.MediaEngine module_get_instance() {
-        message("module_get_instance");
-        return new Rygel.ODIDMediaEngine();
+    message("module_get_instance");
+    return new Rygel.ODIDMediaEngine();
 }
 
