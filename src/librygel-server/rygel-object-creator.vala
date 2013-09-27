@@ -145,22 +145,10 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
                                          container.id);
             }
 
-            if (this.didl_object is DIDLLiteContainer) {
-                var didl_container = didl_object as DIDLLiteContainer;
-                var create_classes = didl_container.get_create_classes ();
-                if (create_classes != null && create_classes.length() > 0) {
-                    foreach (var create_class in didl_container
-                                                 .get_create_classes ()) {
-                        debug ("Create class value is : %s",create_class);
-                        if (!container.can_create (create_class)) {
-                            throw new ContentDirectoryError.BAD_METADATA
-                                ("upnp:createClass has a class %s " +
-                                 "that is not supported in %s",
-                                 create_class,
-                                 container.id);
-                        }
-                    }
-                }
+            if (this.didl_object is DIDLLiteContainer &&
+                !this.validate_create_class (container)) {
+                throw new ContentDirectoryError.BAD_METADATA
+                                   (_("upnp:createClass value not supported"));
             }
 
             yield this.create_object_from_didl (container);
@@ -272,6 +260,15 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
             throw new ContentDirectoryError.BAD_METADATA
                                         (_("Cannot create restricted item"));
         }
+
+        // Handle DIDL_S items...
+        if (this.didl_object.upnp_class == "object.item") {
+            var resources = this.didl_object.get_resources ();
+            if (resources != null &&
+                resources.data.protocol_info.dlna_profile == "DIDL_S") {
+                this.didl_object.upnp_class = PlaylistItem.UPNP_CLASS;
+            }
+        }
     }
 
     /**
@@ -365,8 +362,21 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
         if (media_object == null || !(media_object is MediaContainer)) {
             throw new ContentDirectoryError.NO_SUCH_CONTAINER
                                         (_("No such container"));
-        } else if (!(OCMFlags.UPLOAD in media_object.ocm_flags) ||
-                   !(media_object is WritableContainer)) {
+        }
+
+        if (!(media_object is WritableContainer)) {
+            throw new ContentDirectoryError.RESTRICTED_PARENT
+                                        (_(" %%% Object creation in %s not allowed"),
+                                         media_object.id);
+        }
+
+        // If the object to be created is an item, ocm_flags must contain
+        // OCMFlags.UPLOAD, it it's a container, ocm_flags must contain
+        // OCMFlags.CREATE_CONTAINER
+        if (!((this.didl_object is DIDLLiteItem &&
+            (OCMFlags.UPLOAD in media_object.ocm_flags)) ||
+           (this.didl_object is DIDLLiteContainer &&
+            (OCMFlags.CREATE_CONTAINER in media_object.ocm_flags)))) {
             throw new ContentDirectoryError.RESTRICTED_PARENT
                                         (_("Object creation in %s not allowed"),
                                          media_object.id);
@@ -387,6 +397,23 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
 
         this.action.return ();
         this.completed ();
+    }
+
+    private bool validate_create_class (WritableContainer container) {
+        var didl_cont = this.didl_object as DIDLLiteContainer;
+        var create_classes = didl_cont.get_create_classes ();
+
+        if (create_classes == null) {
+            return true;
+        }
+
+        foreach (var create_class in create_classes) {
+            if (!container.can_create (create_class)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private void handle_error (Error error) {

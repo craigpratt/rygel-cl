@@ -66,7 +66,7 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     public Gee.List<MediaResource> media_resources { get; set; default = null; }
 
-    internal override OCMFlags ocm_flags {
+    public override OCMFlags ocm_flags {
         get {
             var flags = OCMFlags.NONE;
 
