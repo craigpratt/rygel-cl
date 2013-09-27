@@ -575,9 +575,20 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
             return;
         }
 
-	this.changelog.log ("speed specified in play()", speed);
-        this.player.playback_state = "PLAYING";
         this.player.playback_speed = speed;
+	this.changelog.log ("speed specified in play()", speed);
+        
+        // Playback at 1x.
+        if (speed == "1")
+        {
+            this.player.playback_state = "PLAYING";
+        }
+        // Playback at more than 1x. Playspeed trick mode.
+        else
+        {
+            this.changelog.log ("Seeking to %s\n", this.player.position_as_str);
+            this.player.seek_dlna (this.player.position, "ABS_TIME", double.parse(this.player.playback_speed));
+        }
 
         action.return ();
     }
