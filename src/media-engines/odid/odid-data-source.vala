@@ -28,7 +28,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     private int session_handle = -1;
 
     public ODIDDataSource(string source_uri, MediaResource ? res) {
-        message ("Creating a data source for URI %s", source_uri);
+        message ("Creating data source for %s resource %s", source_uri, res.get_name());
         this.source_uri = source_uri;
         this.res = res;
     }
@@ -46,25 +46,25 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         this.playspeed = playspeed;
 
         if (res == null) {
-            message("null resource");
-        } else {
-            message("size: %lld", res.size);
-            message("duration: %lld", res.duration);
-            message("protocol_info: " + res.protocol_info.to_string());
-            message("profile: " + res.protocol_info.dlna_profile);
+            throw new DataSourceError.GENERAL("null resource");
         }
+        
+        debug("Resource %s size: %lld", res.get_name(), res.size);
+        debug("Resource %s duration: %lld", res.get_name(), res.duration);
+        debug("Resource %s protocol_info: %s", res.get_name(), res.protocol_info.to_string());
+        debug("Resource %s profile: %s", res.get_name(), res.protocol_info.dlna_profile);
 
         if (res != null &&
             res.protocol_info.dlna_profile.has_prefix ("DTCP_") &&
             ODIDMediaEngine.is_dtcp_loaded()) {
-            debug ("Entering DTCP-IP streaming mode");
+            message ("Entering DTCP-IP streaming mode");
             Dtcpip.server_dtcp_open (out session_handle, 0);
         }
 
         if (session_handle == -1) {
-            warning ("DTCP-IP open server session failed");
+            debug ("DTCP-IP session not opened");
         } else {
-            debug ("Got DTCP-IP session handle : %d", session_handle);
+            message ("Got DTCP-IP session handle : %d", session_handle);
         }
 
         KeyFile keyFile = new KeyFile();
@@ -73,25 +73,28 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                KeyFileFlags.KEEP_TRANSLATIONS);
 
         string odid_item_path = keyFile.get_string ("item", "odid_uri");
-        message ("Start datasource using %s", odid_item_path);
+        message ("Source item path: %s", odid_item_path);
 
         // The resources are published by this engine according to the resource directory name
+        //  i.e. the MediaResource "name" field was set to the directory name when
+        //  get_resources_for_uri() was called
         string resource_dir = res.get_name();
         string resource_path = odid_item_path + resource_dir + "/";
+        message ("  resource directory: %s", resource_dir);
 
         string basename = get_resource_property(resource_path,"basename");
-        message ("basename is " + basename);
 
         string file_extension;
-
         string content_filename = ODIDMediaEngine.content_filename_for_res_speed (
                                                             odid_item_path + resource_dir,
                                                             basename,
                                                             playspeed,
                                                             out file_extension );
+        message ("    content filename: %s", content_filename);
+        
         // Process HTTPSeek
         if (offsets == null) {
-            message ("Received null seek");
+            debug ("Received null seek");
         } else if (offsets is HTTPTimeSeek) {
             //
             // Convert the HTTPTimeSeek to a byte range and update the HTTPTimeSeek response params
@@ -103,14 +106,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             int64 time_offset_end;
             if (time_seek.end_time_requested()) {
                 time_offset_end = time_seek.requested_end;
-            } else { // The "end" depends on the direction
+            } else { // The "end" of the time range depends on the direction
                 time_offset_end = is_reverse ? 0 : int64.MAX;
             }
 
-            message ("Received time seek (time %lld to %lld)",
-                     time_offset_start, time_offset_end);
-            string index_path = resource_path + "/" + content_filename + ".index";
+            message ("Processing time seek (time %lldns to %lldns)", time_offset_start, time_offset_end);
             
+            string index_path = resource_path + "/" + content_filename + ".index";
             offsets_for_time_range(index_path, ref time_offset_start, ref time_offset_end,
                                    is_reverse, out this.range_start, out this.range_end);
 
@@ -157,15 +159,29 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             throw new DataSourceError.SEEK_FAILED("Unsupported seek type");
         }
 
+        content_path = resource_path + content_filename;
+        
         // Process PlaySpeed
         if (playspeed == null) {
             message ("Received null playspeed");
         } else {
             message ("Received playspeed " + playspeed.to_string()
                      + " (" + playspeed.to_float().to_string() + ")");
-            // TODO: Set the framerate response field on the playspeed 
+            try {
+                string framerate_for_speed = get_content_property(content_path, "framerate");
+                message ("  Framerate for speed %s: %s", playspeed.to_string(),
+                                                         framerate_for_speed);
+                int framerate = int.parse(framerate_for_speed);
+                if (framerate > 0) {
+                    playspeed.set_framerate(framerate);
+                } else {
+                    warning("Invalid framerate found for %s: %s", content_filename,
+                            framerate_for_speed);
+                }
+            } catch (Error err) {
+                debug("Error reading framerate property (continuing): " + err.message);
+            }
         }
-        content_path = resource_path + content_filename;
         // Wait for a start() before sending anything
     }
 
@@ -227,8 +243,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 // Leading "0"s cause parse() to assume the value is octal (see Vala bug 656691)
                 cur_time_offset = int64.parse(strip_leading_zeros(extended_time_string));
                 cur_data_offset = index_fields[3]; // Convert this only when needed
-                // message ("ODIDDataSource.offsets_for_time_range: keyframe at %s (%s) has offset %s",
-                //          extended_time_string, cur_time_offset.to_string(), cur_data_offset);
+                // debug ("ODIDDataSource.offsets_for_time_range: keyframe at %s (%s) has offset %s",
+                //       extended_time_string, cur_time_offset.to_string(), cur_data_offset);
                 if (!start_offset_found) {
                     if (!is_reverse) {
                         if (cur_time_offset > start_time) {
@@ -292,10 +308,19 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         return ODIDMediaEngine.strip_leading_zeros(number_string);
     }
 
-
-    string ? get_resource_property(string odid_resource_path, string property_name)
+    internal string ? get_resource_property(string odid_resource_uri, string property_name)
          throws Error {
-        var file = File.new_for_uri(odid_resource_path + "resource.info");
+        return get_property_from_file(odid_resource_uri + "resource.info", property_name);
+    }
+
+    internal string ? get_content_property(string odid_content_uri, string property_name)
+         throws Error {
+        return get_property_from_file(odid_content_uri + ".info", property_name);
+    }
+
+    internal string ? get_property_from_file(string uri, string property_name)
+         throws Error {
+        var file = File.new_for_uri(uri);
         var dis = new DataInputStream(file.read());
         string line;
         // Read lines until end of file (null) is reached
@@ -311,7 +336,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
         return null;
     }
-
+    
     public void start () throws Error {
         message ("Starting data source for %s", content_path);
 
