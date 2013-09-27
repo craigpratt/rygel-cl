@@ -94,7 +94,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 //message ("DTCP String version : %s",(string)version_str);
             //}
 
-            if (Dtcpip.server_dtcp_init (8999) != 0) {
+            if (Dtcpip.server_dtcp_init (dtcp_port) != 0) {
                 warning ("DTCP-IP source init failed.");
             } else {
                 message ("DTCP-IP source initialized");
