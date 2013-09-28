@@ -28,7 +28,6 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
      */
     public int framerate;
 
-
     public DLNAPlaySpeed (int numerator, uint denominator) {
         this.numerator = numerator;
         this.denominator = denominator;
@@ -87,11 +86,11 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
     }
 
     public bool is_positive() {
-        return (this.denominator > 0);
+        return (this.numerator > 0);
     }
 
     public bool is_negative() {
-        return (this.denominator < 0);
+        return (this.numerator < 0);
     }
 
     public string to_string() {

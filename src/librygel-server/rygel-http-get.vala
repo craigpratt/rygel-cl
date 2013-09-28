@@ -161,10 +161,13 @@ public class Rygel.HTTPGet : HTTPRequest {
         bool positive_rate = true;
         // Check for DLNA PlaySpeed request only if Range or Range.dtcp.com is not
         // in the request. DLNA 7.5.4.3.3.19.2, DLNA Link Protection : 7.6.4.4.2.12
+        // Note: We need to check the speed since direction factors into validating
+        //       the time-seek request
         try {
             if (!requested_byte_seek && DLNAPlaySpeed.requested(this)) {
                 this.speed = new DLNAPlaySpeed.from_request(this);
                 positive_rate = this.speed.is_positive();
+                message("Processing playspeed %s", speed.to_string());
             } else {
                 this.speed = null;
             }
@@ -202,9 +205,15 @@ public class Rygel.HTTPGet : HTTPRequest {
             // if (supports_dtcp_seek && requested_dtcp_seek) {
             //     this.seek = new DTCPByteSeek (this);
             if (supports_byte_seek && requested_byte_seek) {
-                this.seek = new HTTPByteSeek (this);
+                var byte_seek = new HTTPByteSeek (this);
+                message ("Processing byte range request (bytes %lld to %lld)",
+                       byte_seek.start_byte, byte_seek.end_byte);
+                this.seek = byte_seek;
             } else if (supports_time_seek && requested_time_seek) {
-                this.seek = new HTTPTimeSeek (this, positive_rate);
+                var time_seek = new HTTPTimeSeek (this, positive_rate);
+                message ("Processing time seek request (time %lldns to %lldns)",
+                       time_seek.requested_start, time_seek.requested_end);
+                this.seek = time_seek;
             } else {
                 this.seek = null;
             }
@@ -237,11 +246,11 @@ public class Rygel.HTTPGet : HTTPRequest {
         
         //
         // All response header generation below here depends upon the seek range/speed response
-        //  fields being set (preroll() will have touched our seek/speed request-related
-        //  response parameters)
+        //  fields being set (preroll() will have touched our seek/speed response-related
+        //  parameters)
 
         int64 response_size;
-        // Determine the size value and response code
+        // Determine the size value
         {
             if (this.seek != null) {
                 // See DLNA 7.5.4.3.2.22.4

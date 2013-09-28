@@ -206,6 +206,13 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
     }
     
     /**
+     * Get the total duration for the seek response.
+     */
+    public int64 get_total_duration() {
+        return this.total_duration;
+    }
+    
+    /**
      * Unset the total duration for the seek response.
      *
      * When unset, and the the effective time range is set, a TimeSeekRange response
@@ -311,7 +318,7 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
         }
     }
 
-    // Parses npt times in the format of '417.33'
+    // Parses npt times in the format of '417.33' and returns the time in microseconds
     private static bool parse_npt_seconds (string range_token,
                                            ref int64 value) {
         if (range_token[0].isdigit ()) {
@@ -322,7 +329,7 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
         return true;
     }
 
-    // Parses npt times in the format of '10:19:25.7'
+    // Parses npt times in the format of '10:19:25.7' and returns the time in microseconds
     private static bool parse_npt_time (string? range_token,
                                         ref int64 value) {
         if (range_token == null) {
