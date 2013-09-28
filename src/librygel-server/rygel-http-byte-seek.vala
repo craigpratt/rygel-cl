@@ -104,6 +104,16 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
             }
         }
 
+        if (stop < start) {
+            throw new HTTPSeekError.INVALID_RANGE (_("Invalid Range '%s'"),
+                                                       range_header_str);
+        }
+
+        if (start > total_length-1) {
+            throw new HTTPSeekError.OUT_OF_RANGE (_("Invalid Range '%s'"),
+                                                       range_header_str);
+        }
+
         base (request.msg);
         // A HTTP Range request is just bytes, which can live in the base
         set_byte_range(start, stop);

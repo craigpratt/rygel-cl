@@ -110,6 +110,11 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
 
         int64 end = UNSPECIFIED_TIME;
         if (parse_npt_time (range_tokens[1], ref end)) {
+            if (this.requested_start > this.total_duration) {
+                    throw new HTTPSeekError.OUT_OF_RANGE (
+                        "Invalid %s value,start beyond available length : '%s'",
+                        TIMESEEKRANGE_HEADER, range);
+            }
             // The end time was specified in the npt ("start-end")
             this.requested_end = end;
             if (positive_rate) {
