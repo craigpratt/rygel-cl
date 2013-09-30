@@ -91,7 +91,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 error("Error reading ODIDMediaEngine dtcp property: " + err.message);
             }
             if (Dtcpip.init_dtcp_library (dtcp_storage) != 0){
-                warning ("DTCP-IP storage path set failed : %s",dtcp_storage);
+                error ("DTCP-IP init failed for storage path : %s",dtcp_storage);
             } else {
                 message ("DTCP-IP storage loaded successfully");
             }
@@ -102,7 +102,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             //}
 
             if (Dtcpip.server_dtcp_init (dtcp_port) != 0) {
-                warning ("DTCP-IP source init failed.");
+                error ("DTCP-IP source init failed.");
             } else {
                 message ("DTCP-IP source initialized");
                 dtcp_loaded = true;
