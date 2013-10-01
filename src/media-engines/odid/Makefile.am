@@ -5,7 +5,6 @@ engine_DATA = media-engine-odid.plugin
 
 librygel_media_engine_odid_la_SOURCES = \
 	odid-media-engine.vala \
-	odid-fake-transcoder.vala \
 	odid-util.vala \
 	odid-data-source.vala 
 
