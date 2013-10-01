@@ -158,15 +158,14 @@ public class Rygel.HTTPGet : HTTPRequest {
             throw new HTTPRequestError.UNACCEPTABLE ("Invalid time seek request");
         }
 
-        bool positive_rate = true;
         // Check for DLNA PlaySpeed request only if Range or Range.dtcp.com is not
         // in the request. DLNA 7.5.4.3.3.19.2, DLNA Link Protection : 7.6.4.4.2.12
+        // (is 7.5.4.3.3.19.2 compatible with the use case in 7.5.4.3.2.24.5?)
         // Note: We need to check the speed since direction factors into validating
         //       the time-seek request
         try {
             if (!requested_byte_seek && DLNAPlaySpeed.requested(this)) {
                 this.speed = new DLNAPlaySpeed.from_request(this);
-                positive_rate = this.speed.is_positive();
                 message("Processing playspeed %s", speed.to_string());
             } else {
                 this.speed = null;
@@ -210,7 +209,8 @@ public class Rygel.HTTPGet : HTTPRequest {
                        byte_seek.start_byte, byte_seek.end_byte);
                 this.seek = byte_seek;
             } else if (supports_time_seek && requested_time_seek) {
-                var time_seek = new HTTPTimeSeek (this, positive_rate);
+                // Assert: speed has been checked/processed
+                var time_seek = new HTTPTimeSeek (this, this.speed);
                 message ("Processing time seek request (time %lldns to %lldns)",
                        time_seek.requested_start, time_seek.requested_end);
                 this.seek = time_seek;

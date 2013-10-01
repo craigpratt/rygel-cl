@@ -241,7 +241,7 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
 
     private bool perform_seek () {
         if (this.seek != null &&
-            this.seek.length >= this.seek.total_length) {
+            this.seek.length >= this.seek.total_size) {
             return true;
         }
 

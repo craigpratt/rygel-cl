@@ -31,29 +31,29 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
     public HTTPByteSeek (HTTPGet request) throws HTTPSeekError,
                                                  HTTPRequestError {
         Soup.Range[] ranges;
-        int64 start = 0, total_length;
+        int64 start = 0, total_size;
         string[] parsed_headers;
         unowned string range = request.msg.request_headers.get_one ("Range");
         unowned string range_dtcp = request.msg.request_headers.get_one ("Range.dtcp.com");
         string range_header_str = null;
 
         if (request.thumbnail != null) {
-            total_length = request.thumbnail.size;
+            total_size = request.thumbnail.size;
         } else if (request.subtitle != null) {
-            total_length = request.subtitle.size;
+            total_size = request.subtitle.size;
         } else if (request.handler is HTTPMediaResourceHandler) {
             MediaResource resource = (request.handler as HTTPMediaResourceHandler)
                                               .media_resource;
             if (range_dtcp == null)
-              total_length = resource.size;
+              total_size = resource.size;
             else// Get the cleartextsize for Range.dtcp.com request.
-              total_length = resource.cleartext_size;
+              total_size = resource.cleartext_size;
 
             content_protected = resource.is_link_protection_enabled();
         } else {
-            total_length = (request.object as MediaItem).size;
+            total_size = (request.object as MediaItem).size;
         }
-        var stop = total_length - 1;
+        var stop = total_size - 1;
 
         // Check if both Range and Range.dtcp.com is present in headers
         if (range != null && range_dtcp != null)
@@ -81,7 +81,7 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
                start = (int64)(double.parse (parsed_headers[0]));
 
                if (parsed_headers[1] == "") {
-                   stop = total_length - 1;
+                   stop = total_size - 1;
                } else {
                    stop = (int64)(double.parse (parsed_headers[1]));
                }
@@ -93,7 +93,7 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
         } else if (range != null) {
             // Range is present, get the values from libsoup
             range_header_str = range;
-            if (request.msg.request_headers.get_ranges (total_length,
+            if (request.msg.request_headers.get_ranges (total_size,
                                                         out ranges)) {
                 // TODO: Somehow deal with multipart/byterange properly
                 start = ranges[0].start;
@@ -109,7 +109,7 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
                                                        range_header_str);
         }
 
-        if (start > total_length-1) {
+        if (start > total_size-1) {
             throw new HTTPSeekError.OUT_OF_RANGE (_("Invalid Range '%s'"),
                                                        range_header_str);
         }
@@ -118,7 +118,7 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
         // A HTTP Range request is just bytes, which can live in the base
         set_byte_range(start, stop);
         // TODO: Deal with cases where length is not known (e.g. live/in-progress sources)
-        this.total_length = total_length;
+        this.total_size = total_size;
     }
 
     public static bool supported (HTTPGet request) {
@@ -180,7 +180,7 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
         headers.append ("Accept-Ranges", "bytes");
         range_str += this.start_byte.to_string () + "-" +
                  this.end_byte.to_string () + "/" +
-                 this.total_length.to_string ();
+                 this.total_size.to_string ();
         if (this.msg.request_headers.get_one ("Range") != null) {
             headers.append("Content-Range", range_str);
             if (content_protected) // TODO : Call DTCP Lib to get the encrypted size 

@@ -77,9 +77,12 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
      * @param request The HTTP GET/HEAD request
      * @param positive_rate Indicates if playback is in the positive or negative direction
      */
-    internal HTTPTimeSeek (HTTPGet request, bool positive_rate) throws HTTPSeekError {
+    internal HTTPTimeSeek (HTTPGet request, DLNAPlaySpeed ? speed) throws HTTPSeekError {
         // Initialize the base first or accessing our members will fault...
         base (request.msg);
+
+        bool positive_rate = (speed == null) || speed.is_positive();
+        bool trick_mode = (speed != null) && speed.is_trick_rate();
         
         if (request.handler is HTTPMediaResourceHandler) {
             this.total_duration = (request.handler as HTTPMediaResourceHandler)
@@ -106,41 +109,64 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
             throw new HTTPSeekError.INVALID_RANGE("Invalid %s value (no start): '%s'",
                                                   TIMESEEKRANGE_HEADER, range);
         }
-        this.requested_start = start;
 
+        // Check for out-of-bounds range start and clamp it in if in trick/scan mode
+        if (total_duration_set() && (start > this.total_duration)) {
+            if (trick_mode && !positive_rate) { // Per DLNA 7.5.4.3.2.24.4
+                this.requested_start = this.total_duration;
+            } else { // See DLNA 7.5.4.3.2.24.8
+                throw new HTTPSeekError.OUT_OF_RANGE( "Invalid %s start time %lldns is beyond the content duration of %lldns",
+                                                      TIMESEEKRANGE_HEADER, start,
+                                                      this.total_duration );
+            }
+        } else { // Nothing to check it against - just store it
+            this.requested_start = start;
+        }
+
+        // Look for an end time
         int64 end = UNSPECIFIED_TIME;
         if (parse_npt_time (range_tokens[1], ref end)) {
-            if (this.requested_start > this.total_duration) {
-                    throw new HTTPSeekError.OUT_OF_RANGE (
-                        "Invalid %s value,start beyond available length : '%s'",
-                        TIMESEEKRANGE_HEADER, range);
-            }
             // The end time was specified in the npt ("start-end")
-            this.requested_end = end;
+            // Check for valid range
             if (positive_rate) {
-                this.requested_duration = end - start;
-                if (this.requested_duration <= 0) {
+                // Check for out-of-bounds range end or fence it in
+                if (total_duration_set() && (end > this.total_duration)) {
+                    if (trick_mode) { // Per DLNA 7.5.4.3.2.24.4
+                        this.requested_end = this.total_duration;
+                    } else { // Per DLNA 7.5.4.3.2.24.8
+                        throw new HTTPSeekError.OUT_OF_RANGE( "Invalid %s end time %lldns is beyond the content duration of %lldns",
+                                                              TIMESEEKRANGE_HEADER, end,
+                                                              this.total_duration );
+                    }
+                } else {
+                    this.requested_end = end;
+                }
+                
+                this.requested_duration =  this.requested_end - this.requested_start;
+                // At positive rate, start < end
+                if (this.requested_duration <= 0) { // See DLNA 7.5.4.3.2.24.12
                     throw new HTTPSeekError.INVALID_RANGE (
                         "Invalid %s value (start time after end time - forward scan): '%s'",
                         TIMESEEKRANGE_HEADER, range );
                 }
-                
-                this.requested_duration = this.total_duration - start;
             } else { // Negative rate
-                this.requested_duration = start - end;
-                if (this.requested_duration <= 0) {
+                // Note: requested_start has already been checked/clamped
+                this.requested_end = end;
+                this.requested_duration = this.requested_start - this.requested_end;
+                // At negative rate, start > end
+                if (this.requested_duration <= 0) { // See DLNA 7.5.4.3.2.24.12
                     throw new HTTPSeekError.INVALID_RANGE (
                         "Invalid %s value (start time before end time - reverse scan): '%s'",
-                        TIMESEEKRANGE_HEADER, range);
+                        TIMESEEKRANGE_HEADER, range );
                 }
             }
         } else { // End time not specified in the npt field ("start-")
             // See DLNA 7.5.4.3.2.24.4
             this.requested_end = UNSPECIFIED_TIME; // Will indicate "end/beginning of binary"
             if (positive_rate) {
-                this.requested_duration = this.total_duration - start;
+                this.requested_duration = this.total_duration - this.requested_start;
             } else { // Negative rate
-                this.requested_duration = start; // Going backward from start to 0
+                this.requested_duration = this.requested_start; // Going backward from start to 0
             }
         }
         
@@ -149,7 +175,6 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
         // in a media/system-specific way via set_effective_time_range() and set_byte_range(),
         // respectively. e.g. Via the MediaEngine
         unset_effective_time_range();
-        unset_total_duration();
     }
 
     public bool end_time_requested() {
@@ -312,8 +337,8 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
                 response.append("-");
                 response.append(this.end_byte.to_string());
                 response.append("/");
-                if (total_length_set()) {
-                    response.append(this.total_length.to_string());
+                if (total_size_set()) {
+                    response.append(this.total_size.to_string());
                 } else {
                     response.append("*");
                 }

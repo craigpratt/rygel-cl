@@ -60,12 +60,12 @@ public abstract class Rygel.HTTPSeek : GLib.Object {
     /**
      * The length of the resource in bytes
      */
-    public int64 total_length { get; set; }
+    public int64 total_size { get; set; }
 
     public HTTPSeek (Soup.Message msg) {
         this.msg = msg;
         unset_byte_range();
-        unset_total_length();
+        unset_total_size();
     }
 
     /**
@@ -73,7 +73,7 @@ public abstract class Rygel.HTTPSeek : GLib.Object {
      *
      * @param start The start byte offset of the byte range
      * @param stop The stop byte offset of the off set (inclusive)
-     * @param total_length The total length of the resource
+     * @param total_size The total length of the resource
      */
     public void set_byte_range (int64   start,
                                 int64   stop) throws HTTPSeekError {
@@ -82,7 +82,7 @@ public abstract class Rygel.HTTPSeek : GLib.Object {
 
         // Byte ranges only go upward (at least DLNA 7.5.4.3.2.24.4 doesn't say otherwise)
         if (start > stop) {
-            throw new HTTPSeekError.OUT_OF_RANGE (_("Range stop byte before start: Start '%ld', Stop '%ld'"),
+            throw new HTTPSeekError.OUT_OF_RANGE (_("Range stop byte before start: Start '%lld', Stop '%lld'"),
                                                   start, stop);
         }
 
@@ -101,15 +101,15 @@ public abstract class Rygel.HTTPSeek : GLib.Object {
         return (this.start_byte != UNSPECIFIED_RANGE_VAL);
     }    
 
-    public void unset_total_length() {
-        this.total_length = UNSPECIFIED_RANGE_VAL;
+    public void unset_total_size() {
+        this.total_size = UNSPECIFIED_RANGE_VAL;
     }
     
     /**
      * Return true of the length is set.
      */
-    public bool total_length_set() {
-        return (this.total_length != UNSPECIFIED_RANGE_VAL);
+    public bool total_size_set() {
+        return (this.total_size != UNSPECIFIED_RANGE_VAL);
     }
 
     /**

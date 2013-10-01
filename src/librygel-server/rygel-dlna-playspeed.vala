@@ -93,6 +93,14 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
         return (this.numerator < 0);
     }
 
+    public bool is_normal_rate() {
+        return (this.numerator == 1) && (this.denominator == 1);
+    }
+
+    public bool is_trick_rate() {
+        return !is_normal_rate();
+    }
+
     public string to_string() {
         if (this.denominator == 1) {
             return numerator.to_string();
