@@ -542,12 +542,12 @@ public class Rygel.ContentDirectory: Service {
             event_type == ObjectEventType.MODIFIED) &&
             object is MediaItem) {
              if (this.root_container is SearchableContainer) {
-                 ConnectionManagerProtocolInfo cms_info = ConnectionManagerProtocolInfo
+                 /*ConnectionManagerProtocolInfo cms_info = ConnectionManagerProtocolInfo
                                                                         .get_default();
                  cms_info.update_source_protocol_info
                          ((Rygel.RootDevice)this.root_device,
                           this.root_container,
-                          this.cancellable);
+                          this.cancellable); */
              }
         }
     }
