@@ -76,6 +76,7 @@ LIBRYGEL_SERVER_NONVAPI_SOURCE_FILES = \
 	rygel-search.vala \
 	rygel-serializer.vala \
 	rygel-source-connection-manager.vala \
+	rygel-connection-manager-protocolinfo.vala \
 	rygel-subtitle-manager.vala \
 	rygel-thumbnailer.vala \
 	rygel-wmp-hacks.vala \

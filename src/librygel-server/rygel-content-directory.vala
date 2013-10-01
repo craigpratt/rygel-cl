@@ -536,6 +536,20 @@ public class Rygel.ContentDirectory: Service {
                                      object);
 
         this.ensure_timeout ();
+
+        if ((event_type == ObjectEventType.ADDED ||
+            event_type == ObjectEventType.DELETED ||
+            event_type == ObjectEventType.MODIFIED) &&
+            object is MediaItem) {
+             if (this.root_container is SearchableContainer) {
+                 ConnectionManagerProtocolInfo cms_info = ConnectionManagerProtocolInfo
+                                                                        .get_default();
+                 cms_info.update_source_protocol_info
+                         ((Rygel.RootDevice)this.root_device,
+                          this.root_container,
+                          this.cancellable);
+             }
+        }
     }
 
     private void on_sub_tree_updates_finished (MediaContainer root_container,

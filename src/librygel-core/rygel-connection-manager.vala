@@ -154,4 +154,8 @@ public class Rygel.ConnectionManager : Service {
 
         action.return ();
     }
+
+    public void set_source_protocol_info(string protocol_info) {
+		source_protocol_info = protocol_info;
+	}
 }
