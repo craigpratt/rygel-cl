@@ -101,7 +101,9 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         message ("      Total size is is " + total_size.to_string());
                                                             
         // Process HTTPSeek
-        if (seek is HTTPTimeSeek) {
+        if (seek == null) {
+            message ("No seek request received");
+        } else if (seek is HTTPTimeSeek) {
             var time_seek = seek as HTTPTimeSeek;
             //
             // Convert the HTTPTimeSeek to a byte range and update the HTTPTimeSeek response params
@@ -152,7 +154,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
         // Process PlaySpeed
         if (playspeed == null) {
-            message ("Received null playspeed");
+            message ("No playspeed request received");
         } else {
             message ("Received playspeed " + playspeed.to_string()
                      + " (" + playspeed.to_float().to_string() + ")");
