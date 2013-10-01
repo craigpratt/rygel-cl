@@ -97,20 +97,10 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
         return cm_protocol_info;
     }
 
-    public async void update_source_protocol_info (Rygel.RootDevice root_device, MediaContainer container , Cancellable? cancellable) {
+    public void update_source_protocol_info (Rygel.RootDevice root_device, MediaObjects media_objects) {
 
-        uint total_matches;
-        var s_container = (container as SearchableContainer);
-        MediaObjects media_objects = null;
-
-        try {
-            media_objects= yield s_container.search (null , 0 , -1, out total_matches,
-                                             s_container.sort_criteria,
-                                             cancellable);
-        } catch (Error err) {
-            warning ("Updating SourceProtocolInfo using CDS list failed.");
-            return ;
-        }
+        union_protocol_string.clear();
+        // Iterate through all media objects and extract protocolinfo
         foreach (var media_item in media_objects) {
             if (media_item is MediaItem) {
                 MediaItem t_item = (media_item as MediaItem);
@@ -153,27 +143,28 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
         }
 
         // Update the variable to publish the source protocol info
-        pubilsh_protocol_info (root_device);
+        publish_protocol_info (root_device);
     }
 
-    private void pubilsh_protocol_info (Rygel.RootDevice root_device) {
-        string new_protocol_string = "";
-        Gee.List<string> updated_protocol_info = new Gee.ArrayList<string>();
+    private void publish_protocol_info (Rygel.RootDevice root_device) {
+        var new_protocol_string = new StringBuilder();
+        int index = 0;
+        int protocolinfo_length = (this.union_protocol_string != null) ? this.union_protocol_string.size : 0;
 
         foreach (var str_protocol_info in this.union_protocol_string.entries) {
-            updated_protocol_info.add (str_protocol_info.value.to_string());
+            string temp_str = str_protocol_info.value.to_string();
+            message ("ProtocolInfo String added : %s ",temp_str);
+            new_protocol_string.append (temp_str);
+            if (++index < protocolinfo_length)
+                new_protocol_string.append (",");
         }
 
-        if (updated_protocol_info.size != 0) {
-            new_protocol_string = string.joinv (",",updated_protocol_info.to_array());
-            message ("New Protocolinfo : %s",new_protocol_string);
-
-            // Find the ConnectionManager Service and update SourceProtocolInfo variable
-            foreach (var service in root_device.services) {
-                if (service.get_type().is_a (typeof (Rygel.ConnectionManager))) {
-                    var connection_manager = (Rygel.ConnectionManager) service;
-                    connection_manager.set_source_protocol_info(new_protocol_string);
-                }
+        debug ("New SourceProtocolinfo : %s",new_protocol_string.str);
+        // Find the ConnectionManager Service and update SourceProtocolInfo variable
+        foreach (var service in root_device.services) {
+            if (service.get_type().is_a (typeof (Rygel.ConnectionManager))) {
+                var connection_manager = (Rygel.ConnectionManager) service;
+                connection_manager.set_source_protocol_info(new_protocol_string.str);
             }
         }
     }

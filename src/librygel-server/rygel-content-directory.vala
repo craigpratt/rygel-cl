@@ -447,6 +447,23 @@ public class Rygel.ContentDirectory: Service {
         return false;
     }
 
+    private async void get_all_items () {
+        uint total_matches;
+        var s_container = (this.root_container as SearchableContainer);
+        MediaObjects media_objects = null;
+
+        try {
+            debug ("Updating SourceProtocolInfo using CDS list.");
+            media_objects = yield s_container.search (null , 0 , -1, out total_matches,
+                                             s_container.sort_criteria,
+                                             this.cancellable);
+            ConnectionManagerProtocolInfo cms_info = ConnectionManagerProtocolInfo.get_default();
+            cms_info.update_source_protocol_info ((Rygel.RootDevice)this.root_device, media_objects);
+        } catch (Error err) {
+            warning ("Updating SourceProtocolInfo using CDS list failed.");
+        }
+    }
+
     private void handle_last_change (MediaContainer updated_container,
                                      MediaObject object,
                                      ObjectEventType event_type,
@@ -541,13 +558,10 @@ public class Rygel.ContentDirectory: Service {
             event_type == ObjectEventType.DELETED ||
             event_type == ObjectEventType.MODIFIED) &&
             object is MediaItem) {
-             if (this.root_container is SearchableContainer) {
-                 /*ConnectionManagerProtocolInfo cms_info = ConnectionManagerProtocolInfo
-                                                                        .get_default();
-                 cms_info.update_source_protocol_info
-                         ((Rygel.RootDevice)this.root_device,
-                          this.root_container,
-                          this.cancellable); */
+            debug ("Forward call to update SourceProtocolInfo");
+            if (this.root_container is SearchableContainer) {
+                 ("Calling searchablecontainer");
+                 this.get_all_items.begin ();
              }
         }
     }
