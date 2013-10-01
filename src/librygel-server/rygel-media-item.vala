@@ -290,13 +290,21 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     internal void add_media_resources(HTTPServer server, DIDLLiteItem didl_item) {
         foreach (var resource in media_resources) {
-            var uri = server.create_uri_for_item (this,
-                                                   -1,
-                                                   -1,
-                                                   this.dlna_profile,
-                                                   null,
-                                                   resource);
-            resource.uri = uri;
+            if (resource.uri == null) {
+                var uri = server.create_uri_for_item (this,
+                                                       -1,
+                                                       -1,
+                                                       this.dlna_profile,
+                                                       null,
+                                                       resource);
+                resource.uri = uri;
+                // TODO: REMOVE ME
+                message("Created resource URI: " + resource.uri);
+            } else {
+                // TODO: REMOVE ME
+                message("Found MediaResource with non-null URI: " + resource.uri);
+            }
+
             DIDLLiteResource didl_resource = didl_item.add_resource();
             resource.write_didl_lite(didl_resource);
         }
