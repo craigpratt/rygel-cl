@@ -25,6 +25,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+/**
+ * Author : Parthiban Balasubramanian <p.balasubramanian@cablelabs.com>
+ */
 public class Rygel.ODIDUtil : Object {
     private static ODIDUtil util = null;
     public const int64 PACKET_SIZE_188 = 188;

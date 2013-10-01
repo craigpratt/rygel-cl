@@ -49,20 +49,6 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     public static const uint INDEXFILE_FIELD_FRAMESIZE_OFFSET = 37;
     public static const uint INDEXFILE_FIELD_FRAMESIZE_LENGTH = 10;
 
-    internal class ConfigProfileEntry {
-        public string profile;
-        public string mimetype;
-        public string extension;
-
-        public ConfigProfileEntry(string profile, string mimetype, string extension) {
-            this.profile = profile;
-            this.mimetype = mimetype;
-            this.extension = extension;
-        }
-    }
-
-    private GLib.List<ConfigProfileEntry> config_entries = null;
-
     //DTCP Related variabled
     private static bool dtcp_supported = false;
     private static bool dtcp_loaded = false;
@@ -71,7 +57,6 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     public ODIDMediaEngine() {
         message("constructing");
         var profiles_config = new Gee.ArrayList<string>();
-        config_entries = new GLib.List<ConfigProfileEntry>();
         var config = MetaConfig.get_default();
         //char version_str[512];
         ushort dtcp_port = 8999; // Default set it to 8999.
@@ -111,22 +96,18 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
         foreach (var row in profiles_config) {
             var columns = row.split(",");
-            if (columns.length < 3)
+            if (columns.length < 2)
             {
-                warning( "OdidMediaEngine profile entry \""
-                         + row + "\" is malformed: Expected 3 entries and found "
+                message( "OdidMediaEngine profile entry \""
+                         + row + "\" is malformed: Expected 2 entries and found "
                          + columns.length.to_string() );
                 break;
             }
-            string profile = columns[0];
-            string mimetype = columns[1];
-            string extension = columns[2];
 
-            message("configuring profile entry: " + row);
-            config_entries.append(new ConfigProfileEntry(profile, mimetype, extension));
+            message("OdidMediaEngine: configuring profile entry: " + row);
             // Note: This profile list won't affect what profiles are included in the 
             //       primary res block
-            profiles.append(new DLNAProfile(profile,mimetype));
+            profiles.append(new DLNAProfile(columns[0],columns[1]));
         }
     }
 
