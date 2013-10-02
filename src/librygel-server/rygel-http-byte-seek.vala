@@ -104,13 +104,13 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
             }
         }
 
-        if (stop < start) {
-            throw new HTTPSeekError.INVALID_RANGE (_("Invalid Range '%s'"),
+        if (start > total_size-1) {
+            throw new HTTPSeekError.OUT_OF_RANGE (_("Invalid Range '%s'"),
                                                        range_header_str);
         }
 
-        if (start > total_size-1) {
-            throw new HTTPSeekError.OUT_OF_RANGE (_("Invalid Range '%s'"),
+        if (stop < start) {
+            throw new HTTPSeekError.INVALID_RANGE (_("Invalid Range '%s'"),
                                                        range_header_str);
         }
 
