@@ -27,15 +27,18 @@
 using GUPnP;
 
 public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
-    private static bool content_protected = false;
+
     public HTTPByteSeek (HTTPGet request) throws HTTPSeekError,
                                                  HTTPRequestError {
+        base (request.msg);
         Soup.Range[] ranges;
         int64 start = 0, total_size;
         string[] parsed_headers;
         unowned string range = request.msg.request_headers.get_one ("Range");
         unowned string range_dtcp = request.msg.request_headers.get_one ("Range.dtcp.com");
         string range_header_str = null;
+
+        this.is_link_protected_flag = false;
 
         if (request.thumbnail != null) {
             total_size = request.thumbnail.size;
@@ -49,7 +52,8 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
             else// Get the cleartextsize for Range.dtcp.com request.
               total_size = resource.cleartext_size;
 
-            content_protected = resource.is_link_protection_enabled();
+            this.is_link_protected_flag = resource.is_link_protection_enabled();
+
         } else {
             total_size = (request.object as MediaItem).size;
         }
@@ -63,7 +67,7 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
                   ("Invalid combination of Range and Range.dtcp.com"));
         } else if (range_dtcp != null) {
             range_header_str = range_dtcp;
-            if (!content_protected) {
+            if (!this.is_link_protected_flag) {
                     throw new HTTPSeekError.INVALID_RANGE (_
                               ("Range.dtcp.com not valid for unprotected content"));
             }
@@ -114,7 +118,6 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
                                                        range_header_str);
         }
 
-        base (request.msg);
         // A HTTP Range request is just bytes, which can live in the base
         set_byte_range(start, stop);
         // TODO: Deal with cases where length is not known (e.g. live/in-progress sources)
@@ -183,7 +186,7 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
                  this.total_size.to_string ();
         if (this.msg.request_headers.get_one ("Range") != null) {
             headers.append("Content-Range", range_str);
-            if (content_protected) // TODO : Call DTCP Lib to get the encrypted size 
+            if (this.is_link_protected_flag) // TODO : Call DTCP Lib to get the encrypted size 
                 headers.set_content_length (this.length);
             else
                 headers.set_content_length (this.length);

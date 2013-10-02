@@ -62,6 +62,11 @@ public abstract class Rygel.HTTPSeek : GLib.Object {
      */
     public int64 total_size { get; set; }
 
+    /**
+     * To inform if the media resource requested has link protection flag.
+     */
+    public bool is_link_protected_flag {get; set;}
+
     public HTTPSeek (Soup.Message msg) {
         this.msg = msg;
         unset_byte_range();

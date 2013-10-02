@@ -83,10 +83,14 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
 
         bool positive_rate = (speed == null) || speed.is_positive();
         bool trick_mode = (speed != null) && speed.is_trick_rate();
-        
+
+        this.is_link_protected_flag = false;
+
         if (request.handler is HTTPMediaResourceHandler) {
-            this.total_duration = (request.handler as HTTPMediaResourceHandler)
-                                  .media_resource.duration * TimeSpan.SECOND;
+            MediaResource resource = (request.handler as HTTPMediaResourceHandler)
+                                                                  .media_resource;
+            this.total_duration = resource.duration * TimeSpan.SECOND;
+            this.is_link_protected_flag = resource.is_link_protection_enabled();
         } else {
             this.total_duration = (request.object as AudioItem).duration * TimeSpan.SECOND;
         }
@@ -321,30 +325,33 @@ public class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
         //  use what is set.
 
         if (effective_time_range_set()) {
-            var response = new StringBuilder();
-            response.append("npt=");
-            response.append_printf("%.3f-", (double) this.effective_start / TimeSpan.SECOND);
-            response.append_printf("%.3f/", (double) this.effective_end / TimeSpan.SECOND);
+            var response_time = new StringBuilder();
+            var response_bytes = new StringBuilder();
+            response_time.append("npt=");
+            response_time.append_printf("%.3f-", (double) this.effective_start / TimeSpan.SECOND);
+            response_time.append_printf("%.3f/", (double) this.effective_end / TimeSpan.SECOND);
             if (total_duration_set()) {
-                response.append_printf("%.3f", (double) this.total_duration / TimeSpan.SECOND);
+                response_time.append_printf("%.3f", (double) this.total_duration / TimeSpan.SECOND);
             } else {
-                response.append("*");
+                response_time.append("*");
             }
 
             if (byte_range_set()) { // From our super, HTTPSeek
-                response.append(" bytes=");
-                response.append(this.start_byte.to_string());
-                response.append("-");
-                response.append(this.end_byte.to_string());
-                response.append("/");
+                //response.append(" bytes=");
+                response_bytes.append(this.start_byte.to_string());
+                response_bytes.append("-");
+                response_bytes.append(this.end_byte.to_string());
+                response_bytes.append("/");
                 if (total_size_set()) {
-                    response.append(this.total_size.to_string());
+                    response_bytes.append(this.total_size.to_string());
                 } else {
-                    response.append("*");
+                    response_bytes.append("*");
                 }
             }
 
-            this.msg.response_headers.append ("TimeSeekRange.dlna.org", response.str);
+            this.msg.response_headers.append ("TimeSeekRange.dlna.org", response_time.str + " bytes=" + response_bytes.str);
+            if (this.is_link_protected_flag)
+                this.msg.response_headers.append ("Content-Range.dtcp.com", "bytes " + response_bytes.str);
         }
     }
 
