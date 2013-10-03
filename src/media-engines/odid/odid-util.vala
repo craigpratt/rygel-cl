@@ -128,14 +128,14 @@ public class Rygel.ODIDUtil : Object {
     }
 
     public static uint64 get_encrypted_length (uint64 cleartext_size) {
-		if (is_rygel_dtcp_enabled()) {
-			uint64 enc_size = Dtcpip.get_encrypted_length(cleartext_size,uint16.MAX);
-			debug ("Encrypted size from DTCP library: %lld",enc_size);
-			return enc_size;
-		} else {
-			return cleartext_size;
-		}
-	}
+        if (is_rygel_dtcp_enabled()) {
+            uint64 enc_size = Dtcpip.get_encrypted_length(cleartext_size,uint16.MAX);
+            debug ("Encrypted size from DTCP library: %lld",enc_size);
+            return enc_size;
+        } else {
+            return cleartext_size;
+        }
+    }
 
     /**
      * Returns if the content is protected
