@@ -64,6 +64,7 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     public string description { get; set; default = null; }
 
+    // Note: MediaResources are ordered from most- to least-preferred
     public Gee.List<MediaResource> media_resources { get; set; default = null; }
 
     public override OCMFlags ocm_flags {
@@ -263,7 +264,7 @@ public abstract class Rygel.MediaItem : MediaObject {
          * can handle.
          */
         if (!this.place_holder) {
-            this.add_media_resources (http_server, didl_item);
+            this.write_didl_lite_for_resources (http_server, didl_item);
             var host_ip = http_server.context.host_ip;
 
             // then original URIs
@@ -288,7 +289,7 @@ public abstract class Rygel.MediaItem : MediaObject {
                                                throws Error {
     }
 
-    internal void add_media_resources(HTTPServer server, DIDLLiteItem didl_item) {
+    internal void write_didl_lite_for_resources(HTTPServer server, DIDLLiteItem didl_item) {
         foreach (var resource in media_resources) {
             var uri = server.create_uri_for_item (this,
                                                    -1,
