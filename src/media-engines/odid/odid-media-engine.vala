@@ -282,8 +282,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                             DLNAFlags.CLEARTEXT_BYTESEEK_FULL;
             res.protocol_info.dlna_operation = DLNAOperation.NONE;
             res.cleartext_size = res.size;
-            // TODO : Call encrypted size calculation lib after DTCP lib integration
-            res.size = res.size + 1000;
+            res.size = (int64)ODIDUtil.get_encrypted_length(res.size);
         }
         else {
             res.protocol_info.dlna_operation = DLNAOperation.RANGE;

@@ -28,6 +28,9 @@
 /**
  * Author : Parthiban Balasubramanian <p.balasubramanian@cablelabs.com>
  */
+
+using Dtcpip;
+
 public class Rygel.ODIDUtil : Object {
     private static ODIDUtil util = null;
     public const int64 PACKET_SIZE_188 = 188;
@@ -123,6 +126,16 @@ public class Rygel.ODIDUtil : Object {
         }
         return dtcp_enabled;
     }
+
+    public static uint64 get_encrypted_length (uint64 cleartext_size) {
+		if (is_rygel_dtcp_enabled()) {
+			uint64 enc_size = Dtcpip.get_encrypted_length(cleartext_size,uint16.MAX);
+			debug ("Encrypted size from DTCP library: %lld",enc_size);
+			return enc_size;
+		} else {
+			return cleartext_size;
+		}
+	}
 
     /**
      * Returns if the content is protected
