@@ -31,7 +31,7 @@ public class Rygel.RelationalExpression :
              Rygel.SearchExpression<SearchCriteriaOp,string,string> {
     internal const string CAPS = "@id,@parentID,@refID,upnp:class," +
                                  "dc:title,upnp:artist,upnp:album," +
-                                 "dc:creator,upnp:createClass,@childCount";
+                                 "dc:creator,@childCount";
 
     public override bool satisfied_by (MediaObject media_object) {
         switch (this.operand1) {

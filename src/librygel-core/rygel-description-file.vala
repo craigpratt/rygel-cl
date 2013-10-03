@@ -192,7 +192,7 @@ public class Rygel.DescriptionFile : Object {
             // handled by Rygel transparently.
             var allow_upload = true;
             var allow_delete = false;
-            var upload_options = new Gee.ArrayList<string>();;
+            var upload_options = new Gee.ArrayList<string>();
             try {
                 var config = MetaConfig.get_default ();
                 allow_upload = config.get_allow_upload ();

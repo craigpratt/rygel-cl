@@ -119,6 +119,16 @@ public class Rygel.ContentDirectory: Service {
 
         this.search_caps = RelationalExpression.CAPS;
 
+        bool allow_upload = false;
+        try {
+            var config = MetaConfig.get_default ();
+            allow_upload = config.get_allow_upload ();
+        } catch (GLib.Error error) { }
+
+        if (allow_upload) {
+            this.search_caps += ",upnp:createClass";
+        }
+
         if (PluginCapabilities.TRACK_CHANGES in plugin.capabilities) {
             this.search_caps += ",upnp:objectUpdateID,upnp:containerUpdateID";
         }

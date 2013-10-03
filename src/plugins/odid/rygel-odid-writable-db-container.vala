@@ -70,18 +70,33 @@ internal class Rygel.ODID.WritableDbContainer : TrackableDbContainer,
         base.constructed ();
 
         this.create_classes = new ArrayList<string> ();
+        bool allow_upload = false;
+        var upload_options = new Gee.ArrayList<string>();
+        try {
+            var config = MetaConfig.get_default ();
+            allow_upload = config.get_allow_upload ();
+            upload_options = config.get_string_list
+                                    ("general", "upload-option");
+        } catch (GLib.Error error) { }
 
-        // Items
-        // Disabling Non video item class
-        //this.create_classes.add (Rygel.ImageItem.UPNP_CLASS);
-        //this.create_classes.add (Rygel.PhotoItem.UPNP_CLASS);
-        this.create_classes.add (Rygel.VideoItem.UPNP_CLASS);
-        //this.create_classes.add (Rygel.AudioItem.UPNP_CLASS);
-        //this.create_classes.add (Rygel.MusicItem.UPNP_CLASS);
-        this.create_classes.add (Rygel.PlaylistItem.UPNP_CLASS);
+        if (allow_upload) {
+             // Items
+            foreach (var option in upload_options) {
+                if (option == "image-upload") {
+                    this.create_classes.add (Rygel.ImageItem.UPNP_CLASS);
+                    this.create_classes.add (Rygel.PhotoItem.UPNP_CLASS);
+                } else if (option == "av-upload") {
+                    this.create_classes.add (Rygel.VideoItem.UPNP_CLASS);
+                } else if (option == "audio-upload") {
+                    this.create_classes.add (Rygel.AudioItem.UPNP_CLASS);
+                    this.create_classes.add (Rygel.MusicItem.UPNP_CLASS);
+                    this.create_classes.add (Rygel.PlaylistItem.UPNP_CLASS);
+                }
+            }
 
-        // Containers
-        this.create_classes.add (Rygel.MediaContainer.UPNP_CLASS);
+            // Containers
+            this.create_classes.add (Rygel.MediaContainer.UPNP_CLASS);
+        }
     }
 
     public virtual async void add_item (Rygel.MediaItem item,
