@@ -52,6 +52,8 @@ public class Rygel.HTTPGet : HTTPRequest {
     }
 
     protected override async void handle () throws Error {
+        message("processing request for %s", this.uri.to_string());
+        
         var header = this.msg.request_headers.get_one
                                         ("getcontentFeatures.dlna.org");
 

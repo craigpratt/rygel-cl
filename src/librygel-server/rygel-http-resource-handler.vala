@@ -41,14 +41,19 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
 
     public HTTPMediaResourceHandler (MediaItem media_item,
                                      string media_resource_name,
-                                     Cancellable? cancellable) {
+                                     Cancellable? cancellable)
+       throws HTTPRequestError {
         this.media_item = media_item;
         this.cancellable = cancellable;
         this.media_resource_name = media_resource_name;
-
-        media_resource = MediaResourceManager.get_default()
-                                  .get_resource_for_source_uri_and_name (media_item.uris.get (0),
-                                                                         media_resource_name);
+        foreach (var resource in media_item.media_resources) {
+            if (resource.get_name() == media_resource_name) {
+                this.media_resource = resource;
+            }
+        }
+        if (this.media_resource == null) {
+            throw new HTTPRequestError.NOT_FOUND ("MediaResource %s not found", media_resource_name);
+        }
     }
 
     public override void add_response_headers (HTTPGet request)
