@@ -60,7 +60,7 @@ public class Rygel.ODIDUtil : Object {
             // Check if the total length falls between the packet size.
             // Else add bytes to complete packet size.
             int64 req_length = end_byte - start_byte +1;
-            int64 add_bytes = packet_size - (req_length % packet_size);
+            int64 add_bytes = (packet_size - (req_length % packet_size)) % packet_size;
             temp_end = end_byte + add_bytes;
         } else {
             temp_end = end_byte;
