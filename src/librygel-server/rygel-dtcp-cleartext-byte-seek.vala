@@ -123,7 +123,7 @@ public class Rygel.DTCPCleartextByteSeekRequest : Rygel.HTTPSeekRequest {
         }
 
         if ((total_size != UNSPECIFIED) && (start > total_size-1)) {
-            throw new HTTPSeekRequestError.INVALID_RANGE ( "Invalid %s range - start > length: '%s'",
+            throw new HTTPSeekRequestError.OUT_OF_RANGE ( "Invalid %s range - start > length: '%s'",
                                                            DTCP_CLEARTEXT_RANGE_REQUEST_HEADER,
                                                            range );
         }
