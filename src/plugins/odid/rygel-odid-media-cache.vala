@@ -683,6 +683,7 @@ public class Rygel.ODID.MediaCache : Object {
                                     resource.cleartext_size,
                                     Database.null (),
                                     -1,
+                                    resource.uri,
                                     resource.get_name (),
                                     resource.extension };
                                     
@@ -896,6 +897,7 @@ public class Rygel.ODID.MediaCache : Object {
                 res.sample_freq     = resource_stmt.column_int (ResourceColumn.SAMPLE_FREQ);
                 res.bits_per_sample = resource_stmt.column_int (ResourceColumn.BITS_PER_SAMPLE);
                 res.audio_channels  = resource_stmt.column_int (ResourceColumn.CHANNELS);
+                res.uri             = resource_stmt.column_text (ResourceColumn.EXTERNAL_URI);
                 res.extension       = resource_stmt.column_text (ResourceColumn.EXTENSION);
                 res.color_depth     = resource_stmt.column_int (ResourceColumn.COLOR_DEPTH);
                 res.size            = resource_stmt.column_int64 (ResourceColumn.SIZE);

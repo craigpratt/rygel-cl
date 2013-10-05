@@ -61,6 +61,7 @@ internal enum Rygel.ODID.ResourceColumn {
     CHANNELS,
     TRACK,
     DISK,
+    EXTERNAL_URI,
     NAME,
     EXTENSION,
     COLOR_DEPTH
@@ -121,8 +122,8 @@ internal class Rygel.ODID.SQLFactory : Object {
          "author, album, bitrate, " +
          "sample_freq, bits_per_sample, channels, " +
          "track, color_depth, duration, object_fk, " +
-         "protocol_info, cleartext_size, genre, disc, name, extension) VALUES " +
-         "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+         "protocol_info, cleartext_size, genre, disc, external_uri, name, extension) VALUES " +
+         "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private const string INSERT_OBJECT_STRING =
     "INSERT OR REPLACE INTO Object " +
@@ -158,7 +159,7 @@ internal class Rygel.ODID.SQLFactory : Object {
     "o.deleted_child_count, o.container_update_id, o.reference_id ";
 
     private const string ALL_RESOURCE_STRING =
-    "r.size, r.protocol_info, r.cleartext_size, r.duration, r.width, r.height, r.album, r.genre, r.bitrate, r.sample_freq, r.bits_per_sample, r.channels, r.track, r.disc, r.name, r.extension, r.color_depth ";
+    "r.size, r.protocol_info, r.cleartext_size, r.duration, r.width, r.height, r.album, r.genre, r.bitrate, r.sample_freq, r.bits_per_sample, r.channels, r.track, r.disc, r.external_uri, r.name, r.extension, r.color_depth ";
 
     private const string GET_OBJECT_WITH_PATH =
     "SELECT DISTINCT " + ALL_OBJECT_STRING +
@@ -227,7 +228,7 @@ internal class Rygel.ODID.SQLFactory : Object {
         "WHERE _column IS NOT NULL %s ORDER BY _column COLLATE CASEFOLD " +
     "LIMIT ?,?";
 
-    internal const string SCHEMA_VERSION = "1";
+    internal const string SCHEMA_VERSION = "2";
     internal const string CREATE_RESOURCE_TABLE_STRING =
     "CREATE TABLE resource (size INTEGER, " +
                             "protocol_info TEXT, " +
@@ -244,6 +245,7 @@ internal class Rygel.ODID.SQLFactory : Object {
                             "channels INTEGER, " +
                             "track INTEGER, " +
                             "disc INTEGER, " +
+                            "external_uri TEXT, " +
                             "name TEXT NOT NULL, " +
                             "extension TEXT, " +
                             "color_depth INTEGER, " +

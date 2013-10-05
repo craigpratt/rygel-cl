@@ -86,12 +86,28 @@ internal class Rygel.ODID.MediaCacheUpgrader {
             }
 
             switch (old_version) {
+                case 1:
+                    update_v1_v2 ();
+                    break;
                 default:
                     warning ("Cannot upgrade");
                     database = null;
                     break;
             }
             old_version++;
+        }
+    }
+
+    private void update_v1_v2 () {
+        try {
+            database.begin ();
+            database.exec ("ALTER TABLE resource ADD COLUMN external_uri TEXT");
+            database.exec ("UPDATE schema_info SET version = '2'");
+            database.commit ();
+        } catch (DatabaseError error) {
+            database.rollback ();
+            warning ("Database upgrade failed: %s", error.message);
+            database = null;
         }
     }
 
