@@ -54,12 +54,13 @@ public class Rygel.ODIDUtil : Object {
     }
 
     // DTCP content has to be aligned to a packet boundary.  188 or 192
-    public static int64 get_dtcp_algined_end (int64 start_byte, int64 end_byte, int64 packet_size) {
+    // Note: end_byte is not inclusive
+    public static int64 get_dtcp_aligned_end (int64 start_byte, int64 end_byte, int64 packet_size) {
         int64 temp_end;
         if (end_byte > 0) {
             // Check if the total length falls between the packet size.
             // Else add bytes to complete packet size.
-            int64 req_length = end_byte - start_byte +1;
+            int64 req_length = end_byte - start_byte;
             int64 add_bytes = (packet_size - (req_length % packet_size)) % packet_size;
             temp_end = end_byte + add_bytes;
         } else {
@@ -68,7 +69,7 @@ public class Rygel.ODIDUtil : Object {
         return temp_end;
     }
 
-    // TODO : Identify the packet size from the profile
+    // Identify the packet size from the profile
     public static int64 get_profile_packet_size (string profile) {
         // TODO : Need to consider mime types other than MPEG.
         if ((profile.has_prefix ("DTCP_MPEG_TS") ||
@@ -90,7 +91,7 @@ public class Rygel.ODIDUtil : Object {
       * Modify mime type if the item is protected.
       * This can call into a custom class that will have knowledge.
       */
-    public static string handle_mime_item_protected (string mime_type) {
+    public static string dtcp_mime_type_for_mime_type (string mime_type) {
         string dtcp_host;
         string dtcp_port;
 

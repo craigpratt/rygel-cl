@@ -30,7 +30,7 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
     internal dynamic Element src;
     internal MediaResource res;
     private Pipeline pipeline;
-    private HTTPSeek seek = null;
+    private HTTPSeekRequest seek = null;
     private GstSink sink;
     private uint bus_watch_id;
 
@@ -58,28 +58,36 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
         this.src = element;
     }
 
-    public void preroll (HTTPSeek? seek, DLNAPlaySpeed? rate) throws Error {
-        if (rate != null) {
+    public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
+                                                     DLNAPlaySpeedRequest? playspeed_request)
+       throws Error {
+        var response_list = new Gee.ArrayList<HTTPResponseElement>();
+
+        if (playspeed_request != null) {
             throw new DataSourceError.PLAYSPEED_FAILED
                                     (_("Playspeed not supported"));
         }
 
-        if (seek is HTTPByteSeek) {
+        if (seek_request is HTTPByteSeekRequest) {
+            // Responding to the byte request as requested
+            var seek_response = new HTTPByteSeekResponse.from_request( seek_request
+                                                                       as HTTPByteSeekRequest );
+            response_list.add(seek_response);
             // Supported - and no reponse values required...
-        } else if (seek is HTTPTimeSeek) {
-            var time_seek = seek as HTTPTimeSeek;
-            
+        } else if (seek is HTTPTimeSeekRequest) {
+            var time_seek = seek_request as HTTPTimeSeekRequest;
             // TODO: Align this with actual time positions returned
             // For now, set the effective TimeSeekRange response range to the requested range
-            time_seek.set_effective_time_range(time_seek.requested_start, time_seek.requested_end);
-            time_seek.set_total_duration(res.duration);
+            var seek_response = new HTTPTimeSeekResponse.from_request(time_seek, res.duration);
+            response_list.add(seek_response);
         } else {
             // Unknown/unsupported seek type
             throw new DataSourceError.SEEK_FAILED
-                                    (_("HTTPSeek type unsupported"));
+                                    (_("HTTPSeekRequest type unsupported"));
         }
             
-        this.seek = seek;
+        this.seek = seek_request;
+        return response_list;
     }
     
     public void start () throws Error {
@@ -240,27 +248,27 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
     }
 
     private bool perform_seek () {
-        if (this.seek != null &&
-            this.seek.length >= this.seek.total_size) {
-            return true;
-        }
-
         var stop_type = Gst.SeekType.NONE;
         Format format;
         var flags = SeekFlags.FLUSH;
         int64 start, stop;
 
-        if (this.seek is HTTPTimeSeek) {
-            var time_seek = this.seek as HTTPTimeSeek;
+        if (this.seek is HTTPTimeSeekRequest) {
+            var time_seek = this.seek as HTTPTimeSeekRequest;
             format = Format.TIME;
             flags |= SeekFlags.KEY_UNIT;
-            start = time_seek.requested_start * Gst.USECOND;
-            stop = time_seek.requested_end * Gst.USECOND;
-        } else if (this.seek is HTTPByteSeek) {
+            start = time_seek.start_time * Gst.USECOND;
+            stop = time_seek.end_time * Gst.USECOND;
+        } else if (this.seek is HTTPByteSeekRequest) {
+            var byte_seek = this.seek as HTTPByteSeekRequest;
+            if (byte_seek.range_length >= byte_seek.total_size) {
+                // How/why would this happen? 
+                return true;
+            }
             format = Format.BYTES;
             flags |= SeekFlags.ACCURATE;
-            start = (this.seek as HTTPByteSeek).start_byte;
-            stop = (this.seek as HTTPByteSeek).end_byte;
+            start = byte_seek.start_byte;
+            stop = byte_seek.end_byte;
         } else {
             this.error (new DataSourceError.SEEK_FAILED (_("Unsupported seek type")));
             return false;

@@ -37,7 +37,8 @@ public errordomain Rygel.DataSourceError {
  * to Rygel which adds them to the response it sends to the original HTTP
  * request received from the client.
  *
- * The data source is responsible for providing the streamable byte-stream
+ * The data source is responsible for providing response header information
+ * describing the content being produced and a streamable byte-stream
  * via its data_available signal. End-of-stream is signalled by the 
  * done signal, while errors are signalled by the error signal.
  *
@@ -61,20 +62,22 @@ public interface Rygel.DataSource : GLib.Object {
     /**
      * Preroll the data with the given seek and playspeed.
      *
-     * @param seek    optional limits of the stream for partial streaming. If supported
-     *                by the DataSource, the known response parameters on the seek must be
-     *                specified before returning (e.g. the byte range must be set if known).
-     * @param playspeed optional playback rate for the stream. If supported
-     *                by the DataSource, the known response parameters on the playspeed must be
-     *                specified before returning (e.g. the speed's framerate must be set if
-     *                known).
+     * @param seek    optional seek/range specifier
+     * @param playspeed optional playback rate specifier
+     *
+     * @return List of HTTPResponseElements appropriate for the content request and
+     *         optional seek/playspeed (e.g. Content-Range, TimeSeekRange.dlna.org,
+     *         etc) or null/empty list if none are appropriate. Note: the list will
+     *         be processed in-order by the caller.
      * 
      * @throws Error if anything goes wrong while prerolling the stream.
      *         Throws DataSourceError.SEEK_FAILED if a seek method is not supported or the
      *         range is not fulfillable.
      *         Throws PLAYSPEED_FAILED if the rate is not supported or fulfillable.
      */
-    public abstract void preroll (HTTPSeek? seek, DLNAPlaySpeed? playspeed) throws Error;
+    public abstract Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek,
+                                                              DLNAPlaySpeedRequest? playspeed)
+       throws Error;
     
     /**
      * Start producing the data.

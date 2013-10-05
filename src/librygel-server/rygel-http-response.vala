@@ -31,8 +31,8 @@ public class Rygel.HTTPResponse : GLib.Object, Rygel.StateMachine {
 
     public Cancellable cancellable { get; set; }
 
-    public HTTPSeek seek;
-    public DLNAPlaySpeed speed;
+    public HTTPSeekRequest seek;
+    public DLNAPlaySpeedRequest speed;
 
     private SourceFunc run_continue;
     private int _priority = -1;
@@ -70,7 +70,7 @@ public class Rygel.HTTPResponse : GLib.Object, Rygel.StateMachine {
         this.msg = request.msg;
         this.cancellable = request_handler.cancellable;
         this.seek = request.seek;
-        this.speed = request.speed;
+        this.speed = request.speed_request;
         this.src = src;
         this.sink = new DataSink (this.src, this.server, this.msg, this.seek);
         this.src.done.connect ( () => {
@@ -101,8 +101,8 @@ public class Rygel.HTTPResponse : GLib.Object, Rygel.StateMachine {
         }
     }
 
-    public void preroll () throws Error {
-        this.src.preroll (seek, speed);
+    public Gee.List<HTTPResponseElement> ? preroll () throws Error {
+        return this.src.preroll (seek, speed);
     }
 
     public async void run () {

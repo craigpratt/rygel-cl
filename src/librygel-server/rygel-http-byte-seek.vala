@@ -23,22 +23,68 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
+/* 
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
+ * Contact: http://www.cablelabs.com/
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+ * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+ * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL APPLE INC. OR ITS CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Author: Craig Pratt <craig@ecaspia.com>
+ *
+ * This file is part of Rygel.
+ */
 
 using GUPnP;
 
-public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
+public class Rygel.HTTPByteSeekRequest : Rygel.HTTPSeekRequest {
+    /**
+     * The start of the range in bytes 
+     */
+    public int64 start_byte { get; set; }
 
-    public HTTPByteSeek (HTTPGet request) throws HTTPSeekError,
+    /**
+     * The end of the range in bytes (inclusive)
+     */
+    public int64 end_byte { get; set; }
+
+    /**
+     * The length of the range in bytes
+     */
+    public int64 range_length { get; private set; }
+
+    /**
+     * The length of the resource in bytes
+     */
+    public int64 total_size { get; set; }
+
+    
+    public HTTPByteSeekRequest (HTTPGet request) throws HTTPSeekRequestError,
                                                  HTTPRequestError {
-        base (request.msg);
+        base ();
         Soup.Range[] ranges;
-        int64 start = 0, total_size;
-        string[] parsed_headers;
+        int64 start, stop, total_size;
         unowned string range = request.msg.request_headers.get_one ("Range");
-        unowned string range_dtcp = request.msg.request_headers.get_one ("Range.dtcp.com");
         string range_header_str = null;
-
-        this.is_link_protected_flag = false;
 
         if (request.thumbnail != null) {
             total_size = request.thumbnail.size;
@@ -46,81 +92,52 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
             total_size = request.subtitle.size;
         } else if (request.handler is HTTPMediaResourceHandler) {
             MediaResource resource = (request.handler as HTTPMediaResourceHandler)
-                                              .media_resource;
-            if (range_dtcp == null)
-              total_size = resource.size;
-            else// Get the cleartextsize for Range.dtcp.com request.
-              total_size = resource.cleartext_size;
-
-            this.is_link_protected_flag = resource.is_link_protection_enabled();
-
+                                     .media_resource;
+            total_size = resource.size;
         } else {
             total_size = (request.object as MediaItem).size;
         }
-        var stop = total_size - 1;
+        // TODO: Deal with resources that support Range but don't have fixed/known sizes
 
-        // Check if both Range and Range.dtcp.com is present in headers
-        if (range != null && range_dtcp != null)
-        {
-            // The return status code must be 406(not acceptable)
-            throw new HTTPRequestError.UNACCEPTABLE (_
-                  ("Invalid combination of Range and Range.dtcp.com"));
-        } else if (range_dtcp != null) {
-            range_header_str = range_dtcp;
-            if (!this.is_link_protected_flag) {
-                    throw new HTTPSeekError.INVALID_RANGE (_
-                              ("Range.dtcp.com not valid for unprotected content"));
-            }
-
-            parsed_headers = parse_dtcp_range_header (range_header_str);
-
-            if (parsed_headers.length == 2) {
-                // Start byte must be present and non empty string
-                if (parsed_headers[0] == null || parsed_headers[0] == "" ||
-                    parsed_headers[1] == null) {
-                    throw new HTTPSeekError.INVALID_RANGE (_
-                              ("Invalid Range.dtcp.com '%s'"), range_header_str);
-                }
-
-               start = (int64)(double.parse (parsed_headers[0]));
-
-               if (parsed_headers[1] == "") {
-                   stop = total_size - 1;
-               } else {
-                   stop = (int64)(double.parse (parsed_headers[1]));
-               }
-            } else {
-                // Range header was present but invalid
-                throw new HTTPSeekError.INVALID_RANGE (_
-                          ("Invalid Range.dtcp.com '%s'"), range_header_str);
-            }
-        } else if (range != null) {
-            // Range is present, get the values from libsoup
+        // Check if Range is present in the header
+        if (range == null) {
+            start = 0;
+            stop = total_size -1;
+        } else {
             range_header_str = range;
             if (request.msg.request_headers.get_ranges (total_size,
                                                         out ranges)) {
                 // TODO: Somehow deal with multipart/byterange properly
+                //       (not legal in DLNA per 7.5.4.3.2.22.3)
                 start = ranges[0].start;
                 stop = ranges[0].end;
+                // TODO: For live/in-progress sources, we need to differentiate between "x-" and
+                //       "x-y" (and cases where y>total_size) (see DLNA 7.5.4.3.2.19.2)
+                //       We can't tell the difference with get_ranges()...
             } else {
-                throw new HTTPSeekError.INVALID_RANGE (_("Invalid Range '%s'"),
-                                                       range_header_str);
+                throw new HTTPSeekRequestError.INVALID_RANGE (_("Invalid Range '%s'"),
+                                                              range_header_str);
             }
         }
 
         if (start > total_size-1) {
-            throw new HTTPSeekError.OUT_OF_RANGE (_("Invalid Range '%s'"),
-                                                       range_header_str);
+            throw new HTTPSeekRequestError.OUT_OF_RANGE (_("Invalid Range '%s'"),
+                                                         range_header_str);
         }
-
+        
         if (stop < start) {
-            throw new HTTPSeekError.INVALID_RANGE (_("Invalid Range '%s'"),
-                                                       range_header_str);
+            throw new HTTPSeekRequestError.INVALID_RANGE (_("Invalid Range '%s'"),
+                                                          range_header_str);
         }
 
-        // A HTTP Range request is just bytes, which can live in the base
-        set_byte_range(start, stop);
-        // TODO: Deal with cases where length is not known (e.g. live/in-progress sources)
+        if ((total_size > 0) && (stop > total_size-1)) {
+            // Per RFC 2616, the range end can be beyond the total length. And Soup doesn't clamp...
+            stop = total_size-1;
+        }
+            
+        this.start_byte = start;
+        this.end_byte = stop;
+        this.range_length = stop-start+1; // +1, since range is inclusive
         this.total_size = total_size;
     }
 
@@ -132,69 +149,63 @@ public class Rygel.HTTPByteSeek : Rygel.HTTPSeek {
             force_seek = hack.force_seek ();
         } catch (Error error) { }
 
-        bool is_byte_seek_supported = false;
-
-        if (request.msg.request_headers.get_one ("Range.dtcp.com") != null) {
-            if (!(request.handler is HTTPMediaResourceHandler)) {
-                is_byte_seek_supported = false;
-            } else {
-                is_byte_seek_supported = (request.handler is HTTPMediaResourceHandler
-                                            && (request.handler as HTTPMediaResourceHandler)
-                                               .media_resource.is_cleartext_range_support_enabled());
-            }
-        } else if (request.msg.request_headers.get_one ("Range") != null) {
-            if (!(request.handler is HTTPMediaResourceHandler)) {
-                is_byte_seek_supported = true;
-            } else {
-                is_byte_seek_supported = request.handler is HTTPMediaResourceHandler
-                                       && (request.handler as HTTPMediaResourceHandler)
-                                            .media_resource.supports_arbitrary_byte_seek();
-            }
-        }
+        bool resource_with_byte_seek
+                = (request.handler is HTTPMediaResourceHandler)
+                  && (request.handler as HTTPMediaResourceHandler)
+                     .media_resource.supports_arbitrary_byte_seek();
 
         return force_seek
                || (!(request.object is MediaContainer) && (request.object as MediaItem).size > 0)
-               || is_byte_seek_supported
+               || resource_with_byte_seek
                || (request.thumbnail != null && request.thumbnail.size > 0)
                || (request.subtitle != null && request.subtitle.size > 0);
     }
 
     public static bool requested (HTTPGet request) {
-        return (request.msg.request_headers.get_one ("Range") != null
-                || request.msg.request_headers.get_one ("Range.dtcp.com") != null);
+        return (request.msg.request_headers.get_one ("Range") != null);
+    }
+}
+
+public class Rygel.HTTPByteSeekResponse : Rygel.HTTPResponseElement {
+    /**
+     * The start of the range in bytes 
+     */
+    public int64 start_byte { get; set; }
+
+    /**
+     * The end of the range in bytes (inclusive)
+     */
+    public int64 end_byte { get; set; }
+
+    /**
+     * The length of the range in bytes
+     */
+    public int64 range_length { get; private set; }
+
+    /**
+     * The length of the resource in bytes
+     */
+    public int64 total_size { get; set; }
+
+    public HTTPByteSeekResponse(int64 start_byte, int64 end_byte, int64 total_size) {
+        this.start_byte = start_byte;
+        this.end_byte = end_byte;
+        this.range_length = end_byte-start_byte+1; // +1, since range is inclusive
+        this.total_size = total_size;
     }
 
-    public static string[] parse_dtcp_range_header (string range_header) {
-        string[] range_tokens = null;
-        if (!range_header.has_prefix ("bytes=")) {
-            return range_tokens;
-        }
-
-        debug ("range_header has prefix %s", range_header);
-        range_tokens = range_header.substring (6).split ("-", 2);
-
-        return range_tokens;
+    public HTTPByteSeekResponse.from_request(HTTPByteSeekRequest request) {
+        this.start_byte = request.start_byte;
+        this.end_byte = request.end_byte;
+        this.range_length = request.range_length;
+        this.total_size = request.total_size;
     }
 
-    public override void add_response_headers () {
-        // Content-Range: bytes START_BYTE-END_BYTE/TOTAL_LENGTH
-        var range_str = "bytes ";
-        unowned Soup.MessageHeaders headers = this.msg.response_headers;
-        headers.append ("Accept-Ranges", "bytes");
-        range_str += this.start_byte.to_string () + "-" +
-                 this.end_byte.to_string () + "/" +
-                 this.total_size.to_string ();
-        if (this.msg.request_headers.get_one ("Range") != null) {
-            headers.append("Content-Range", range_str);
-            if (this.is_link_protected_flag) // TODO : Call DTCP Lib to get the encrypted size 
-                headers.set_content_length (this.length);
-            else
-                headers.set_content_length (this.length);
-        } else if (this.msg.request_headers.get_one
-                                           ("Range.dtcp.com") != null) {
-            headers.append("Content-Range.dtcp.com", range_str);
-            // TODO : Call DTCP Lib to get the encrypted size
-            headers.set_content_length (this.length);
-        }
+    public override void add_response_headers (Rygel.HTTPRequest request) {
+        // Content-Range: bytes START_BYTE-END_BYTE/TOTAL_LENGTH (or "*")
+        request.msg.response_headers.set_content_range ( this.start_byte, this.end_byte,
+                                                         this.total_size );
+        request.msg.response_headers.append ("Accept-Ranges", "bytes");
+        request.msg.response_headers.set_content_length (range_length);
     }
 }

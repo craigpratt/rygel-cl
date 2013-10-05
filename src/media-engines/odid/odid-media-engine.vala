@@ -35,7 +35,6 @@ using Gee;
 using GUPnP;
 using Dtcpip;
 
-
 public errordomain Rygel.ODIDMediaEngineError {
     CONFIG_ERROR,
     INDEX_FILE_ERROR
@@ -206,6 +205,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         // Assert: All res values are set to sane/unset defaults
 
         string basename = null;
+        bool dtcp_protected = false;
+        bool is_converted = false;
 
         res.protocol_info = new GUPnP.ProtocolInfo();
         res.protocol_info.protocol = "http-get"; // Set this temporarily to avoid an assertion error
@@ -224,15 +225,12 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                     basename = value;
                     continue;
                 }
-                // Check if the media-engine dtcp-ip support (Rygel Wide & Media-Engine) and then if
-                // protected property is set to true, then overwrite the profile name with DTCP prefix and mime-type
-                if (ODIDUtil.is_rygel_dtcp_enabled()
-                    && has_mediaengine_dtcp ()
-                    && (name == "protected" && value == "true")) {
-                    string dtcp_mime_type = ODIDUtil.handle_mime_item_protected 
-                                                                  (res.protocol_info.mime_type);
-                    set_resource_field(res, "profile", "DTCP_" + res.protocol_info.dlna_profile);
-                    set_resource_field(res, "mime-type", dtcp_mime_type);
+                if (name == "protected") {
+                    dtcp_protected = (value == "true") && has_mediaengine_dtcp ();
+                    continue;
+                }
+                if (name == "converted") {
+                    is_converted = (value == "true");
                     continue;
                 }
                 if (name.length > 0 && value.length > 0) {
@@ -244,6 +242,13 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         string file_extension;
         string normal_content_filename;
 
+        // Modify the profile & mime type for DTCP, if necessary
+        if (dtcp_protected) {
+            res.protocol_info.mime_type
+                = ODIDUtil.dtcp_mime_type_for_mime_type (res.protocol_info.mime_type);
+            res.protocol_info.dlna_profile = "DTCP_" + res.protocol_info.dlna_profile;
+        }
+
         if (res.uri != null) {
             // Our URI (and content) is not Rygel-hosted. So no need to look for content
             //  (there really shouldn't be any...)
@@ -254,13 +259,11 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         if (basename == null) {
             throw new ODIDMediaEngineError.CONFIG_ERROR("No basename property set for resource");
         }
-            
+
         // Set the size according to the normal-rate file (speed "1/1")
         {
             normal_content_filename = ODIDMediaEngine.content_filename_for_res_speed (
-                                                                res_dir_uri,
-                                                                basename,
-                                                                new DLNAPlaySpeed(1,1),
+                                                                res_dir_uri, basename, null,
                                                                 out file_extension );
             File content_file = File.new_for_uri(res_dir_uri + normal_content_filename);
             FileInfo content_info = content_file.query_info(GLib.FileAttribute.STANDARD_SIZE, 0);
@@ -270,22 +273,26 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                      + normal_content_filename + " is " + res.size.to_string() );
         }
 
-        // TODO: Make any/more of these flags resource-configurable (in resource.info)
         res.protocol_info.dlna_flags = DLNAFlags.DLNA_V15
                                         | DLNAFlags.STREAMING_TRANSFER_MODE
                                         | DLNAFlags.BACKGROUND_TRANSFER_MODE
                                         | DLNAFlags.CONNECTION_STALL;
+                                        
+        res.protocol_info.dlna_conversion =  is_converted ? DLNAConversion.TRANSCODED
+                                                          : DLNAConversion.NONE;
 
         // We currently support RANGE for all resources except DTCP content
-        if (res.protocol_info.dlna_profile.has_prefix ("DTCP_")) {
+        if (dtcp_protected) {
             res.protocol_info.dlna_flags |= DLNAFlags.LINK_PROTECTED_CONTENT |
                                             DLNAFlags.CLEARTEXT_BYTESEEK_FULL;
             res.protocol_info.dlna_operation = DLNAOperation.NONE;
+            // We'll OR in TIMESEEK if we have an index file...
             res.cleartext_size = res.size;
             res.size = (int64)ODIDUtil.get_encrypted_length(res.size);
         }
         else {
             res.protocol_info.dlna_operation = DLNAOperation.RANGE;
+            // We'll OR in TIMESEEK if we have an index file...
         }
         
         // Look for an index file and set fields accordingly if/when found
@@ -413,13 +420,15 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                                             DLNAPlaySpeed? playspeed,
                                                             out string extension )
             throws Error {
-        debug ("ODIDMediaEngine.content_filename_for_res_speed: %s, %s, %s",
-                 resource_dir_path,basename, (playspeed != null) ? playspeed.to_string() : null );
+        debug ("content_filename_for_res_speed: %s, %s, %s",
+                 resource_dir_path,basename,
+                 (playspeed != null) ? playspeed.to_string() : "null" );
         string rate_string;
         if (playspeed == null) {
             rate_string = "1_1";
         } else {
-            rate_string = playspeed.numerator.to_string() + "_" + playspeed.denominator.to_string();
+            rate_string = playspeed.numerator.to_string()
+                          + "_" + playspeed.denominator.to_string();
         }
 
         string content_filename = null;
@@ -437,7 +446,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                  && (split_name[0] == basename) && (split_name[1] == rate_string) ) {
                 content_filename = cur_filename;
                 extension = split_name[2];
-                debug ("ODIDMediaEngine.content_filename_for_res_speed: FOUND MATCH: %s (extension %s)",
+                debug ("content_filename_for_res_speed: FOUND MATCH: %s (extension %s)",
                          content_filename, extension);
             }
         }
@@ -446,10 +455,10 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     }
 
     /**
-     * Produce a list of DLNAPlaySpeed corresponding to scaled content files for the given
+     * Produce a list of DLNAPlaySpeedRequest corresponding to scaled content files for the given
      * resource directory and basename.
      *
-     * @return A List with one DLNAPlaySpeed per scaled-rate content file
+     * @return A List with one DLNAPlaySpeedRequest per scaled-rate content file
      */
     internal static Gee.List<DLNAPlaySpeed>? find_playspeeds_for_res( string resource_dir_uri,
                                                                       string basename )

@@ -31,8 +31,7 @@ LIBRYGEL_SERVER_VAPI_SOURCE_FILES = \
 	rygel-http-seek.vala \
 	rygel-data-source.vala \
 	rygel-updatable-object.vala \
-	rygel-playlist-item.vala \
-	rygel-dlna-playspeed.vala
+	rygel-playlist-item.vala 
 
 LIBRYGEL_SERVER_NONVAPI_SOURCE_FILES = \
 	rygel-browse.vala \
@@ -49,6 +48,7 @@ LIBRYGEL_SERVER_NONVAPI_SOURCE_FILES = \
 	rygel-http-post.vala \
 	rygel-http-request.vala \
 	rygel-http-response.vala \
+	rygel-http-response-element.vala \
 	rygel-http-server.vala \
 	rygel-http-time-seek.vala \
 	rygel-http-transcode-handler.vala \
@@ -81,4 +81,6 @@ LIBRYGEL_SERVER_NONVAPI_SOURCE_FILES = \
 	rygel-wmp-hacks.vala \
 	rygel-xbmc-hacks.vala \
 	rygel-xbox-hacks.vala \
-	rygel-data-sink.vala
+	rygel-data-sink.vala \
+	rygel-dlna-playspeed.vala \
+	rygel-dtcp-cleartext-byte-seek.vala

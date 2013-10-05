@@ -24,101 +24,17 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-public errordomain Rygel.HTTPSeekError {
+public errordomain Rygel.HTTPSeekRequestError {
     INVALID_RANGE = Soup.KnownStatusCode.BAD_REQUEST,
     OUT_OF_RANGE = Soup.KnownStatusCode.REQUESTED_RANGE_NOT_SATISFIABLE,
 }
 
 /**
- * HTTPSeek is an abstract representation of a ranged HTTP request.
+ * HTTPSeekRequest is an abstract base for a variety of seek request types.
  *
- * Note that subclasses can represent different types of intra-resource requests
- * (e.g. HTTP Range, DLNA TimeSeekRange request). The base class represents the
- * byte-level request/response and the common interface for the request processing
- * and response generation. 
  */
-public abstract class Rygel.HTTPSeek : GLib.Object {
-    public static const int64 UNSPECIFIED_RANGE_VAL = -1;
-    
-    public Soup.Message msg { get; private set; }
-
-    /**
-     * The start of the range in bytes 
-     */
-    public int64 start_byte { get; set; }
-
-    /**
-     * The end of the range in bytes (inclusive)
-     */
-    public int64 end_byte { get; set; }
-
-    /**
-     * The length of the range in bytes
-     */
-    public int64 length { get; private set; }
-
-    /**
-     * The length of the resource in bytes
-     */
-    public int64 total_size { get; set; }
-
-    /**
-     * To inform if the media resource requested has link protection flag.
-     */
-    public bool is_link_protected_flag {get; set;}
-
-    public HTTPSeek (Soup.Message msg) {
-        this.msg = msg;
-        unset_byte_range();
-        unset_total_size();
-    }
-
-    /**
-     * Set the byte range that corresponds with the seek and the total size of the resource
-     *
-     * @param start The start byte offset of the byte range
-     * @param stop The stop byte offset of the off set (inclusive)
-     * @param total_size The total length of the resource
-     */
-    public void set_byte_range (int64   start,
-                                int64   stop) throws HTTPSeekError {
-        this.start_byte = start;
-        this.end_byte = stop;
-
-        // Byte ranges only go upward (at least DLNA 7.5.4.3.2.24.4 doesn't say otherwise)
-        if (start > stop) {
-            throw new HTTPSeekError.OUT_OF_RANGE (_("Range stop byte before start: Start '%lld', Stop '%lld'"),
-                                                  start, stop);
-        }
-
-        this.length = stop - start + 1; // Range is inclusive, so add 1 to capture byte at stop
-    }
-
-    public void unset_byte_range() {
-        this.start_byte = UNSPECIFIED_RANGE_VAL;
-        this.end_byte = UNSPECIFIED_RANGE_VAL;
-    }
-
-    /**
-     * Return true of the byte range is set.
-     */
-    public bool byte_range_set() {
-        return (this.start_byte != UNSPECIFIED_RANGE_VAL);
-    }    
-
-    public void unset_total_size() {
-        this.total_size = UNSPECIFIED_RANGE_VAL;
-    }
-    
-    /**
-     * Return true of the length is set.
-     */
-    public bool total_size_set() {
-        return (this.total_size != UNSPECIFIED_RANGE_VAL);
-    }
-
-    /**
-     * Set the reponse headers on the associated HTTP Message corresponding to the seek request 
-     */
-    public abstract void add_response_headers ();
+public abstract class Rygel.HTTPSeekRequest : GLib.Object {
+    // For designating fields that are unset
+    public static const int64 UNSPECIFIED = -1;
+    // Note: -1 is significant in that Soup also uses it to designate an "unknown" value
 }

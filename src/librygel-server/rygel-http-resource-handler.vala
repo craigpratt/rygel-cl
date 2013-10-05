@@ -60,6 +60,15 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
                                                throws HTTPRequestError {
         request.msg.response_headers.append ("Content-Type",
                                              this.media_resource.protocol_info.mime_type);
+        // Determine cache control
+        if (media_resource.is_link_protection_enabled())
+        {
+            if (request.msg.get_http_version() == Soup.HTTPVersion.@1_1) {
+                request.msg.response_headers.append ("Cache-control","no-cache");
+            }
+            request.msg.response_headers.append ("Pragma","no-cache");
+        }
+
         // Chain-up
         base.add_response_headers (request);
     }
@@ -87,7 +96,6 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
                                         (DIDLLiteObject didl_object,
                                          HTTPGet      request)
                                         throws Error {
-
         DIDLLiteItem didl_item = didl_object as DIDLLiteItem;
 
         DIDLLiteResource didl_resource = didl_item.add_resource();

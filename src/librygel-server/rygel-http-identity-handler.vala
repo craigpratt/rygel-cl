@@ -61,7 +61,7 @@ internal class Rygel.HTTPIdentityHandler : Rygel.HTTPGetHandler {
     public override bool knows_size (HTTPGet request) {
         var size = this.get_size (request);
 
-        return (request.seek != null && request.seek is HTTPByteSeek) ||
+        return (request.seek != null && request.seek is HTTPByteSeekRequest) ||
                     size > 0;
     }
 

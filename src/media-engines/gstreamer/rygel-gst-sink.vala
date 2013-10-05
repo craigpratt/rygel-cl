@@ -43,7 +43,7 @@ internal class Rygel.GstSink : Sink {
     private Mutex buffer_mutex = Mutex ();
     private Cond buffer_condition = Cond ();
     private unowned DataSource source;
-    private HTTPSeek offsets;
+    private HTTPSeekRequest offsets;
 
     private bool frozen;
 
@@ -56,7 +56,7 @@ internal class Rygel.GstSink : Sink {
         add_pad_template (template);
     }
 
-    public GstSink (DataSource source, HTTPSeek? offsets) {
+    public GstSink (DataSource source, HTTPSeekRequest? offsets) {
         this.bytes_sent = 0;
         this.max_bytes = int64.MAX;
         this.source = source;
@@ -69,8 +69,8 @@ internal class Rygel.GstSink : Sink {
         this.frozen = false;
 
         if (this.offsets != null) {
-            if (this.offsets is HTTPByteSeek) {
-                this.max_bytes = (this.offsets as HTTPByteSeek).total_size;
+            if (this.offsets is HTTPByteSeekRequest) {
+                this.max_bytes = (this.offsets as HTTPByteSeekRequest).total_size;
             }
         }
 

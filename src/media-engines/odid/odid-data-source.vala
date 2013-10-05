@@ -35,7 +35,9 @@
 /**
  * A simple data source for use with the ODID media engine.
  */
- using Dtcpip;
+using Dtcpip;
+using GUPnP;
+
 internal class Rygel.ODIDDataSource : DataSource, Object {
     private string source_uri; 
     private Thread<void*> thread;
@@ -46,10 +48,11 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     private int64 range_end = 0; // non-inclusive
     private bool frozen = false;
     private bool stop_thread = false;
-    private HTTPSeek seek;
-    private DLNAPlaySpeed playspeed = null;
+    private HTTPSeekRequest seek_request;
+    private DLNAPlaySpeedRequest playspeed_request = null;
     private MediaResource res;
-    private int session_handle = -1;
+    private bool content_protected = false;
+    private int dtcp_session_handle = -1;
 
     public ODIDDataSource(string source_uri, MediaResource ? res) {
         message ("Creating data source for %s resource %s", source_uri, res.get_name());
@@ -63,33 +66,24 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         message ("Stopped data source");
     }
 
-    public void preroll (HTTPSeek? seek, DLNAPlaySpeed? playspeed) throws Error {
+    public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
+                                                     DLNAPlaySpeedRequest? playspeed_request)
+       throws Error {
         message("source uri: " + source_uri);
 
-        this.seek = seek;
-        this.playspeed = playspeed;
+        var response_list = new Gee.ArrayList<HTTPResponseElement>();
+
+        this.seek_request = seek_request;
+        this.playspeed_request = playspeed_request;
 
         if (res == null) {
             throw new DataSourceError.GENERAL("null resource");
         }
-        
+
         debug("Resource %s size: %lld", res.get_name(), res.size);
         debug("Resource %s duration: %lld", res.get_name(), res.duration);
         debug("Resource %s protocol_info: %s", res.get_name(), res.protocol_info.to_string());
         debug("Resource %s profile: %s", res.get_name(), res.protocol_info.dlna_profile);
-
-        if (res != null &&
-            res.protocol_info.dlna_profile.has_prefix ("DTCP_") &&
-            ODIDMediaEngine.is_dtcp_loaded()) {
-            message ("Entering DTCP-IP streaming mode");
-            Dtcpip.server_dtcp_open (out session_handle, 0);
-        }
-
-        if (session_handle == -1) {
-            debug ("DTCP-IP session not opened");
-        } else {
-            message ("Got DTCP-IP session handle : %d", session_handle);
-        }
 
         KeyFile keyFile = new KeyFile();
         keyFile.load_from_file(File.new_for_uri (source_uri).get_path (),
@@ -112,117 +106,199 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         string content_filename = ODIDMediaEngine.content_filename_for_res_speed (
                                                             odid_item_path + resource_dir,
                                                             basename,
-                                                            playspeed,
+                                                            (playspeed_request==null)
+                                                              ? null : playspeed_request.speed,
                                                             out file_extension );
         this.content_uri = resource_path + content_filename;
         message ("    content file: %s", content_filename);
 
-        // Get the size for the scaled content file 
+        this.content_protected = ( res.protocol_info.dlna_flags
+                                   & DLNAFlags.LINK_PROTECTED_CONTENT ) != 0;
+        if (this.content_protected) {
+            // Sanity check
+            if (!res.protocol_info.dlna_profile.has_prefix("DTCP_")) {
+                throw new DataSourceError.GENERAL("Request to stream protected content in non-protected profile: "
+                                                  + res.protocol_info.dlna_profile );
+            }
+            message ("      Content is protected");
+        } else {
+            message ("      Content is not protected");
+        }
+        
+        // Get the size for the content file 
         File content_file = File.new_for_uri(this.content_uri);
         FileInfo content_info = content_file.query_info(GLib.FileAttribute.STANDARD_SIZE, 0);
         int64 total_size = content_info.get_size();
-        seek.total_size = total_size;
-        message ("      Total size is is " + total_size.to_string());
-                                                            
-        // Process HTTPSeek
-        if (seek == null) {
+        message ("      Total size is " + total_size.to_string());
+
+        // Process PlaySpeed
+        if (playspeed_request != null) {
+            int framerate = 0;
+            string framerate_for_speed = get_content_property(content_uri, "framerate");
+            if (framerate_for_speed == null) {
+                framerate = DLNAPlaySpeedResponse.NO_FRAMERATE;
+            } else {
+                framerate = int.parse((framerate_for_speed == null) ? "" : framerate_for_speed);
+                if (framerate == 0) {
+                    framerate = DLNAPlaySpeedResponse.NO_FRAMERATE;
+                }
+            }
+            message ( "    framerate for speed %s: %s",
+                      playspeed_request.speed.to_string(),
+                      ( (framerate == DLNAPlaySpeedResponse.NO_FRAMERATE) ? "None"
+                        : framerate.to_string() ) );
+            var speed_response
+                 = new DLNAPlaySpeedResponse.from_speed( playspeed_request.speed,
+                                                         (framerate > 0) ? framerate
+                                                         : DLNAPlaySpeedResponse.NO_FRAMERATE );
+            response_list.add(speed_response);
+        }
+
+        bool perform_cleartext_response;
+
+        // Process HTTPSeekRequest
+        if (seek_request == null) {
             message ("No seek request received");
-        } else if (seek is HTTPTimeSeek) {
-            var time_seek = seek as HTTPTimeSeek;
+            perform_cleartext_response = false;
+        } else if (seek_request is HTTPTimeSeekRequest) {
             //
-            // Convert the HTTPTimeSeek to a byte range and update the HTTPTimeSeek response params
+            // Time-based seek
             //
-            bool is_reverse = (playspeed != null) && (playspeed.is_negative());
+            var time_seek = seek_request as HTTPTimeSeekRequest;
+            bool is_reverse = (playspeed_request != null) && (playspeed_request.speed.is_negative());
 
             // Calculate the effective range of the time seek using the appropriate index file
             
-            int64 time_offset_start = time_seek.requested_start;
+            int64 time_offset_start = time_seek.start_time;
             int64 time_offset_end;
-            if (time_seek.end_time_requested()) {
-                time_offset_end = time_seek.requested_end;
-            } else { // The "end" of the time range depends on the direction
+            if (time_seek.end_time == HTTPSeekRequest.UNSPECIFIED) {
+                // For time-seek, the "end" of the time range depends on the direction
                 time_offset_end = is_reverse ? 0 : int64.MAX;
+            } else { 
+                time_offset_end = time_seek.end_time;
             }
 
             string index_path = resource_path + "/" + content_filename + ".index";
-            int64 total_duration = time_seek.total_duration_set() ? time_seek.get_total_duration()
-                                                                  : int64.MAX;
+            int64 total_duration = (time_seek.total_duration != HTTPSeekRequest.UNSPECIFIED)
+                                   ? time_seek.total_duration
+                                   : int64.MAX;
             message ("      Total duration is " + total_duration.to_string());
             message ("Processing time seek (time %lldns to %lldns)", time_offset_start, time_offset_end);
             
+            // Now set the effective time/data range and duration/size for the time range
             offsets_for_time_range(index_path, is_reverse,
                                    ref time_offset_start, ref time_offset_end, total_duration,
                                    out this.range_start, out this.range_end, total_size );
 
-            message ("Data range for time seek: bytes %lld through %lld",
-                     this.range_start, this.range_end-1);
-                     
-            // Now set the effective time/data range and duration/size (if known)
-            time_seek.set_effective_time_range(time_offset_start, time_offset_end);
-            
-            time_seek.set_byte_range(this.range_start, this.range_end-1); // inclusive offset
-        } else if (seek is HTTPByteSeek) {
+            if (this.content_protected) {
+                // We don't currently support Range on link-protected binaries. So leave out
+                //  the byte range from the TimeSeekRange response
+                var seek_response
+                    = new HTTPTimeSeekResponse.time_only( time_offset_start, time_offset_end,
+                                                          total_duration );
+                message ("Time range for time seek: %lldms through %lldms",
+                         seek_response.start_time, seek_response.end_time);
+                response_list.add(seek_response);
+                perform_cleartext_response = true; // We'll packet-align the range below
+            } else { // No link protection
+                var seek_response = new HTTPTimeSeekResponse( time_offset_start, time_offset_end,
+                                                              total_duration,
+                                                              this.range_start, this.range_end-1,
+                                                              total_size );
+                message ("Time range for time seek response: %lldms through %lldms",
+                         seek_response.start_time, seek_response.end_time);
+                message ("Byte range for time seek response: bytes %lld through %lld",
+                         seek_response.start_byte, seek_response.end_byte );
+                response_list.add(seek_response);
+                perform_cleartext_response = false;
+            }
+        } else if (seek_request is HTTPByteSeekRequest) {
             //
-            // Byte-based seek - no conversion required (*)
+            // Byte-based seek (only for non-protected content currently)
             //
-            // TODO: Add DTCPRangeSeek class and a "seek is DTCPRangeSeek" case
-            var byte_seek = seek as HTTPByteSeek;
-            message ("Received data seek (bytes %lld to %lld)",
-                     byte_seek.start_byte, byte_seek.end_byte);
-            offsets_for_byte_seek(byte_seek.start_byte, byte_seek.end_byte, byte_seek.total_size);
-            message ("Modified data seek (bytes %lld to %lld)",
-                     this.range_start, this.range_end);
+            if (this.content_protected) { // Sanity check
+                throw new DataSourceError.GENERAL("Byte seek not supported on protected content");
+            }
+            var byte_seek = seek_request as HTTPByteSeekRequest;
+            message ("Processing byte seek (bytes %lld to %s)", byte_seek.start_byte,
+                     (byte_seek.end_byte == HTTPSeekRequest.UNSPECIFIED)
+                     ? "*" : byte_seek.end_byte.to_string() );
+            this.range_start = byte_seek.start_byte;
+            if (byte_seek.end_byte == HTTPSeekRequest.UNSPECIFIED) {
+                this.range_end = total_size;
+            } else {
+                this.range_end = int64.min(byte_seek.end_byte + 1, total_size);
+            }
+            var seek_response = new HTTPByteSeekResponse( this.range_start, this.range_end-1,
+                                                          total_size);
+            message ("Byte range for byte seek response: bytes %lld through %lld",
+                     seek_response.start_byte, seek_response.end_byte );
+            response_list.add(seek_response);
+            perform_cleartext_response = false;
+        } else if (seek_request is DTCPCleartextByteSeekRequest) {
+            //
+            // Cleartext-based seek (only for link-protected content)
+            //
+            if (!this.content_protected) { // Sanity check
+                throw new DataSourceError.GENERAL("Cleartext seek not supported on unprotected content");
+            }
+            var cleartext_seek = seek_request as DTCPCleartextByteSeekRequest;
+            message ( "Processing cleartext byte seek (bytes %lld to %s)",
+                      cleartext_seek.start_byte,
+                      (cleartext_seek.end_byte == HTTPSeekRequest.UNSPECIFIED)
+                      ? "*" : cleartext_seek.end_byte.to_string() );
+            this.range_start = cleartext_seek.start_byte;
+            if (cleartext_seek.end_byte == HTTPSeekRequest.UNSPECIFIED) {
+                this.range_end = total_size;
+            } else {
+                this.range_end = int64.min(cleartext_seek.end_byte + 1, total_size);
+            }
+            perform_cleartext_response = true; // We'll packet-align the range below
         } else {
             throw new DataSourceError.SEEK_FAILED("Unsupported seek type");
         }
 
-        // Process PlaySpeed
-        if (playspeed == null) {
-            message ("No playspeed request received");
-        } else {
-            message ("Received playspeed " + playspeed.to_string()
-                     + " (" + playspeed.to_float().to_string() + ")");
-            try {
-                string framerate_for_speed = get_content_property(content_uri, "framerate");
-                message ("  Framerate for speed %s: %s", playspeed.to_string(),
-                                                         framerate_for_speed);
-                int framerate = int.parse(framerate_for_speed);
-                if (framerate > 0) {
-                    playspeed.set_framerate(framerate);
-                } else {
-                    warning("Invalid framerate found for %s: %s", content_filename,
-                            framerate_for_speed);
-                }
-            } catch (Error err) {
-                debug("Error reading framerate property (continuing): " + err.message);
-            }
+        if (perform_cleartext_response) {
+            // The range needs to be packet-aligned, which can affect range returned
+            get_packet_aligned_range( res, this.range_start, this.range_end,
+                                      total_size,
+                                      out this.range_start, out this.range_end );
+            var seek_response
+                = new DTCPCleartextByteSeekResponse(this.range_start,this.range_end-1,total_size);
+            
+            seek_response.encrypted_length =
+                               (int64)ODIDUtil.get_encrypted_length(seek_response.range_length);
+            
+            response_list.add(seek_response);
+            message ("Byte range for cleartext byte seek response: bytes %lld through %lld",
+                     seek_response.start_byte, seek_response.end_byte );
         }
+
+        return response_list;
         // Wait for a start() before sending anything
     }
 
-    internal void offsets_for_byte_seek (int64 start, int64 end, int64 total_size) {
-            this.range_start = start;
-
-            if (this.seek.msg.request_headers.get_one ("Range.dtcp.com") != null) {
-                //Get the transport stream packet size for the profile
-                string profile_name = res.protocol_info.dlna_profile;
-
-                // Align the bytes to transport packet boundaries
-                int64 packet_size = ODIDUtil.get_profile_packet_size(profile_name);
-                if (packet_size > 0) {
-                // DLNA Link Protection : 8.9.5.4.2
-                    this.range_end = ODIDUtil.get_dtcp_algined_end
-                              (start, end, ODIDUtil.get_profile_packet_size(profile_name));
-                }
-                if (this.range_end > total_size) {
-                    this.range_end = total_size;
-                }
-            } else {
-                // Range requests are inclusive, but range_end is not. So add 1 to capture the
-                //  last range byte
-                this.range_end = end+1; 
-            }
+    /**
+     * Note: range_end and aligned_end are non-inclusive
+     */
+    internal void get_packet_aligned_range ( MediaResource res,
+                                             int64 range_start, int64 range_end, int64 total_size,
+                                             out int64 aligned_start, out int64 aligned_end ) {
+        //Get the transport stream packet size for the profile
+        string profile_name = res.protocol_info.dlna_profile;
+        // Align the bytes to transport packet boundaries
+        int64 packet_size = ODIDUtil.get_profile_packet_size(profile_name);
+        aligned_start = range_start;
+        if (packet_size > 0) {
+            // DLNA Link Protection : 8.9.5.4.2
+            aligned_end = ODIDUtil.get_dtcp_aligned_end(range_start, range_end, packet_size);
+            aligned_end = int64.min(aligned_end, total_size);
+        } else {
+            warning("Attemped to DTCP-align unsupported protocol: " + profile_name);
+            aligned_end = range_end;
+        }
     }
+    
     /**
      * Find the time/data offsets that cover the provided time range start_time to end_time.
      *
@@ -346,6 +422,20 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     public void start () throws Error {
         message ("Starting data source for %s", content_uri);
 
+        if (this.content_protected) {
+            if (ODIDMediaEngine.is_dtcp_loaded()) {
+                Dtcpip.server_dtcp_open (out dtcp_session_handle, 0);
+            }
+
+            if (dtcp_session_handle == -1) {
+                warning ("DTCP-IP session not opened");
+                throw new DataSourceError.GENERAL("Error starting DTCP session");
+            } else {
+                message ("Entering DTCP-IP streaming mode (session handle 0x%X)",
+                         dtcp_session_handle);
+            }
+        }
+
         this.thread = new Thread<void*>("ODIDDataSource Serving thread",
                                          this.thread_func);
     }
@@ -386,10 +476,10 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     }
 
     public void clear_dtcp_session() {
-        if (session_handle != -1) {
-            int ret_close = Dtcpip.server_dtcp_close (session_handle);
+        if (dtcp_session_handle != -1) {
+            int ret_close = Dtcpip.server_dtcp_close (dtcp_session_handle);
             message ("Dtcp session closed : %d",ret_close);
-            session_handle = -1;
+            dtcp_session_handle = -1;
         }
     }
     private void* thread_func() {
@@ -433,45 +523,44 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 unowned uint8[] data = (uint8[]) mapped.get_contents ();
                 data.length = (int) mapped.get_length ();
                 uint8[] slice = data[start:stop];
+                this.range_start = stop; // Move forward
 
-                // Encrypted data has to be unowned as the reference will be passed
-                // to DTCP libraries to perform the cleanup, else vala will be
-                //performing the cleanup by default.
-                unowned uint8[] encrypted_data = null;
-                int64 encrypted_data_length =-1;
-                uchar cci = 0x3;
-
-                // Encrypt the data here
-                if (this.session_handle != -1) {
-                    int return_value = Dtcpip.server_dtcp_encrypt (session_handle, cci, slice, out encrypted_data);
-                    encrypted_data_length = encrypted_data.length;
-                    debug ("Encryption returned : %d and the encryption size : %lld",return_value,encrypted_data_length);
-                }
-
-                this.range_start = stop;
-
-                // There's a potential race condition here.
-                Idle.add ( () => {
-                    if (!this.stop_thread) {
-                        if (this.session_handle != -1) {
-                            debug ("Sending encrypted data.");
-                            this.data_available (encrypted_data);
-                        } else {
-                            debug ("Sending unencrypted data.");
+                if (this.dtcp_session_handle == -1) {
+                    // There's a potential race condition here.
+                    Idle.add ( () => {
+                        if (!this.stop_thread) {
                             this.data_available (slice);
                         }
+                        return false;
+                    });
+                } else {
+                    // Encrypted data has to be unowned as the reference will be passed
+                    // to DTCP libraries to perform the cleanup, else vala will be
+                    //performing the cleanup by default.
+                    unowned uint8[] encrypted_data = null;
+                    uchar cci = 0x3; // TODO: Put the CCI bits in resource.info
 
-                    }
+                    // Encrypt the data
+                    int return_value = Dtcpip.server_dtcp_encrypt ( dtcp_session_handle, cci,
+                                                                    slice, out encrypted_data );
+                    debug ("Encryption returned: %d and the encryption size : %s",
+                           return_value,
+                           (encrypted_data == null) ? "NULL" : encrypted_data.length.to_string() );
+                    // There's a potential race condition here.
+                    Idle.add ( () => {
+                        if (!this.stop_thread) {
+                            this.data_available (encrypted_data);
+                        }
 
-                    if (encrypted_data != null) {
                         int ret_free = Dtcpip.server_dtcp_free (encrypted_data);
                         debug ("DTCP-IP data reference freed : %d", ret_free);
-                    }
-                    return false;
-                });
+
+                        return false;
+                    });
+                }
             }
         } catch (Error error) {
-            warning ("Failed to map file: %s", error.message);
+            warning ("Failed to stream: %s", error.message);
         }
 
         // Signal that we're done streaming

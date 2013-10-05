@@ -34,35 +34,32 @@ public errordomain Rygel.DLNAPlaySpeedError {
     SPEED_NOT_PRESENT
 }
 
+public static const string PLAYSPEED_HEADER = "PlaySpeed.dlna.org";
+public static const string FRAMERATE_HEADER = "FrameRateInTrickMode.dlna.org";
+
 /**
- * PlaySpeed represents a DLNA PlaySpeed (PlaySpeed.dlna.org)
+ * This class represents a DLNA PlaySpeed request (PlaySpeed.dlna.org)
  *
- * A Playspeed can be positive or negative whole numbers or fractions.
- * e.g. "2". "1/2", "-1/4"
  */
-public class Rygel.DLNAPlaySpeed : GLib.Object {
-    public int numerator; // Sign of the speed will be attached to the numerator
-    public uint denominator;
-    public static const string PLAYSPEED_HEADER = "PlaySpeed.dlna.org";
-    public static const string FRAMERATE_HEADER = "FrameRateInTrickMode.dlna.org";
-    public static const int UNSPECIFIED_FRAMERATE = -1;
-    /**
-     * The framerate supported for the given rate, in frames per second
-     */
-    public int framerate;
-
-    public DLNAPlaySpeed (int numerator, uint denominator) {
-        this.numerator = numerator;
-        this.denominator = denominator;
-        this.framerate = UNSPECIFIED_FRAMERATE;
+public class Rygel.DLNAPlaySpeedRequest : GLib.Object {
+    public DLNAPlaySpeed speed { get; private set; }
+    
+    internal static bool requested (HTTPGet request) {
+        return request.msg.request_headers.get_one (PLAYSPEED_HEADER) != null;
+    }
+    
+    public DLNAPlaySpeedRequest (int numerator, uint denominator) {
+        base();
+        this.speed = new DLNAPlaySpeed(numerator, denominator);
     }
 
-    public DLNAPlaySpeed.from_string (string speed) throws DLNAPlaySpeedError {
-        parse(speed);
-        this.framerate = UNSPECIFIED_FRAMERATE;
+    public DLNAPlaySpeedRequest.from_string (string speed) throws DLNAPlaySpeedError {
+        base();
+        this.speed = new DLNAPlaySpeed.from_string(speed);
     }
 
-    internal DLNAPlaySpeed.from_request (Rygel.HTTPGet request) throws DLNAPlaySpeedError {
+    internal DLNAPlaySpeedRequest.from_request (Rygel.HTTPGet request) throws DLNAPlaySpeedError {
+        base();
         // Format: PlaySpeed.dlna.org: speed=<rate>
         string speed_string = request.msg.request_headers.get_one (PLAYSPEED_HEADER);
 
@@ -77,8 +74,8 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
                                                                + PLAYSPEED_HEADER + ": "
                                                                + speed_string );
         }
-        
-        parse(elements[1]);
+
+        speed = new DLNAPlaySpeed.from_string(elements[1]);
 
         // Validate if playspeed is listed in the protocolInfo
         if (request.handler is HTTPMediaResourceHandler) {
@@ -87,7 +84,7 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
             string[] speeds = resource.protocol_info.get_play_speeds();
             bool found_speed = false;
             foreach (var speed in speeds) {
-                var cur_speed = new DLNAPlaySpeed.from_string (speed);
+                var cur_speed = new DLNAPlaySpeedRequest.from_string (speed);
                 if (this.equals(cur_speed)) {
                     found_speed = true;
                     break;
@@ -98,7 +95,81 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
                 throw new DLNAPlaySpeedError.SPEED_NOT_PRESENT("Unknown playspeed requested.");
             }
         }
-        this.framerate = UNSPECIFIED_FRAMERATE;
+    }
+
+    public bool equals(DLNAPlaySpeedRequest that) {
+        if (that == null) return false;
+
+        return (this.speed.equals(that.speed));
+    }
+}
+
+/**
+ * This class represents a DLNA PlaySpeed response (PlaySpeed.dlna.org)
+ */
+public class Rygel.DLNAPlaySpeedResponse : Rygel.HTTPResponseElement {
+    DLNAPlaySpeed speed;
+    public static const int NO_FRAMERATE = -1;
+
+    /**
+     * The framerate supported for the given rate, in frames per second
+     */
+    public int framerate;
+
+    public DLNAPlaySpeedResponse (int numerator, uint denominator, int framerate) {
+        base();
+        this.speed = new DLNAPlaySpeed(numerator, denominator);
+        this.framerate = NO_FRAMERATE;
+    }
+
+    public DLNAPlaySpeedResponse.from_speed (DLNAPlaySpeed speed, int framerate)
+       throws DLNAPlaySpeedError {
+        base();
+        this.speed = speed;
+        this.framerate = framerate;
+    }
+
+    public DLNAPlaySpeedResponse.from_string (string speed, int framerate)
+       throws DLNAPlaySpeedError {
+        base();
+        this.speed = new DLNAPlaySpeed.from_string(speed);
+        this.framerate = NO_FRAMERATE;
+    }
+
+    public bool equals(DLNAPlaySpeedRequest that) {
+        if (that == null) return false;
+
+        return (this.speed.equals(that.speed));
+    }
+
+    public override void add_response_headers (Rygel.HTTPRequest request) {
+        // Format: PlaySpeed.dlna.org: speed=<rate>
+        request.msg.response_headers.append (PLAYSPEED_HEADER, "speed=" + speed.to_string());
+        if (this.framerate > 0) {
+            // Format: FrameRateInTrickMode.dlna.org: rate=<framerate>
+            request.msg.response_headers.append ( FRAMERATE_HEADER,
+                                                  "rate=" + this.framerate.to_string() );
+        }
+    }
+}
+
+/**
+ * This is a container for a PlaySpeed value.
+ * 
+ * A Playspeed can be positive or negative whole numbers or fractions.
+ * e.g. "2". "1/2", "-1/4"
+ */
+public class Rygel.DLNAPlaySpeed {
+    public int numerator; // Sign of the speed will be attached to the numerator
+    public uint denominator;
+    
+    public DLNAPlaySpeed (int numerator, uint denominator) {
+        this.numerator = numerator;
+        this.denominator = denominator;
+    }
+
+    public DLNAPlaySpeed.from_string (string speed) throws DLNAPlaySpeedError {
+        parse(speed);
     }
 
     public bool equals(DLNAPlaySpeed that) {
@@ -136,7 +207,7 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
         return (float)numerator/denominator;
     }
 
-    public void parse(string speed) throws DLNAPlaySpeedError {
+    private void parse(string speed) throws DLNAPlaySpeedError {
         if (! ("/" in speed)) {
             this.numerator = int.parse(speed);
             this.denominator = 1;
@@ -146,65 +217,15 @@ public class Rygel.DLNAPlaySpeed : GLib.Object {
                 throw new DLNAPlaySpeedError.INVALID_SPEED_FORMAT("Missing/extra numerator/denominator");
             }
             this.numerator = int.parse(elements[0]);
-            // Luckily, "0" isn't a valid numerator or denominator, as int.try_parse() is MIA
-            if (this.numerator == 0) {
-                throw new DLNAPlaySpeedError.INVALID_SPEED_FORMAT("Invalid numerator: " + elements[0]);
-            }
             this.denominator = int.parse(elements[1]);
-
-            if (this.denominator <= 0) {
-                throw new DLNAPlaySpeedError.INVALID_SPEED_FORMAT("Invalid denominator: " + elements[1]);
-            }
         }
-    }
-
-    /**
-     * Set the framerate for the playspeed response.
-     *
-     * If the the framerate is set, a FrameRateInTrickMode response header will
-     * be generated when add_response_headers() is called with the "rate=" field
-     * set to the framerate.
-     * 
-     * @param framerate Framerate in frames per second
-     */
-    public void set_framerate(int framerate) {
-        this.framerate = framerate;
-    }
-
-    /**
-     * Unset the framerate for the playspeed response.
-     *
-     * If the the framerate is unset, a FrameRateInTrickMode response header will
-     * not be generated when add_response_headers() is called.
-     */
-    public void unset_framerate() {
-        this.framerate = UNSPECIFIED_FRAMERATE;
-    }
-
-    /**
-     * Return true if the framerate is set.
-     *
-     * When true, a FrameRateInTrickMode response will be generated when add_response_headers()
-     * is called with the "rate=" field set to the framerate.
-     *
-     * When false, a FrameRateInTrickMode response header will not be generated when
-     * add_response_headers() is called..
-     */
-    public bool framerate_set() {
-        return (this.framerate != UNSPECIFIED_FRAMERATE);
-    }
-
-    internal static bool requested (HTTPGet request) {
-        return request.msg.request_headers.get_one (PLAYSPEED_HEADER) != null;
-    }
-    
-    internal void add_response_headers (Rygel.HTTPRequest request) {
-        // Format: PlaySpeed.dlna.org: speed=<rate>
-        request.msg.response_headers.append (PLAYSPEED_HEADER, "speed=" + this.to_string());
-        if (framerate_set()) {
-            // Format: FrameRateInTrickMode.dlna.org: rate=<framerate>
-            request.msg.response_headers.append ( FRAMERATE_HEADER,
-                                                  "rate=" + this.framerate.to_string() );
+        // "0" isn't a valid numerator or denominator (and parse returns "0" on parse error)
+        if (this.numerator == 0) {
+            throw new DLNAPlaySpeedError.INVALID_SPEED_FORMAT("Invalid numerator in speed: " + speed);
+        }
+        if (this.denominator <= 0) {
+            throw new DLNAPlaySpeedError.INVALID_SPEED_FORMAT("Invalid denominator in speed: " + speed);
         }
     }
 }
+

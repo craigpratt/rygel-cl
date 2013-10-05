@@ -38,7 +38,6 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
     private uint64 last_byte = 0;
     private bool frozen = false;
     private bool stop_thread = false;
-    private HTTPSeek offsets = null;
 
     public SimpleDataSource (string uri) {
         debug ("Creating new data source for %s", uri);
@@ -49,21 +48,35 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
         this.stop ();
     }
 
-    public void preroll (HTTPSeek? offsets, DLNAPlaySpeed? rate) throws Error {
-        if (offsets != null) {
-            if (!(offsets is HTTPByteSeek)) {
+    public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
+                                                     DLNAPlaySpeedRequest? playspeed_request)
+       throws Error {
+        var response_list = new Gee.ArrayList<HTTPResponseElement>();
+
+        if (seek_request != null) {
+            if (!(seek_request is HTTPByteSeekRequest)) {
                 throw new DataSourceError.SEEK_FAILED
                                         (_("Only byte-based seek supported"));
 
             }
+
+            var byte_seek = seek_request as HTTPByteSeekRequest;
+            this.first_byte = byte_seek.start_byte;
+            this.last_byte = byte_seek.end_byte + 1;
+            var seek_response = new HTTPByteSeekResponse.from_request(byte_seek);
+            // Response will just return what was in the request
+            response_list.add(seek_response);
+        } else {
+            this.first_byte = 0;
+            this.last_byte = 0; // Indicates the entire file
         }
 
-        if (rate != null) {
+        if (playspeed_request != null) {
             throw new DataSourceError.PLAYSPEED_FAILED
                                     (_("Playspeed not supported"));
         }
 
-        this.offsets = offsets;
+        return response_list;
     }
 
     public void start () throws Error {
@@ -112,13 +125,10 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
         debug ("Spawning new thread for streaming file %s", this.uri);
         try {
             var mapped = new MappedFile (file.get_path (), false);
-            if (this.offsets != null) {
-                this.first_byte = this.offsets.start_byte;
-                this.last_byte = this.offsets.end_byte + 1;
-            } else {
+            if (this.last_byte == 0) {
                 this.last_byte = mapped.get_length ();
             }
-
+            
             while (true) {
                 bool exit;
                 this.mutex.lock ();
