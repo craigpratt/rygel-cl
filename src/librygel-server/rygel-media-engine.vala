@@ -122,11 +122,6 @@ public abstract class Rygel.MediaEngine : GLib.Object {
     public abstract unowned List<Transcoder>? get_transcoders ();
 
     /**
-     * Returns if the media engine is capable of handling dtcp request
-     */
-    public abstract bool has_mediaengine_dtcp ();
-
-    /**
      * Get a data source for the URI which renders the content specified by the uri
      * according to the MediaResource-specified parameters.
      *

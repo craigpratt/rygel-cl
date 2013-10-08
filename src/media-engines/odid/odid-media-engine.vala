@@ -72,49 +72,50 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     public static const uint INDEXFILE_FIELD_FRAMESIZE_OFFSET = 37;
     public static const uint INDEXFILE_FIELD_FRAMESIZE_LENGTH = 10;
 
-    //DTCP Related variabled
-    private static bool dtcp_supported = false;
-    private static bool dtcp_loaded = false;
-    private string dtcp_storage = null;
+    // DTCP control variables
+    private bool dtcp_initialized;
+    private string dtcp_storage;
+    private ushort dtcp_port; // Default DTCP port is 8999
+    private string dtcp_host;
 
     public ODIDMediaEngine() {
         message("constructing");
         var profiles_config = new Gee.ArrayList<string>();
         var config = MetaConfig.get_default();
-        //char version_str[512];
-        ushort dtcp_port = 8999; // Default set it to 8999.
 
+        bool dtcp_enabled = false;
         try {
-            dtcp_supported = config.get_bool ("OdidMediaEngine", "engine-dtcp");
+            dtcp_enabled = config.get_bool ("OdidMediaEngine", "dtcp-enabled");
             profiles_config = config.get_string_list( "OdidMediaEngine", "profiles");
         } catch (Error err) {
             error("Error reading ODIDMediaEngine property: " + err.message);
         }
 
-        if (ODIDUtil.is_rygel_dtcp_enabled() && dtcp_supported) {
+        dtcp_initialized = false;
+        if (dtcp_enabled) {
             try {
-                dtcp_storage = config.get_string ("general", "dtcp-storage");
-                dtcp_port = (ushort)config.get_int ("general", "dtcp-port", 6000, 8999);
+                this.dtcp_storage = config.get_string ("OdidMediaEngine", "dtcp-storage");
+                this.dtcp_host = config.get_string ("OdidMediaEngine", "dtcp-host");
+                this.dtcp_port = (ushort)config.get_int ("OdidMediaEngine", "dtcp-port",
+                                                         6000, 8999);
+                if (Dtcpip.init_dtcp_library (dtcp_storage) != 0) {
+                    error ("DTCP-IP init failed for storage path: %s",dtcp_storage);
+                } else {
+                    message ("DTCP-IP storage loaded successfully");
+                    if (Dtcpip.server_dtcp_init (dtcp_port) != 0) {
+                        error ("DTCP-IP source init failed: host %s, port %d, storage %s",
+                               this.dtcp_host, this.dtcp_port, this.dtcp_storage);
+                    } else {
+                        message ("DTCP-IP source initialized: host %s, port %d, storage %s",
+                                 this.dtcp_host, this.dtcp_port, this.dtcp_storage);
+                        dtcp_initialized = true;
+                    }
+                }
             } catch (Error err) {
-                error("Error reading ODIDMediaEngine dtcp property: " + err.message);
+                error("Error initializing DTCP: " + err.message);
             }
-            if (Dtcpip.init_dtcp_library (dtcp_storage) != 0){
-                error ("DTCP-IP init failed for storage path : %s",dtcp_storage);
-            } else {
-                message ("DTCP-IP storage loaded successfully");
-            }
-
-            //else {
-                //cmn_get_version (version_str, 512);
-                //message ("DTCP String version : %s",(string)version_str);
-            //}
-
-            if (Dtcpip.server_dtcp_init (dtcp_port) != 0) {
-                error ("DTCP-IP source init failed.");
-            } else {
-                message ("DTCP-IP source initialized");
-                dtcp_loaded = true;
-            }
+        } else {
+            message ("DTCP-IP is disabled");
         }
 
         foreach (var row in profiles_config) {
@@ -226,7 +227,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                     continue;
                 }
                 if (name == "protected") {
-                    dtcp_protected = (value == "true") && has_mediaengine_dtcp ();
+                    dtcp_protected = (value == "true") && dtcp_initialized;
                     continue;
                 }
                 if (name == "converted") {
@@ -245,7 +246,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         // Modify the profile & mime type for DTCP, if necessary
         if (dtcp_protected) {
             res.protocol_info.mime_type
-                = ODIDUtil.dtcp_mime_type_for_mime_type (res.protocol_info.mime_type);
+                = dtcp_mime_type_for_mime_type (res.protocol_info.mime_type);
             res.protocol_info.dlna_profile = "DTCP_" + res.protocol_info.dlna_profile;
         }
 
@@ -288,9 +289,9 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             res.protocol_info.dlna_operation = DLNAOperation.NONE;
             // We'll OR in TIMESEEK if we have an index file...
             res.cleartext_size = res.size;
-            res.size = (int64)ODIDUtil.get_encrypted_length(res.size);
-        }
-        else {
+            res.size = (int64)Dtcpip.get_encrypted_length(res.cleartext_size, uint16.MAX);
+            debug ("Encrypted size from DTCP library: %lld",res.size);
+        } else {
             res.protocol_info.dlna_operation = DLNAOperation.RANGE;
             // We'll OR in TIMESEEK if we have an index file...
         }
@@ -330,6 +331,15 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             }
         }
         return res;
+    }
+
+    /**
+     * Return DTCP mime type string for a given mime type
+     */
+    public string dtcp_mime_type_for_mime_type (string mime_type) {
+        return "application/x-dtcp1;DTCP1HOST=" + this.dtcp_host.to_string()
+                                + ";DTCP1PORT=" + this.dtcp_port.to_string()
+                                + ";CONTENTFORMAT=\"" + mime_type + "\"";
     }
 
     /**
@@ -556,21 +566,6 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         
         return new ODIDDataSource(uri, resource);
     }
-
-     /**
-     * Returns if the media engine is capable of handling dtcp request
-     */
-    public override bool has_mediaengine_dtcp () {
-        return dtcp_supported;
-    }
-
-     /**
-     * Returns if dtcp libraries are initialized successfully
-     */
-    public static bool is_dtcp_loaded () {
-        return dtcp_loaded;
-    }
-
 }
 
 public static Rygel.MediaEngine module_get_instance() {

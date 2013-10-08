@@ -35,11 +35,6 @@ public class Rygel.ODIDUtil : Object {
     private static ODIDUtil util = null;
     public const int64 PACKET_SIZE_188 = 188;
     public const int64 PACKET_SIZE_192 = 192;
-    public const string dtcp_mime_prefix = "application/x-dtcp1";
-    public const string dtcp_host_str = "DTCP1HOST=";
-    public const string dtcp_port_str = "DTCP1PORT=";
-    public const string content_format_str = "CONTENTFORMAT=";
-    public const string dtcp_prefix = "DTCP_";
 
     private ODIDUtil() {
 
@@ -86,58 +81,7 @@ public class Rygel.ODIDUtil : Object {
         //TODO : Handle MPEG_PS content alignment.(DLNA Link Protection 8.9.5.1.1)
         return 0;
     }
-
-     /**
-      * Modify mime type if the item is protected.
-      * This can call into a custom class that will have knowledge.
-      */
-    public static string dtcp_mime_type_for_mime_type (string mime_type) {
-        string dtcp_host;
-        string dtcp_port;
-
-        var config = MetaConfig.get_default();
-        try {
-            dtcp_host = config.get_string ("general","dtcp-host");
-            dtcp_port = config.get_string ("general", "dtcp-port");
-
-            if (dtcp_host != "" && dtcp_port != "") {
-                return dtcp_mime_prefix + ";" + dtcp_host_str + dtcp_host + ";" +
-                       dtcp_port_str + dtcp_port + ";" + content_format_str + "\"" +
-                       mime_type +"\"";
-            }
-        } catch (Error err) {
-            error ("Error reading dtcp host/port :" + err.message);
-        }
-
-        return mime_type;
-    }
-
-    /**
-     * Returns if dtcp is enabled Rygel wide,
-     * with DTCP (keys, host, port) values.
-     */
-    public static bool is_rygel_dtcp_enabled () {
-        var config = MetaConfig.get_default();
-        bool dtcp_enabled = false;
-
-        try {
-            dtcp_enabled = config.get_bool ("general","dtcp-enabled");
-        } catch (Error err) {
-            error("Error reading dtcp enabled property :"+ err.message);
-        }
-        return dtcp_enabled;
-    }
-
-    public static uint64 get_encrypted_length (uint64 cleartext_size) {
-        if (is_rygel_dtcp_enabled()) {
-            uint64 enc_size = Dtcpip.get_encrypted_length(cleartext_size,uint16.MAX);
-            debug ("Encrypted size from DTCP library: %lld",enc_size);
-            return enc_size;
-        } else {
-            return cleartext_size;
-        }
-    }
-
+    
     /**
      * Returns if the content is protected
      */

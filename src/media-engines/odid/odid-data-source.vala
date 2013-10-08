@@ -266,8 +266,9 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             var seek_response
                 = new DTCPCleartextByteSeekResponse(this.range_start,this.range_end-1,total_size);
             
-            seek_response.encrypted_length =
-                               (int64)ODIDUtil.get_encrypted_length(seek_response.range_length);
+            seek_response.encrypted_length = 
+                               (int64)Dtcpip.get_encrypted_length( seek_response.range_length,
+                                                                   uint16.MAX );
             
             response_list.add(seek_response);
             message ("Byte range for cleartext byte seek response: bytes %lld through %lld",
@@ -423,9 +424,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         message ("Starting data source for %s", content_uri);
 
         if (this.content_protected) {
-            if (ODIDMediaEngine.is_dtcp_loaded()) {
-                Dtcpip.server_dtcp_open (out dtcp_session_handle, 0);
-            }
+            Dtcpip.server_dtcp_open (out dtcp_session_handle, 0);
 
             if (dtcp_session_handle == -1) {
                 warning ("DTCP-IP session not opened");

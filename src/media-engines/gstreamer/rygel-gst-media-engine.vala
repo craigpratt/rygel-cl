@@ -137,13 +137,6 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
     public DataSource create_data_source_from_element (Element element) {
         return new GstDataSource.from_element (element);
     }
-
-    /**
-     * Returns if the media engine is capable of handling dtcp request
-     */
-    public override bool has_mediaengine_dtcp () {
-	    return false;
-    }
 }
 
 public static Rygel.MediaEngine module_get_instance () {
