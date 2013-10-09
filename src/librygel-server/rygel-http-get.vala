@@ -152,21 +152,24 @@ public class Rygel.HTTPGet : HTTPRequest {
         var supports_cleartext_seek = DTCPCleartextByteSeekRequest.supported (this);
         var requested_cleartext_seek = DTCPCleartextByteSeekRequest.requested (this);
 
-        if (requested_byte_seek && !supports_byte_seek) {
-            throw new HTTPRequestError.UNACCEPTABLE ( "Byte seek not supported for "
-                                                      + this.uri.to_string() );
+        // Order is significant here when the request has more than one seek header
+        if (requested_cleartext_seek) {
+            if (!supports_cleartext_seek) {
+                throw new HTTPRequestError.UNACCEPTABLE ( "Cleartext seek not supported for "
+                                                          + this.uri.to_string() );
+            }
+        } else if (requested_byte_seek) {
+            if (!supports_byte_seek) {
+                throw new HTTPRequestError.UNACCEPTABLE ( "Byte seek not supported for "
+                                                          + this.uri.to_string() );
+            }
+        } else if (requested_time_seek) {
+            if (!supports_time_seek) {
+                throw new HTTPRequestError.UNACCEPTABLE ( "Time seek not supported for "
+                                                          + this.uri.to_string() );
+            }
         }
 
-        if (requested_time_seek && !supports_time_seek) {
-            throw new HTTPRequestError.UNACCEPTABLE ( "Time seek not supported for "
-                                                      + this.uri.to_string() );
-        }
-
-        if (requested_cleartext_seek && !supports_cleartext_seek) {
-            throw new HTTPRequestError.UNACCEPTABLE ( "Cleartext seek not supported for "
-                                                      + this.uri.to_string() );
-        }
-        
         // Check for DLNA PlaySpeed request only if Range or Range.dtcp.com is not
         // in the request. DLNA 7.5.4.3.3.19.2, DLNA Link Protection : 7.6.4.4.2.12
         // (is 7.5.4.3.3.19.2 compatible with the use case in 7.5.4.3.2.24.5?)
