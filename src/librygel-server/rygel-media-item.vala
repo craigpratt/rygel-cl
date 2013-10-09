@@ -298,11 +298,8 @@ public abstract class Rygel.MediaItem : MediaObject {
                                                        null,
                                                        resource);
                 resource.uri = uri;
-                // TODO: REMOVE ME
-                message("Created resource URI: " + resource.uri);
             } else {
-                // TODO: REMOVE ME
-                message("Found MediaResource with non-null URI: " + resource.uri);
+                debug("Found MediaResource with pre-existing URI: " + resource.uri);
             }
 
             DIDLLiteResource didl_resource = didl_item.add_resource();
