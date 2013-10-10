@@ -30,6 +30,8 @@ using GUPnP;
 public class Rygel.AudioItem : MediaItem {
     public new const string UPNP_CLASS = "object.item.audioItem";
 
+    // TODO: These are not properties of Items, but of Resources, correct?
+    //       Everything that uses these fields should be audited.
     public long duration { get; set; default = -1; }  // Duration in seconds
     public int bitrate { get; set; default = -1; }    // Bytes/second
 
@@ -55,9 +57,10 @@ public class Rygel.AudioItem : MediaItem {
                                         (DIDLLiteObject didl_object,
                                          string?        uri,
                                          string         protocol,
+                                         MediaResource  resource,
                                          string?        import_uri = null)
                                          throws Error {
-        var res = base.add_resource (didl_object, uri, protocol, import_uri);
+        var res = base.add_resource (didl_object, uri, protocol, resource, import_uri);
 
         res.duration = this.duration;
         res.bitrate = this.bitrate;

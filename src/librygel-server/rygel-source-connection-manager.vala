@@ -36,54 +36,5 @@ internal class Rygel.SourceConnectionManager : Rygel.ConnectionManager {
         this.rcs_id = -1;
         this.av_transport_id = -1;
         this.direction = "Output";
-
-        foreach (var protocol_info in this.get_protocol_info ()) {
-            if (this.source_protocol_info != "") {
-                // No comma before the first one
-                this.source_protocol_info += ",";
-            }
-
-            this.source_protocol_info += protocol_info.to_string ();
-        }
-    }
-
-    private ArrayList<ProtocolInfo> get_protocol_info () {
-        var server = this.get_http_server ();
-        var protocol_infos = server.get_protocol_info ();
-
-        unowned GLib.List<DLNAProfile> profiles = MediaEngine.get_default ().
-                                                              get_dlna_profiles ();
-
-        var protocol = server.get_protocol ();
-
-        foreach (var profile in profiles) {
-            var protocol_info = new ProtocolInfo ();
-
-            protocol_info.protocol = protocol;
-            protocol_info.mime_type = profile.mime;
-            protocol_info.dlna_profile = profile.name;
-
-            if (!(protocol_info in protocol_infos)) {
-                protocol_infos.insert (0, protocol_info);
-            }
-        }
-
-        return protocol_infos;
-    }
-
-    private HTTPServer get_http_server () {
-        HTTPServer server = null;
-
-        var root_device = (Rygel.RootDevice) this.root_device;
-
-        // Find the ContentDirectory service attached to this root device.
-        foreach (var service in root_device.services) {
-            if (service.get_type().is_a (typeof (Rygel.ContentDirectory))) {
-                var content_directory = (Rygel.ContentDirectory) service;
-                server = content_directory.http_server;
-            }
-        }
-
-        return server;
     }
 }

@@ -108,17 +108,23 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
         }
     }
 
-    public override unowned GLib.List<DLNAProfile> get_dlna_profiles () {
+    public override unowned GLib.List<DLNAProfile> get_renderable_dlna_profiles() {
         return this.dlna_profiles;
+    }
+
+    public override Gee.List<MediaResource>? get_resources_for_uri(string uri) {
+        // TODO: Implement me
+        return null;
     }
 
     public override unowned GLib.List<Transcoder>? get_transcoders () {
         return this.transcoders;
     }
 
-    public override DataSource? create_data_source (string uri) {
+    public override DataSource? create_data_source_for_resource
+                                (string uri, MediaResource ? resource) {
         try {
-            return new GstDataSource (uri);
+            return new GstDataSource (uri, resource);
         } catch (Error error) {
             warning (_("Failed to create GStreamer data source for %s: %s"),
                      uri,
@@ -127,9 +133,16 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
             return null;
         }
     }
-
+    
     public DataSource create_data_source_from_element (Element element) {
         return new GstDataSource.from_element (element);
+    }
+
+    /**
+     * Returns if the media engine is capable of handling dtcp request
+     */
+    public override bool has_mediaengine_dtcp () {
+	    return false;
     }
 }
 

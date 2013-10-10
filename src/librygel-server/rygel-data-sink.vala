@@ -40,7 +40,7 @@ internal class Rygel.DataSink : Object {
     public DataSink (DataSource source,
                      Server     server,
                      Message    message,
-                     HTTPSeek?  offsets) {
+                     HTTPSeekRequest?  offsets) {
         this.source = source;
         this.server = server;
         this.message = message;
@@ -49,8 +49,8 @@ internal class Rygel.DataSink : Object {
         this.bytes_sent = 0;
         this.max_bytes = int64.MAX;
         if (offsets != null &&
-            offsets is HTTPByteSeek) {
-            this.max_bytes = offsets.length;
+            offsets is HTTPByteSeekRequest) {
+            this.max_bytes = (offsets as HTTPByteSeekRequest).range_length;
         }
 
         this.source.data_available.connect (this.on_data_available);

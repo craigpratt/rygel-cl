@@ -40,7 +40,7 @@ public errordomain Rygel.MediaEngineError {
  * media-engine=librygel-media-engine-gst.so
  *
  * Media engines should also derive their own #RygelDataSource,
- * returning an instance of it from create_data_source().
+ * returning an instance of it from create_data_source_for_resource().
  *
  * If this media engine supports transcoding then it will typically
  * implement a set of transcoding classes, typically with one 
@@ -84,19 +84,35 @@ public abstract class Rygel.MediaEngine : GLib.Object {
     }
 
     /**
-     * Get a list of the DLNA profiles that are supported by this media
-     * engine when calling rygel_media_engine_create_data_source().
-     *
-     * Other DLNA profiles may be supported as transcoding targets -
+     * Get a list of the DLNA profiles that the media engine can consume.
      *
      * This information is needed to implement DLNA's
      * ConnectionManager.GetProtocolInfo call and to determine whether Rygel
      * can accept an uploaded file.
      *
      * @return A list of #RygelDLNAProfile<!-- -->s
-     * @see rygel_media_engine_get_transcoders().
      */
-    public abstract unowned List<DLNAProfile> get_dlna_profiles ();
+    public abstract unowned List<DLNAProfile> get_renderable_dlna_profiles ();
+
+    /**
+     * Get the supported MediaResources for the given content uri.
+     *
+     * The MediaResources returned may include formats/profiles that don't match the
+     * raw source content byte-for-byte. 
+     * 
+     * Each MediaResource returned in the List must have a unique "name" field
+     * (containing only alphanumeric characters). The order of resources in
+     * the List should be from most-preferred to least-preferred. And some fields
+     * related to the delivery protocol will be over-written (e.g. the host address
+     * portion of the URI and the protocol field/deliver flags of the protocolInfo).
+     *
+     * Note: To reduce overhead, this call will only be made when source content is
+     * added or changed (the results will be cached).
+     *
+     * @return A list of #MediaResources<!-- -->s or null if no resources are supported
+     *         for the item.
+     */
+    public abstract Gee.List<MediaResource>? get_resources_for_uri(string uri);
 
     /**
      * Get a list of the transcoders that are provided by this media engine.
@@ -106,10 +122,23 @@ public abstract class Rygel.MediaEngine : GLib.Object {
     public abstract unowned List<Transcoder>? get_transcoders ();
 
     /**
-     * Get a data source for the URI.
+     * Returns if the media engine is capable of handling dtcp request
+     */
+    public abstract bool has_mediaengine_dtcp ();
+
+    /**
+     * Get a data source for the URI which renders the content specified by the uri
+     * according to the MediaResource-specified parameters.
+     *
+     * Note that the provided #resource will be field-wise equivalent with a MediaResource
+     * obtained from #get_resources_for_uri, but subclasses should not expect objects
+     * references from #get_resources_for_uri to be provided to this method. If #resource
+     * is null, then the DataSource returned should render the raw (unmodified) content.
      *
      * @param uri to create the data source for.
-     * @return A data source representing the uri
+     * @param resource format to render for the data source.
+     * @return A data source representing the uri rendered according to resource parameters
      */
-    public abstract DataSource? create_data_source (string uri);
+    public abstract DataSource? create_data_source_for_resource
+                                (string uri, MediaResource ? resource);
 }

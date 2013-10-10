@@ -15,6 +15,7 @@ LIBRYGEL_SERVER_VAPI_SOURCE_FILES = \
 	rygel-video-item.vala \
 	rygel-media-container.vala \
 	rygel-media-item.vala \
+	rygel-media-resource.vala \
 	rygel-media-object.vala \
 	rygel-media-server-plugin.vala \
 	rygel-search-expression.vala \
@@ -30,7 +31,7 @@ LIBRYGEL_SERVER_VAPI_SOURCE_FILES = \
 	rygel-http-seek.vala \
 	rygel-data-source.vala \
 	rygel-updatable-object.vala \
-	rygel-playlist-item.vala
+	rygel-playlist-item.vala 
 
 LIBRYGEL_SERVER_NONVAPI_SOURCE_FILES = \
 	rygel-browse.vala \
@@ -47,9 +48,11 @@ LIBRYGEL_SERVER_NONVAPI_SOURCE_FILES = \
 	rygel-http-post.vala \
 	rygel-http-request.vala \
 	rygel-http-response.vala \
+	rygel-http-response-element.vala \
 	rygel-http-server.vala \
 	rygel-http-time-seek.vala \
 	rygel-http-transcode-handler.vala \
+	rygel-http-resource-handler.vala \
 	rygel-import-resource.vala \
 	rygel-object-creator.vala \
 	rygel-reference-creator.vala \
@@ -72,9 +75,12 @@ LIBRYGEL_SERVER_NONVAPI_SOURCE_FILES = \
 	rygel-search.vala \
 	rygel-serializer.vala \
 	rygel-source-connection-manager.vala \
+	rygel-connection-manager-protocolinfo.vala \
 	rygel-subtitle-manager.vala \
 	rygel-thumbnailer.vala \
 	rygel-wmp-hacks.vala \
 	rygel-xbmc-hacks.vala \
 	rygel-xbox-hacks.vala \
-	rygel-data-sink.vala
+	rygel-data-sink.vala \
+	rygel-dlna-playspeed.vala \
+	rygel-dtcp-cleartext-byte-seek.vala

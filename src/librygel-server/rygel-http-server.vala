@@ -26,7 +26,7 @@
 using GUPnP;
 using Gee;
 
-internal class Rygel.HTTPServer : Rygel.TranscodeManager, Rygel.StateMachine {
+public class Rygel.HTTPServer : Rygel.TranscodeManager, Rygel.StateMachine {
     public string path_root { get; private set; }
 
     // Reference to root container of associated ContentDirectory
@@ -58,34 +58,8 @@ internal class Rygel.HTTPServer : Rygel.TranscodeManager, Rygel.StateMachine {
         }
     }
 
-    internal void add_proxy_resource (DIDLLiteItem didl_item,
-                                      MediaItem    item)
-                                      throws Error {
-        if (this.http_uri_present (item)) {
-            return;
-        }
-
-        var uri = this.create_uri_for_item (item, -1, -1, null, null);
-
-        item.add_resource (didl_item, uri, this.get_protocol (), uri);
-    }
-
     public bool need_proxy (string uri) {
         return Uri.parse_scheme (uri) != "http";
-    }
-
-    private bool http_uri_present (MediaItem item) {
-        bool present = false;
-
-        foreach (var uri in item.uris) {
-            if (!this.need_proxy (uri)) {
-                present = true;
-
-                break;
-            }
-        }
-
-        return present;
     }
 
     private void on_cancelled (Cancellable cancellable) {
@@ -101,13 +75,15 @@ internal class Rygel.HTTPServer : Rygel.TranscodeManager, Rygel.StateMachine {
                                                   int       thumbnail_index,
                                                   int       subtitle_index,
                                                   string?   transcode_target,
-                                                  string?   playlist_target) {
+                                                  string?   playlist_target,
+                                                  MediaResource ? media_resource) {
         var uri = new HTTPItemURI (item,
                                    this,
                                    thumbnail_index,
                                    subtitle_index,
                                    transcode_target,
-                                   playlist_target);
+                                   playlist_target,
+                                   media_resource );
 
         return uri.to_string ();
     }

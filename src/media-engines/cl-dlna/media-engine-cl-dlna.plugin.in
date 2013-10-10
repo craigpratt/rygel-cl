@@ -1,7 +1,0 @@
-[Plugin]
-Version = @VERSION@
-Module = media-engine-cl-dlna
-Name = media-engine-cl-dlna
-License = LGPL
-Description = CableLabs DLNA media streaming engine
-Copyright = Copyright © CableLabs

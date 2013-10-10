@@ -53,7 +53,7 @@ internal errordomain Rygel.ContentDirectoryError {
  * plugins will provide a child of this class. The inheriting classes should
  * override create_root_container method.
  */
-internal class Rygel.ContentDirectory: Service {
+public class Rygel.ContentDirectory: Service {
     public const string UPNP_ID = "urn:upnp-org:serviceId:ContentDirectory";
     public const string UPNP_TYPE =
                     "urn:schemas-upnp-org:service:ContentDirectory:3";
@@ -118,6 +118,16 @@ internal class Rygel.ContentDirectory: Service {
         this.last_change = new LastChange ();
 
         this.search_caps = RelationalExpression.CAPS;
+
+        bool allow_upload = false;
+        try {
+            var config = MetaConfig.get_default ();
+            allow_upload = config.get_allow_upload ();
+        } catch (GLib.Error error) { }
+
+        if (allow_upload) {
+            this.search_caps += ",upnp:createClass";
+        }
 
         if (PluginCapabilities.TRACK_CHANGES in plugin.capabilities) {
             this.search_caps += ",upnp:objectUpdateID,upnp:containerUpdateID";
@@ -447,6 +457,23 @@ internal class Rygel.ContentDirectory: Service {
         return false;
     }
 
+    private async void get_all_items () {
+        uint total_matches;
+        var s_container = (this.root_container as SearchableContainer);
+        MediaObjects media_objects = null;
+
+        try {
+            debug ("Updating SourceProtocolInfo using CDS list.");
+            media_objects = yield s_container.search (null , 0 , -1, out total_matches,
+                                             s_container.sort_criteria,
+                                             this.cancellable);
+            ConnectionManagerProtocolInfo cms_info = ConnectionManagerProtocolInfo.get_default();
+            cms_info.update_source_protocol_info ((Rygel.RootDevice)this.root_device, media_objects);
+        } catch (Error err) {
+            warning ("Updating SourceProtocolInfo using CDS list failed.");
+        }
+    }
+
     private void handle_last_change (MediaContainer updated_container,
                                      MediaObject object,
                                      ObjectEventType event_type,
@@ -536,6 +563,17 @@ internal class Rygel.ContentDirectory: Service {
                                      object);
 
         this.ensure_timeout ();
+
+        if ((event_type == ObjectEventType.ADDED ||
+            event_type == ObjectEventType.DELETED ||
+            event_type == ObjectEventType.MODIFIED) &&
+            object is MediaItem) {
+            debug ("Forward call to update SourceProtocolInfo");
+            if (this.root_container is SearchableContainer) {
+                 ("Calling searchablecontainer");
+                 this.get_all_items.begin ();
+             }
+        }
     }
 
     private void on_sub_tree_updates_finished (MediaContainer root_container,

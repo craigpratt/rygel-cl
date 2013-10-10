@@ -32,15 +32,28 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
 
     public SimpleMediaEngine () { }
 
-    public override unowned List<DLNAProfile> get_dlna_profiles () {
+    public override unowned List<DLNAProfile> get_renderable_dlna_profiles() {
         return this.profiles;
+    }
+
+    public override Gee.List<MediaResource>? get_resources_for_uri(string uri) {
+        // TODO: Implement me
+        return null;
     }
 
     public override unowned List<Transcoder>? get_transcoders () {
         return null;
     }
 
-    public override DataSource? create_data_source (string uri) {
+     /**
+     * Returns if the media engine is capable of handling dtcp request
+     */
+    public override bool has_mediaengine_dtcp () {
+        return false;
+    }
+
+    public override DataSource? create_data_source_for_resource
+                                (string uri, MediaResource ? resource) {
         if (!uri.has_prefix ("file://")) {
             return null;
         }

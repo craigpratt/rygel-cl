@@ -5,6 +5,7 @@
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jens Georg <jensg@openismus.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -22,74 +23,180 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
+/* 
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
+ * Contact: http://www.cablelabs.com/
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+ * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+ * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL APPLE INC. OR ITS CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Author: Craig Pratt <craig@ecaspia.com>
+ *
+ * This file is part of Rygel.
+ */
 
-internal class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
-    public HTTPTimeSeek (HTTPGet request) throws HTTPSeekError {
-        string range;
-        string[] range_tokens;
-        int64 start = 0;
-        int64 duration = (request.object as AudioItem).duration * TimeSpan.SECOND;
-        int64 stop = duration - TimeSpan.MILLISECOND;
-        int64 parsed_value = 0;
-        bool parsing_start = true;
+// Note: For TimeSeekRange, the request and response header name is the same,
+//       but different forms are allowed for request and response
+public static const string TIMESEEKRANGE_HEADER = "TimeSeekRange.dlna.org";
 
-        range = request.msg.request_headers.get_one ("TimeSeekRange.dlna.org");
+/**
+ * This class represents a DLNA TimeSeekRange request and response.
+ *
+ * A TimeSeekRange request can only have a time range ("npt=start-end"). But a
+ * TimeSeekRange response may have a time range ("npt=start-end/duration" and
+ * a byte range ("bytes=") corresponding with the actual time/data range.
+ *
+ * Note that DLNA requires both "npt=" and "bytes=" to be set if both
+ * data- and time-based seek are supported. (see DLNA 7.5.4.3.2.24.5)
+ */
+public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
+    /**
+     * Requested range start time, in microseconds 
+     */
+    public int64 start_time;
 
-        if (range != null) {
-            if (!range.has_prefix ("npt=")) {
-                throw new HTTPSeekError.INVALID_RANGE ("Invalid Range '%s'",
-                                                       range);
-            }
+    /**
+     * Requested range end time, in microseconds 
+     */
+    public int64 end_time;
 
-            range_tokens = range.substring (4).split ("-", 2);
-            if (range_tokens[0] == null ||
-                // Start token of the range must be provided
-                range_tokens[0] == "" ||
-                range_tokens[1] == null) {
-                throw new HTTPSeekError.INVALID_RANGE (_("Invalid Range '%s'"),
-                                                       range);
-            }
+    /**
+     * Requested range duration, in microseconds
+     */
+    public int64 range_duration;
 
-            foreach (string range_token in range_tokens) {
-                if (range_token == "") {
-                    continue;
-                }
+    /**
+     * The total duration of the resource, in microseconds
+     */
+    public int64 total_duration;
 
-                if (range_token.index_of (":") == -1) {
-                    if (!parse_seconds (range_token, ref parsed_value)) {
-                        throw new HTTPSeekError.INVALID_RANGE
-                                            (_("Invalid Range '%s'"),
-                                               range);
-                    }
-                } else {
-                    if (!parse_time (range_token,
-                                     ref parsed_value)) {
-                        throw new HTTPSeekError.INVALID_RANGE
-                                            (_("Invalid Range '%s'"),
-                                               range);
-                    }
-                }
+    /**
+     * Create a HTTPTimeSeekRequest corresponding with a HTTPGet that contains a TimeSeekRange.dlna.org
+     * header value.
+     *
+     * @param request The HTTP GET/HEAD request
+     * @param positive_rate Indicates if playback is in the positive or negative direction
+     */
+    internal HTTPTimeSeekRequest (HTTPGet request, DLNAPlaySpeed ? speed) throws HTTPSeekRequestError {
+        base ();
 
-                if (parsing_start) {
-                    parsing_start = false;
-                    start = parsed_value;
-                } else {
-                    stop = parsed_value;
-                }
-            }
+        bool positive_rate = (speed == null) || speed.is_positive();
+        bool trick_mode = (speed != null) && speed.is_trick_rate();
 
-            if (start > stop) {
-                throw new HTTPSeekError.INVALID_RANGE
-                                    (_("Invalid Range '%s'"),
-                                       range);
-            }
+        if (request.handler is HTTPMediaResourceHandler) {
+            MediaResource resource = (request.handler as HTTPMediaResourceHandler)
+                                                                  .media_resource;
+            this.total_duration = resource.duration * TimeSpan.SECOND;
+        } else {
+            this.total_duration = (request.object as AudioItem).duration * TimeSpan.SECOND;
         }
 
-        base (request.msg, start, stop - 1, TimeSpan.MILLISECOND, duration);
-        this.seek_type = HTTPSeekType.TIME;
+        var range = request.msg.request_headers.get_one (TIMESEEKRANGE_HEADER);
+
+        if (range == null) {
+            throw new HTTPSeekRequestError.INVALID_RANGE ("%s not present", TIMESEEKRANGE_HEADER);
+        }
+        
+        if (!range.has_prefix ("npt=")) {
+            throw new HTTPSeekRequestError.INVALID_RANGE ("Invalid %s value (missing npt field): '%s'",
+                                                   TIMESEEKRANGE_HEADER, range);
+        }
+
+        var range_tokens = range.substring (4).split ("-", 2);
+
+        int64 start = UNSPECIFIED;
+        if (!parse_npt_time (range_tokens[0], ref start)) {
+            throw new HTTPSeekRequestError.INVALID_RANGE("Invalid %s value (no start): '%s'",
+                                                  TIMESEEKRANGE_HEADER, range);
+        }
+
+        // Check for out-of-bounds range start and clamp it in if in trick/scan mode
+        if ((this.total_duration != UNSPECIFIED) && (start > this.total_duration)) {
+            if (trick_mode && !positive_rate) { // Per DLNA 7.5.4.3.2.24.4
+                this.start_time = this.total_duration;
+            } else { // See DLNA 7.5.4.3.2.24.8
+                throw new HTTPSeekRequestError.OUT_OF_RANGE( "Invalid %s start time %lldns is beyond the content duration of %lldns",
+                                                      TIMESEEKRANGE_HEADER, start,
+                                                      this.total_duration );
+            }
+        } else { // Nothing to check it against - just store it
+            this.start_time = start;
+        }
+
+        // Look for an end time
+        int64 end = UNSPECIFIED;
+        if (parse_npt_time (range_tokens[1], ref end)) {
+            // The end time was specified in the npt ("start-end")
+            // Check for valid range
+            if (positive_rate) {
+                // Check for out-of-bounds range end or fence it in
+                if ((this.total_duration != UNSPECIFIED) && (end > this.total_duration)) {
+                    if (trick_mode) { // Per DLNA 7.5.4.3.2.24.4
+                        this.end_time = this.total_duration;
+                    } else { // Per DLNA 7.5.4.3.2.24.8
+                        throw new HTTPSeekRequestError.OUT_OF_RANGE( "Invalid %s end time %lldns is beyond the content duration of %lldns",
+                                                              TIMESEEKRANGE_HEADER, end,
+                                                              this.total_duration );
+                    }
+                } else {
+                    this.end_time = end;
+                }
+                
+                this.range_duration =  this.end_time - this.start_time;
+                // At positive rate, start < end
+                if (this.range_duration <= 0) { // See DLNA 7.5.4.3.2.24.12
+                    throw new HTTPSeekRequestError.INVALID_RANGE (
+                        "Invalid %s value (start time after end time - forward scan): '%s'",
+                        TIMESEEKRANGE_HEADER, range );
+                }
+            } else { // Negative rate
+                // Note: start_time has already been checked/clamped
+                this.end_time = end;
+                this.range_duration = this.start_time - this.end_time;
+                // At negative rate, start > end
+                if (this.range_duration <= 0) { // See DLNA 7.5.4.3.2.24.12
+                    throw new HTTPSeekRequestError.INVALID_RANGE (
+                        "Invalid %s value (start time before end time - reverse scan): '%s'",
+                        TIMESEEKRANGE_HEADER, range );
+                }
+            }
+        } else { // End time not specified in the npt field ("start-")
+            // See DLNA 7.5.4.3.2.24.4
+            this.end_time = UNSPECIFIED; // Will indicate "end/beginning of binary"
+            if (positive_rate) {
+                this.range_duration = this.total_duration - this.start_time;
+            } else { // Negative rate
+                this.range_duration = this.start_time; // Going backward from start to 0
+            }
+        }
     }
 
-    public static bool needed (HTTPGet request) {
+    /**
+     * Return true if time-seek is supported.
+     *
+     * This method utilizes elements associated with the request to determine if a
+     * TimeSeekRange request is supported for the given request/resource.
+     */
+    public static bool supported (HTTPGet request) {
         bool force_seek = false;
 
         try {
@@ -97,39 +204,32 @@ internal class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
             force_seek = hack.force_seek ();
         } catch (Error error) { }
 
-        return force_seek || (request.object is AudioItem &&
-               (request.object as AudioItem).duration > 0 &&
-               (request.handler is HTTPTranscodeHandler ||
-                (request.thumbnail == null &&
-                 request.subtitle == null &&
-                 (request.object as MediaItem).is_live_stream ())));
+        // TODO: This needs to incorporate some delegation or maybe not even exist here.
+        //       (e.g. if there's a "TimeSeekRange supported" query it should be on a
+        //       ContentResource, since it owns the ProtocolInfo which indicates
+        //       time-seek-ability (a-val of ORG_OP or the LOP-time indicator))
+        return force_seek
+               || ( request.object is AudioItem
+                    && ( request.object as AudioItem).duration > 0
+                         && ( request.handler is HTTPTranscodeHandler
+                              || ( request.thumbnail == null
+                                   && request.subtitle == null
+                                   && (request.object as MediaItem).is_live_stream () ) ) )
+               || ( request.handler is HTTPMediaResourceHandler
+                    && (request.handler as HTTPMediaResourceHandler)
+                        .media_resource.supports_arbitrary_time_seek() );
     }
 
+    /**
+     * Return true of the HTTPGet contains a TimeSeekRange request.
+     */
     public static bool requested (HTTPGet request) {
-        return request.msg.request_headers.get_one ("TimeSeekRange.dlna.org") !=
-               null;
+        return (request.msg.request_headers.get_one (TIMESEEKRANGE_HEADER) != null);
     }
 
-    public override void add_response_headers () {
-        // TimeSeekRange.dlna.org: npt=START_TIME-END_TIME/DURATION
-        double start = (double) this.start / TimeSpan.SECOND;
-        double stop = (double) this.stop / TimeSpan.SECOND;
-        double total = (double) this.total_length / TimeSpan.SECOND;
-
-        var start_str = new char[double.DTOSTR_BUF_SIZE];
-        var stop_str = new char[double.DTOSTR_BUF_SIZE];
-        var total_str = new char[double.DTOSTR_BUF_SIZE];
-
-        var range = "npt=" + start.format (start_str, "%.3f") + "-" +
-                             stop.format (stop_str, "%.3f") + "/" +
-                             total.format (total_str, "%.3f");
-
-        this.msg.response_headers.append ("TimeSeekRange.dlna.org", range);
-    }
-
-    // Parses npt times in the format of '417.33'
-    private static bool parse_seconds (string    range_token,
-                                       ref int64 value) {
+    // Parses npt times in the format of '417.33' and returns the time in microseconds
+    private static bool parse_npt_seconds (string range_token,
+                                           ref int64 value) {
         if (range_token[0].isdigit ()) {
             value = (int64) (double.parse (range_token) * TimeSpan.SECOND);
         } else {
@@ -138,9 +238,17 @@ internal class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
         return true;
     }
 
-    // Parses npt times in the format of '10:19:25.7'
-    private static bool parse_time (string    range_token,
-                                    ref int64 value) {
+    // Parses npt times in the format of '10:19:25.7' and returns the time in microseconds
+    private static bool parse_npt_time (string? range_token,
+                                        ref int64 value) {
+        if (range_token == null) {
+            return false;
+        }
+        
+        if (range_token.index_of (":") == -1) {
+            return parse_npt_seconds(range_token, ref value);
+        }
+        // parse_seconds has a ':' in it...
         int64 seconds_sum = 0;
         int time_factor = 0;
         string[] time_tokens;
@@ -157,8 +265,7 @@ internal class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
 
         foreach (string time in time_tokens) {
             if (time[0].isdigit ()) {
-                seconds_sum += (int64) ((double.parse (time) *
-                                         TimeSpan.SECOND) * time_factor);
+                seconds_sum += (int64) ((double.parse (time) * TimeSpan.SECOND) * time_factor);
             } else {
                 return false;
             }
@@ -167,5 +274,136 @@ internal class Rygel.HTTPTimeSeek : Rygel.HTTPSeek {
         value = seconds_sum;
 
         return true;
+    }
+}
+
+public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
+    /**
+     * Effective range start time, in microseconds 
+     */
+    public int64 start_time { get; private set; }
+
+    /**
+     * Effective range end time, in microseconds 
+     */
+    public int64 end_time { get; private set; }
+
+    /**
+     * Effective range duration, in microseconds
+     */
+    public int64 range_duration { get; private set; }
+
+    /**
+     * The total duration of the resource, in microseconds
+     */
+    public int64 total_duration { get; private set; }
+
+    /**
+     * The start of the range in bytes 
+     */
+    public int64 start_byte { get; private set; }
+
+    /**
+     * The end of the range in bytes (inclusive)
+     */
+    public int64 end_byte { get; private set; }
+
+    /**
+     * The length of the range in bytes
+     */
+    public int64 range_length { get; private set; }
+
+    /**
+     * The length of the resource in bytes
+     */
+    public int64 total_size { get; private set; }
+    
+    public HTTPTimeSeekResponse(int64 start_time, int64 end_time, int64 total_duration,
+                                int64 start_byte, int64 end_byte, int64 total_size ) {
+        base();
+        this.start_time = start_time;
+        this.end_time = end_time;
+        this.total_duration = total_duration;
+        
+        this.start_byte = start_byte;
+        this.end_byte = end_byte;
+        this.range_length = end_byte - start_byte + 1;
+        this.total_size = total_size;
+    }
+
+    /**
+     * Create a HTTPTimeSeekResponse from a HTTPTimeSeekRequest
+     *
+     * Note: This form is only valid when byte-seek is not supported, according to the
+     * associated resource's ProtocolInfo (see DLNA 7.5.4.3.2.24.5)
+     */
+    public HTTPTimeSeekResponse.time_only(int64 start_time, int64 end_time, int64 total_duration) {
+        base();
+        this.start_time = start_time;
+        this.end_time = end_time;
+        this.total_duration = total_duration;
+        
+        this.start_byte = UNSPECIFIED;
+        this.end_byte = UNSPECIFIED;
+        this.range_length = UNSPECIFIED;
+        this.total_size = UNSPECIFIED;
+    }
+    
+    /**
+     * Create a HTTPTimeSeekResponse from a HTTPTimeSeekRequest
+     *
+     * Note: This form is only valid when byte-seek is not supported, according to the
+     * associated resource's ProtocolInfo (see DLNA 7.5.4.3.2.24.5)
+     */
+    public HTTPTimeSeekResponse.from_request( HTTPTimeSeekRequest time_seek_request,
+                                              int64 total_duration ) {
+        HTTPTimeSeekResponse.time_only( time_seek_request.start_time,
+                                        time_seek_request.end_time,
+                                        total_duration );
+    }
+    
+    public override void add_response_headers (Rygel.HTTPRequest request) {
+        // The response form of TimeSeekRange:
+        //
+        // TimeSeekRange.dlna.org: npt=START_TIME-END_TIME/DURATION bytes=START_BYTE-END_BYTE/LENGTH
+        //
+        // The "bytes=" field can be ommitted in some cases. (e.g. ORG_OP a-val==1, b-val==0)
+        // The DURATION can be "*" in some cases (e.g. for limited-operation mode)
+        // The LENGTH can be "*" in some cases (e.g. for limited-operation mode)
+        // And the entire response header can be ommitted for HEAD requests (see DLNA 7.5.4.3.2.24.2)
+
+        // It's not our job at this level to enforce all the semantics of the TimeSeekRange
+        //  response, as we don't have enough context. Setting up the correct HTTPTimeSeekRequest
+        //  object is the responsibility of the object owner. To form the response, we just
+        //  use what is set.
+
+        if (start_time != UNSPECIFIED) {
+            var response = new StringBuilder();
+            response.append("npt=");
+            response.append_printf("%.3f-", (double) this.start_time / TimeSpan.SECOND);
+            response.append_printf("%.3f/", (double) this.end_time / TimeSpan.SECOND);
+            if (this.total_duration != UNSPECIFIED) {
+                response.append_printf("%.3f", (double) this.total_duration / TimeSpan.SECOND);
+            } else {
+                response.append("*");
+            }
+
+            if (this.start_byte != UNSPECIFIED) {
+                response.append(" bytes=");
+                response.append(this.start_byte.to_string());
+                response.append("-");
+                response.append(this.end_byte.to_string());
+                response.append("/");
+                if (this.total_size != UNSPECIFIED) {
+                    response.append(this.total_size.to_string());
+                } else {
+                    response.append("*");
+                }
+                // Note: Don't use set_content_range() here - we don't want a "Content-range" header
+                request.msg.response_headers.set_content_length (this.range_length);
+            }
+
+            request.msg.response_headers.append (TIMESEEKRANGE_HEADER, response.str);
+        }
     }
 }

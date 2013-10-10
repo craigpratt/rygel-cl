@@ -1,0 +1,128 @@
+/*
+ * Copyright (C) 2011 Jens Georg <mail@jensge.org>.
+ *
+ * This file is part of Rygel.
+ *
+ * Rygel is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * Rygel is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ */
+/* 
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
+ * Contact: http://www.cablelabs.com/
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+ * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+ * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL APPLE INC. OR ITS CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
+internal class Rygel.ODID.NodeQueryContainer : QueryContainer {
+    public string template { private get; construct; }
+    public string attribute { private get; construct; }
+
+    public NodeQueryContainer (SearchExpression expression,
+                               string           id,
+                               string           name,
+                               string           template,
+                               string           attribute) {
+        Object (id : id,
+                title : name,
+                parent : null,
+                child_count : 0,
+                expression : expression,
+                template : template,
+                attribute : attribute);
+    }
+
+    // MediaContainer overrides
+
+    public override async MediaObjects? get_children
+                                        (uint         offset,
+                                         uint         max_count,
+                                         string       sort_criteria,
+                                         Cancellable? cancellable)
+                                         throws GLib.Error {
+        var children = new MediaObjects ();
+        var factory = QueryContainerFactory.get_default ();
+
+        if (this.add_all_container ()) {
+            var id = this.template.replace (",upnp:album,%s","");
+            var container = factory.create_from_description_id (id,
+                                                                _("All"));
+            container.parent = this;
+            children.add (container);
+        }
+
+        var data = this.media_db.get_object_attribute_by_search_expression
+                                        (this.attribute,
+                                         this.expression,
+                                         // sort criteria
+                                         offset,
+                                         max_count);
+
+        foreach (var meta_data in data) {
+            var new_id = Uri.escape_string (meta_data, "", true);
+            // template contains URL escaped text. This means it might
+            // contain '%' chars which will makes sprintf crash
+            new_id = this.template.replace ("%s", new_id);
+            var container = factory.create_from_description_id (new_id,
+                                                                meta_data);
+            container.parent = this;
+            children.add (container);
+        }
+
+        return children;
+    }
+
+    // DBContainer overrides
+
+    public override int count_children () {
+        try {
+            var data = this.media_db.get_object_attribute_by_search_expression
+                                        (this.attribute,
+                                         this.expression,
+                                         0,
+                                         -1);
+            if (this.add_all_container ()) {
+                return data.size + 1;
+            }
+
+            return data.size;
+        } catch (Error error) {
+            return 0;
+        }
+    }
+
+    private bool add_all_container () {
+        return this.attribute == "upnp:album" &&
+               "upnp:artist" in this.template;
+    }
+}

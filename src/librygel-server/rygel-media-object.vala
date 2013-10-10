@@ -41,6 +41,8 @@ public abstract class Rygel.MediaObject : GLib.Object {
     public string id { get; set construct; }
     public string ref_id { get; set; }
     public string upnp_class { get; construct set; }
+    public string date { get; set; }
+    public string creator { get; set; }
     public uint64 modified { get; set; }
     public uint object_update_id { get; set; }
 
@@ -125,7 +127,7 @@ public abstract class Rygel.MediaObject : GLib.Object {
         }
     }
 
-    internal abstract OCMFlags ocm_flags { get; }
+    public virtual OCMFlags ocm_flags { get { return OCMFlags.NONE; }}
 
     internal bool restricted {
         get {
@@ -280,6 +282,7 @@ public abstract class Rygel.MediaObject : GLib.Object {
                                         (DIDLLiteObject object,
                                          string?        uri,
                                          string         protocol,
+                                         MediaResource  resource,                                       
                                          string?        import_uri = null)
                                          throws Error {
         var res = object.add_resource ();

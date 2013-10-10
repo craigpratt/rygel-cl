@@ -45,16 +45,6 @@ internal class Rygel.HTTPIdentityHandler : Rygel.HTTPGetHandler {
                                                  (request.object as MediaItem).mime_type);
         }
 
-        if (request.seek != null) {
-            request.seek.add_response_headers ();
-        } else {
-            var size = this.get_size (request);
-
-            if (size > 0) {
-                request.msg.response_headers.set_content_length (size);
-            }
-        }
-
         // Chain-up
         base.add_response_headers (request);
     }
@@ -71,7 +61,7 @@ internal class Rygel.HTTPIdentityHandler : Rygel.HTTPGetHandler {
     public override bool knows_size (HTTPGet request) {
         var size = this.get_size (request);
 
-        return (request.seek != null && request.seek is HTTPByteSeek) ||
+        return (request.seek != null && request.seek is HTTPByteSeekRequest) ||
                     size > 0;
     }
 
@@ -85,7 +75,7 @@ internal class Rygel.HTTPIdentityHandler : Rygel.HTTPGetHandler {
             return request.thumbnail.add_resource (didl_object as DIDLLiteItem,
                                                    protocol);
         } else {
-            return request.object.add_resource (didl_object, null, protocol);
+            return request.object.add_resource (didl_object, null, protocol, new MediaResource("dummy"));
         }
     }
 
@@ -94,12 +84,12 @@ internal class Rygel.HTTPIdentityHandler : Rygel.HTTPGetHandler {
         var engine = MediaEngine.get_default ();
 
         if (request.subtitle != null) {
-            src = engine.create_data_source (request.subtitle.uri);
+            src = engine.create_data_source_for_resource (request.subtitle.uri, null);
         } else if (request.thumbnail != null) {
-            src = engine.create_data_source (request.thumbnail.uri);
+            src = engine.create_data_source_for_resource (request.thumbnail.uri, null);
         } else {
-            src = (request.object as MediaItem).create_stream_source
-                                        (request.http_server.context.host_ip);
+            src = (request.object as MediaItem).create_stream_source_for_resource
+                                        (request.http_server.context.host_ip, null);
         }
 
         if (src == null) {

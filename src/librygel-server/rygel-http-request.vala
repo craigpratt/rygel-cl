@@ -23,7 +23,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-internal errordomain Rygel.HTTPRequestError {
+public errordomain Rygel.HTTPRequestError {
     UNACCEPTABLE = Soup.KnownStatusCode.NOT_ACCEPTABLE,
     BAD_REQUEST = Soup.KnownStatusCode.BAD_REQUEST,
     NOT_FOUND = Soup.KnownStatusCode.NOT_FOUND,
@@ -33,7 +33,7 @@ internal errordomain Rygel.HTTPRequestError {
 /**
  * Base class for HTTP client requests.
  */
-internal abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
+public abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
     public unowned HTTPServer http_server;
     private MediaContainer root_container;
     public unowned Soup.Server server;
@@ -41,8 +41,11 @@ internal abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
 
     public Cancellable cancellable { get; set; }
 
-    protected HTTPItemURI uri;
+    public HTTPItemURI uri;
+    // TODO: rename this to "media_resource
     public MediaObject object;
+    // TODO: add: public MediaResource media_resource;
+    // Or - to take this further - maybe only the GetHandler should have item/resource references?
 
     internal ClientHacks hack;
 
@@ -54,6 +57,11 @@ internal abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
         this.root_container = http_server.root_container;
         this.server = server;
         this.msg = msg;
+        if (msg.get_http_version () == Soup.HTTPVersion.@1_0) {
+            msg.set_http_version (Soup.HTTPVersion.@1_1);
+            msg.response_headers.append ("Connection", "close");
+        }
+
         try {
             this.hack = ClientHacks.create (msg);
         } catch (Error error) { }

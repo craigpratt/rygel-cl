@@ -125,7 +125,7 @@ public abstract class Rygel.MediaContainer : MediaObject {
 
     public string sort_criteria { set; get; default = DEFAULT_SORT_CRITERIA; }
 
-    internal override OCMFlags ocm_flags {
+    public override OCMFlags ocm_flags {
         get {
             if (!(this is WritableContainer) || this.uris.size == 0) {
                 return OCMFlags.NONE;
@@ -334,7 +334,8 @@ public abstract class Rygel.MediaContainer : MediaObject {
 
         var res = this.add_resource (didl_container,
                                      uri.to_string (),
-                                     http_server.get_protocol ());
+                                     http_server.get_protocol (),
+                                     new MediaResource ("dummy2"));
         if (res != null) {
             res.protocol_info.mime_type = "text/xml";
             res.protocol_info.dlna_profile = "DIDL_S";
@@ -346,7 +347,8 @@ public abstract class Rygel.MediaContainer : MediaObject {
 
         res = this.add_resource (didl_container,
                                  uri.to_string (),
-                                 http_server.get_protocol ());
+                                 http_server.get_protocol (),
+                                 new MediaResource ("dummy3"));
         if (res != null) {
             res.protocol_info.mime_type = "audio/x-mpegurl";
         }
@@ -356,6 +358,7 @@ public abstract class Rygel.MediaContainer : MediaObject {
                                         (DIDLLiteObject didl_object,
                                          string?        uri,
                                          string         protocol,
+                                         MediaResource  resource,
                                          string?        import_uri = null)
                                          throws Error {
         if (this.child_count <= 0) {
@@ -365,6 +368,7 @@ public abstract class Rygel.MediaContainer : MediaObject {
         var res = base.add_resource (didl_object,
                                      uri,
                                      protocol,
+                                     resource,
                                      import_uri);
 
         if (uri != null) {

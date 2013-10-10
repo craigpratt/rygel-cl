@@ -44,16 +44,27 @@ internal class Rygel.PlaylistDatasource : Rygel.DataSource, Object {
 
     public signal void data_ready ();
 
-    public void start (HTTPSeek? offsets) throws Error {
-        if (offsets != null) {
+    public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
+                                                     DLNAPlaySpeedRequest? playspeed_request)
+       throws Error {
+        if (seek_request != null) {
             throw new DataSourceError.SEEK_FAILED
                                         (_("Seeking not supported"));
         }
 
+        if (playspeed_request != null) {
+            throw new DataSourceError.PLAYSPEED_FAILED
+                                    (_("Speed not supported"));
+        }
+
+        return null;
+    }
+
+    public void start () throws Error {
         if (this.data == null) {
             this.data_ready.connect ( () => {
                 try {
-                    this.start (offsets);
+                    this.start ();
                 } catch (Error error) { }
             });
 
@@ -165,7 +176,7 @@ internal class Rygel.HTTPPlaylistHandler : Rygel.HTTPGetHandler {
         var protocol = request.http_server.get_protocol ();
 
         try {
-            return request.object.add_resource (didl_object, null, protocol);
+            return request.object.add_resource (didl_object, null, protocol, new MediaResource("dummy"));
         } catch (Error error) {
             return null as DIDLLiteResource;
         }

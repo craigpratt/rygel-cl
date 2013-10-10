@@ -32,7 +32,7 @@ public interface Rygel.GstLaunch.Item : Rygel.MediaItem {
     protected DataSource? create_source () {
         var engine = MediaEngine.get_default ();
 
-        return engine.create_data_source ("gst-launch://" + this.launch_line);
+        return engine.create_data_source_for_resource ("gst-launch://" + this.launch_line, null);
     }
 }
 

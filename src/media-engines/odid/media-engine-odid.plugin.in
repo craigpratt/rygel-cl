@@ -1,0 +1,7 @@
+[Plugin]
+Version = @VERSION@
+Module = media-engine-odid
+Name = media-engine-odid
+License = LGPL
+Description = CableLabs media streaming engine for on-disk media items
+Copyright = Copyright © CableLabs

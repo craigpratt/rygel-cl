@@ -42,7 +42,8 @@ public class Rygel.GstLaunch.AudioItem : Rygel.AudioItem, Item {
         this.launch_line = launch_line;
     }
 
-    public override DataSource? create_stream_source (string? host_ip) {
+    public override DataSource? create_stream_source_for_resource (string? host_ip = null,
+                                                                  MediaResource? resource) {
         return this.create_source ();
     }
 }

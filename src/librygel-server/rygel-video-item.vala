@@ -119,9 +119,10 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
                                         (DIDLLiteObject didl_object,
                                          string?        uri,
                                          string         protocol,
+                                         MediaResource  resource,
                                          string?        import_uri = null)
                                          throws Error {
-        var res = base.add_resource (didl_object, uri, protocol, import_uri);
+        var res = base.add_resource (didl_object, uri, protocol, resource, import_uri);
 
         this.add_visual_props (res);
 
@@ -187,6 +188,7 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
                 subtitle.uri = server.create_uri_for_item (this,
                                                            -1,
                                                            index,
+                                                           null,
                                                            null,
                                                            null);
                 subtitle.add_didl_node (didl_item);

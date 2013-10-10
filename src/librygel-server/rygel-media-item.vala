@@ -35,15 +35,16 @@ private errordomain Rygel.MediaItemError {
  * These objects correspond to items in the UPnP ContentDirectory's DIDL-Lite XML.
  */
 public abstract class Rygel.MediaItem : MediaObject {
-    public string date { get; set; }
-
-    public string creator { get; set; }
+    // TODO: Add List of MediaResources. Note that subclasses will also need to be changed
+    //       to store media resource parameters in a MediaResource
 
     // Resource info
+    // TODO: Remove me (this will be in MediaResource)
     public string mime_type { get; set; }
     public string dlna_profile { get; set; }
 
     // Size in bytes
+    // TODO: Remove me (this will be in MediaResource)
     private int64 _size = -1;
     public int64 size {
         get {
@@ -63,7 +64,10 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     public string description { get; set; default = null; }
 
-    internal override OCMFlags ocm_flags {
+    // Note: MediaResources are ordered from most- to least-preferred
+    public Gee.List<MediaResource> media_resources { get; set; default = null; }
+
+    public override OCMFlags ocm_flags {
         get {
             var flags = OCMFlags.NONE;
 
@@ -113,7 +117,8 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     // Live media items need to provide a nice working implementation of this
     // method if they can/do not provide a valid URI
-    public virtual DataSource? create_stream_source (string? host_ip = null) {
+    public virtual DataSource? create_stream_source_for_resource (string? host_ip = null,
+                                                                  MediaResource? resource) {
         if (this.uris.size == 0) {
             return null;
         }
@@ -128,7 +133,7 @@ public abstract class Rygel.MediaItem : MediaObject {
             }
         }
 
-        return MediaEngine.get_default ().create_data_source (translated_uri);
+        return MediaEngine.get_default ().create_data_source_for_resource (translated_uri, resource);
     }
 
     public bool is_live_stream () {
@@ -151,11 +156,13 @@ public abstract class Rygel.MediaItem : MediaObject {
                                         (DIDLLiteObject didl_object,
                                          string?        uri,
                                          string         protocol,
+                                         MediaResource  resource,
                                          string?        import_uri = null)
                                          throws Error {
         var res = base.add_resource (didl_object,
                                      uri,
                                      protocol,
+                                     resource,
                                      import_uri);
 
         if (uri != null && !this.place_holder) {
@@ -177,11 +184,6 @@ public abstract class Rygel.MediaItem : MediaObject {
             // so we just set it to 0.
             res.update_count = 0;
         }
-
-        res.size64 = this.size;
-
-        /* Protocol info */
-        res.protocol_info = this.get_protocol_info (uri, protocol);
 
         return res;
     }
@@ -248,11 +250,6 @@ public abstract class Rygel.MediaItem : MediaObject {
             creator.name = this.creator;
         }
 
-        if (this.creator != null && this.creator != "") {
-            var creator = didl_item.add_creator ();
-            creator.name = this.creator;
-        }
-
         if (this.description != null) {
             didl_item.description = this.description;
         }
@@ -266,8 +263,8 @@ public abstract class Rygel.MediaItem : MediaObject {
          * there just choose the first one in the list instead of the one they
          * can handle.
          */
-        this.add_proxy_resources (http_server, didl_item);
         if (!this.place_holder) {
+            this.write_didl_lite_for_resources (http_server, didl_item);
             var host_ip = http_server.context.host_ip;
 
             // then original URIs
@@ -290,21 +287,34 @@ public abstract class Rygel.MediaItem : MediaObject {
     internal virtual void add_proxy_resources (HTTPServer   server,
                                                DIDLLiteItem didl_item)
                                                throws Error {
-        // Proxy resource for the original resources
-        server.add_proxy_resource (didl_item, this);
+    }
 
-        if (!this.place_holder) {
-            // Transcoding resources
-            server.add_resources (didl_item, this);
+    internal void write_didl_lite_for_resources(HTTPServer server, DIDLLiteItem didl_item) {
+        foreach (var resource in media_resources) {
+            if (resource.uri == null) {
+                var uri = server.create_uri_for_item (this,
+                                                       -1,
+                                                       -1,
+                                                       this.dlna_profile,
+                                                       null,
+                                                       resource);
+                resource.uri = uri;
+            } else {
+                debug("Found MediaResource with pre-existing URI: " + resource.uri);
+            }
+
+            DIDLLiteResource didl_resource = didl_item.add_resource();
+            resource.write_didl_lite(didl_resource);
         }
     }
 
     protected virtual ProtocolInfo get_protocol_info (string? uri,
-                                                      string  protocol) {
+                                                      string  protocol,
+                                                      MediaResource resource) {
         var protocol_info = new ProtocolInfo ();
 
-        protocol_info.mime_type = this.mime_type;
-        protocol_info.dlna_profile = this.dlna_profile;
+        protocol_info.mime_type = resource.protocol_info.mime_type;
+        protocol_info.dlna_profile = resource.protocol_info.dlna_profile;
         protocol_info.protocol = protocol;
         protocol_info.dlna_flags = DLNAFlags.DLNA_V15 |
                                    DLNAFlags.CONNECTION_STALL |
@@ -347,11 +357,11 @@ public abstract class Rygel.MediaItem : MediaObject {
     protected virtual void add_resources (DIDLLiteItem didl_item,
                                           bool         allow_internal)
                                           throws Error {
-        foreach (var uri in this.uris) {
-            var protocol = this.get_protocol_for_uri (uri);
+        foreach (MediaResource resource in this.media_resources) {
+            var protocol = this.get_protocol_for_uri (this.uris[0]);
 
             if (allow_internal || protocol != "internal") {
-                this.add_resource (didl_item, uri, protocol);
+                this.add_resource (didl_item, this.uris[0], protocol, resource);
             }
         }
     }
