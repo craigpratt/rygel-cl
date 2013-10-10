@@ -888,21 +888,38 @@ public class Rygel.MediaExport.MediaCache : Object {
     private void fill_item (Statement statement, MediaItem item) {
         // Fill common properties
         item.date = statement.column_text (DetailColumn.DATE);
-        item.mime_type = statement.column_text (DetailColumn.MIME_TYPE);
-        item.dlna_profile = statement.column_text (DetailColumn.DLNA_PROFILE);
-        item.size = statement.column_int64 (DetailColumn.SIZE);
         item.creator = statement.column_text (DetailColumn.CREATOR);
 
+        // Fill primary MediaResource on the MediaItem.
+        item.media_resources = new Gee.ArrayList<MediaResource>();
+        MediaResource res = new MediaResource("primary");
+        res.protocol_info = new ProtocolInfo();
+        res.protocol_info.protocol = "http-get";
+        res.protocol_info.mime_type = statement.column_text (DetailColumn.MIME_TYPE);
+        res.protocol_info.dlna_profile = statement.column_text (DetailColumn.DLNA_PROFILE);
+        res.size = statement.column_int64 (DetailColumn.SIZE);
+        item.media_resources.add(res);
+
         if (item is AudioItem) {
-            var audio_item = item as AudioItem;
-            audio_item.duration = (long) statement.column_int64
-                                        (DetailColumn.DURATION);
-            audio_item.bitrate = statement.column_int (DetailColumn.BITRATE);
-            audio_item.sample_freq = statement.column_int
-                                        (DetailColumn.SAMPLE_FREQ);
-            audio_item.bits_per_sample = statement.column_int
-                                        (DetailColumn.BITS_PER_SAMPLE);
-            audio_item.channels = statement.column_int (DetailColumn.CHANNELS);
+            res.duration = (long) statement.column_int64 (DetailColumn.DURATION);
+            res.bitrate = statement.column_int (DetailColumn.BITRATE);
+            res.sample_freq = statement.column_int (DetailColumn.SAMPLE_FREQ);
+            res.bits_per_sample = statement.column_int (DetailColumn.BITS_PER_SAMPLE);
+            res.audio_channels = statement.column_int (DetailColumn.CHANNELS);
+
+            // Find extension from URI in DB.
+            string uri_extension = "";
+            string basename = Path.get_basename (statement.column_text (DetailColumn.URI));
+            int dot_index = -1;
+            if (basename != null)   
+            {
+                dot_index = basename.last_index_of(".");
+                if (dot_index > -1) {
+                    uri_extension = basename.substring (dot_index + 1);
+                }
+            }
+            res.extension = uri_extension;
+
             if (item is MusicItem) {
                 var music_item = item as MusicItem;
                 music_item.artist = statement.column_text (DetailColumn.AUTHOR);
@@ -915,11 +932,9 @@ public class Rygel.MediaExport.MediaCache : Object {
         }
 
         if (item is VisualItem) {
-            var visual_item = item as VisualItem;
-            visual_item.width = statement.column_int (DetailColumn.WIDTH);
-            visual_item.height = statement.column_int (DetailColumn.HEIGHT);
-            visual_item.color_depth = statement.column_int
-                                        (DetailColumn.COLOR_DEPTH);
+            res.width = statement.column_int (DetailColumn.WIDTH);
+            res.height = statement.column_int (DetailColumn.HEIGHT);
+            res.color_depth = statement.column_int (DetailColumn.COLOR_DEPTH);
         }
     }
 

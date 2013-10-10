@@ -92,15 +92,15 @@ public class Rygel.HTTPItemURI : Object {
                     this.extension = subtitles[subtitle_index].caption_type;
                 }
             }
+        } else if (media_resource != null) {
+            this.media_resource_name = media_resource.get_name();
+            this.extension = media_resource.extension;
         } else if (transcode_target != null) {
             try {
                 var tc = this.http_server.get_transcoder (transcode_target);
 
                 this.extension = tc.extension;
             } catch (Error error) {}
-        } else if (media_resource != null) {
-            this.media_resource_name = media_resource.get_name();
-            this.extension = media_resource.extension;
         }
 
         if (this.extension == "") {
@@ -200,12 +200,12 @@ public class Rygel.HTTPItemURI : Object {
                                          true);
         string path = "/i/" + escaped;
 
-        if (this.transcode_target != null) {
-            escaped = Uri.escape_string (this.transcode_target, "", true);
-            path += "/tr/" + escaped;
-        } else if (this.media_resource_name != null) {
+        if (this.media_resource_name != null) {
             escaped = Uri.escape_string (this.media_resource_name, "", true);
             path += "/res/" + escaped;
+        } else if (this.transcode_target != null) {
+            escaped = Uri.escape_string (this.transcode_target, "", true);
+            path += "/tr/" + escaped;
         } else if (this.thumbnail_index >= 0) {
             path += "/th/" + this.thumbnail_index.to_string ();
         } else if (this.subtitle_index >= 0) {
