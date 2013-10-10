@@ -82,6 +82,8 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                                         "video/x-xvid",
                                         "video/x-ms-wmv",
 					"video/vnd.dlna.mpeg-tts",
+				 	"application/x-dtcp1",
+
 					 };
     private static Player player;
 

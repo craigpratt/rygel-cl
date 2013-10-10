@@ -331,6 +331,9 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
         }
 
         var normalized = mime.down ().replace (" ", "");
+	if( normalized.contains("application/x-dtcp1")){
+	    normalized = "application/x-dtcp1";
+	}
 
         return normalized in this.player.get_mime_types ();
     }
