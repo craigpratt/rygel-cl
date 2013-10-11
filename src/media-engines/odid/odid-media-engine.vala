@@ -217,11 +217,18 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             File res_info_file = File.new_for_uri(res_dir_uri + "/resource.info");
             var dis = new DataInputStream(res_info_file.read());
             string line;
+            int line_num = 0;
             while ((line = dis.read_line(null)) != null) {
+                line_num++;
                 if (line[0] == '#') continue;
                 var equals_pos = line.index_of("=");
                 var name = line[0:equals_pos].strip();
                 var value = line[equals_pos+1:line.length].strip();
+
+                if ((name == null) || (value == null))  {
+                    warning("Bad entry in %s line %d: %s", res_dir_uri, line_num, line);
+                    continue;
+                }
                 if (name == "basename") {
                     basename = value;
                     continue;
@@ -253,6 +260,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         if (res.uri != null) {
             // Our URI (and content) is not Rygel-hosted. So no need to look for content
             //  (there really shouldn't be any...)
+            message("Found URI in resource metadata for %s: %s", res_dir_uri, res.uri);
             return res;
         }
 
