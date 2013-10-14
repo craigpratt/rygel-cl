@@ -52,7 +52,7 @@ public class Rygel.HTTPGet : HTTPRequest {
     }
 
     protected override async void handle () throws Error {
-        message("processing request for %s", this.uri.to_string());
+        debug("processing request for %s", this.uri.to_string());
         
         var header = this.msg.request_headers.get_one
                                         ("getcontentFeatures.dlna.org");
@@ -179,7 +179,7 @@ public class Rygel.HTTPGet : HTTPRequest {
             if ( !(requested_byte_seek || requested_cleartext_seek)
                  && DLNAPlaySpeedRequest.requested(this) ) {
                 this.speed_request = new DLNAPlaySpeedRequest.from_request(this);
-                message("Processing playspeed %s", speed_request.speed.to_string());
+                debug("Processing playspeed %s", speed_request.speed.to_string());
             } else {
                 this.speed_request = null;
             }
@@ -203,19 +203,19 @@ public class Rygel.HTTPGet : HTTPRequest {
             // Order is intentional here
             if (supports_cleartext_seek && requested_cleartext_seek) {
                 var cleartext_seek = new DTCPCleartextByteSeekRequest (this);
-                message ("Processing DTCP cleartext byte range request (bytes %lld to %lld)",
+                debug ("Processing DTCP cleartext byte range request (bytes %lld to %lld)",
                          cleartext_seek.start_byte, cleartext_seek.end_byte);
                 this.seek = cleartext_seek;
             } else if (supports_byte_seek && requested_byte_seek) {
                 var byte_seek = new HTTPByteSeekRequest (this);
-                message ("Processing byte range request (bytes %lld to %lld)",
+                debug ("Processing byte range request (bytes %lld to %lld)",
                        byte_seek.start_byte, byte_seek.end_byte);
                 this.seek = byte_seek;
             } else if (supports_time_seek && requested_time_seek) {
                 // Assert: speed_request has been checked/processed
                 var time_seek = new HTTPTimeSeekRequest (this, ((this.speed_request == null) ? null
                                                                 : this.speed_request.speed) );
-                message ("Processing time seek request (time %lldns to %lldns)",
+                debug ("Processing time seek request (time %lldns to %lldns)",
                        time_seek.start_time, time_seek.end_time);
                 this.seek = time_seek;
             } else {
@@ -316,9 +316,9 @@ public class Rygel.HTTPGet : HTTPRequest {
             this.msg.set_status (response_code);
         }
 
-        message ("Following HTTP headers appended to response:");
+        debug ("Following HTTP headers appended to response:");
         this.msg.response_headers.foreach ((name, value) => {
-            message ("    %s : %s", name, value);
+            debug ("    %s : %s", name, value);
         });
 
         if (this.msg.method == "HEAD") {

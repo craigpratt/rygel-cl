@@ -63,6 +63,8 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
             var byte_seek = seek_request as HTTPByteSeekRequest;
             this.first_byte = byte_seek.start_byte;
             this.last_byte = byte_seek.end_byte + 1;
+            debug("Processing byte seek request for bytes %lld-%lld of %s",
+                    byte_seek.start_byte, byte_seek.end_byte, this.uri);
             var seek_response = new HTTPByteSeekResponse.from_request(byte_seek);
             // Response will just return what was in the request
             response_list.add(seek_response);
@@ -122,7 +124,8 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
 
     private void* thread_func () {
         var file = File.new_for_commandline_arg (this.uri);
-        debug ("Spawning new thread for streaming file %s", this.uri);
+        debug ("Thread started - sending bytes %lld-%lld (%lld bytes) of %s",
+                 this.first_byte, this.last_byte,this.last_byte-this.first_byte, this.uri);
         try {
             var mapped = new MappedFile (file.get_path (), false);
             if (this.last_byte == 0) {

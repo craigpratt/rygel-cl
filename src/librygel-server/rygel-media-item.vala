@@ -291,15 +291,24 @@ public abstract class Rygel.MediaItem : MediaObject {
 
     internal void write_didl_lite_for_resources(HTTPServer server, DIDLLiteItem didl_item) {
         foreach (var resource in media_resources) {
-            if (resource.uri == null) {
+            // We create URIs here, arguably, so that the URI address can be written to
+            //  incorporate the interface address the request was received on (but if a
+            //  MediaItem subclass is created for each browse, perhaps it would be more
+            //  appropriate to have this done at initialization instead of using lazy
+            //  initialization?)
+            if (resource.uri == null || resource.uri.length == 0) {
                 var uri = server.create_uri_for_item (this,
                                                        -1,
                                                        -1,
                                                        this.dlna_profile,
+                                                       // TODO: resource.protocol_info.dlna_profile?
                                                        null,
                                                        resource);
                 resource.uri = uri;
             } else {
+                // We'll be here if the MediaEngine supplied a URI. This is the temporary
+                //  way to support external URIs (e.g. MPEG-DASH MPDs). Eventually external
+                //  resources/URIs should be setup by the MediaServer.
                 debug("Found MediaResource with pre-existing URI: " + resource.uri);
             }
 
@@ -311,11 +320,13 @@ public abstract class Rygel.MediaItem : MediaObject {
     protected virtual ProtocolInfo get_protocol_info (string? uri,
                                                       string  protocol,
                                                       MediaResource resource) {
+        // TODO: REMOVE ME - This should be on MediaResource
         var protocol_info = new ProtocolInfo ();
 
         protocol_info.mime_type = resource.protocol_info.mime_type;
         protocol_info.dlna_profile = resource.protocol_info.dlna_profile;
         protocol_info.protocol = protocol;
+        // Seems like these are properties of the MediaServer
         protocol_info.dlna_flags = DLNAFlags.DLNA_V15 |
                                    DLNAFlags.CONNECTION_STALL |
                                    DLNAFlags.BACKGROUND_TRANSFER_MODE;

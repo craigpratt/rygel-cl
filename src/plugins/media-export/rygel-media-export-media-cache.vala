@@ -892,14 +892,31 @@ public class Rygel.MediaExport.MediaCache : Object {
 
         // Fill primary MediaResource on the MediaItem.
         item.media_resources = new Gee.ArrayList<MediaResource>();
+        // TODO: Get the resources from a MediaResource table (e.g. the "Resource" table in ODID
+        //       MediaServer) (Will be included in next patch). Resource name, mime_type, size,
+        //       operational modes, protocol, etc. will all come from this table and contained
+        //       in MediaResource objects.
         MediaResource res = new MediaResource("primary");
+        
         res.protocol_info = new ProtocolInfo();
-        res.protocol_info.protocol = "http-get";
+        item.mime_type = statement.column_text (DetailColumn.MIME_TYPE);
         res.protocol_info.mime_type = statement.column_text (DetailColumn.MIME_TYPE);
+        if (res.protocol_info.mime_type == null) {
+            message("Found null mime-type for %s", statement.column_text (DetailColumn.URI));
+            res.protocol_info.mime_type = "application/octet-stream";
+        }
         res.protocol_info.dlna_profile = statement.column_text (DetailColumn.DLNA_PROFILE);
         res.size = statement.column_int64 (DetailColumn.SIZE);
-        item.media_resources.add(res);
-
+        res.uri = ""; // To avoid assertion errors.
+        res.protocol_info.dlna_operation = DLNAOperation.RANGE;
+        
+        // TODO: Some protocolInfo elements speak to the capabilities of the MediaServer/DataSink.
+        // Should these be set by interrogating the HTTPServer? 
+        res.protocol_info.protocol = "http-get";
+        res.protocol_info.dlna_flags |= DLNAFlags.DLNA_V15
+                                        | DLNAFlags.STREAMING_TRANSFER_MODE
+                                        | DLNAFlags.BACKGROUND_TRANSFER_MODE
+                                        | DLNAFlags.CONNECTION_STALL;
         if (item is AudioItem) {
             res.duration = (long) statement.column_int64 (DetailColumn.DURATION);
             res.bitrate = statement.column_int (DetailColumn.BITRATE);
@@ -936,6 +953,8 @@ public class Rygel.MediaExport.MediaCache : Object {
             res.height = statement.column_int (DetailColumn.HEIGHT);
             res.color_depth = statement.column_int (DetailColumn.COLOR_DEPTH);
         }
+        // Add the single/primary resource to the item
+        item.media_resources.add(res);
     }
 
     private static string translate_search_expression

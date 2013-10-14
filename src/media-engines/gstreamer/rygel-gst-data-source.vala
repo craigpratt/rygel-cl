@@ -68,17 +68,22 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
                                     (_("Playspeed not supported"));
         }
 
-        if (seek_request is HTTPByteSeekRequest) {
-            // Responding to the byte request as requested
+        if (seek_request == null) {
+            debug("No seek requested - sending entire binary");
+        } else if (seek_request is HTTPByteSeekRequest) {
             var seek_response = new HTTPByteSeekResponse.from_request( seek_request
                                                                        as HTTPByteSeekRequest );
+            debug("Processing byte seek request for bytes %lld-%lld",
+                    seek_response.start_byte, seek_response.end_byte);
             response_list.add(seek_response);
             // Supported - and no reponse values required...
         } else if (seek is HTTPTimeSeekRequest) {
             var time_seek = seek_request as HTTPTimeSeekRequest;
-            // TODO: Align this with actual time positions returned
-            // For now, set the effective TimeSeekRange response range to the requested range
+            // Set the effective TimeSeekRange response range to the requested range
+            // TODO: Align this with actual time range being returned
             var seek_response = new HTTPTimeSeekResponse.from_request(time_seek, res.duration);
+            debug("Processing time seek request for %lldns-%lldns",
+                    seek_response.start_time, seek_response.end_time);
             response_list.add(seek_response);
         } else {
             // Unknown/unsupported seek type
@@ -259,6 +264,7 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
             flags |= SeekFlags.KEY_UNIT;
             start = time_seek.start_time * Gst.USECOND;
             stop = time_seek.end_time * Gst.USECOND;
+            debug("Performing time-range seek: %lldns to %lldns", start, stop);
         } else if (this.seek is HTTPByteSeekRequest) {
             var byte_seek = this.seek as HTTPByteSeekRequest;
             if (byte_seek.range_length >= byte_seek.total_size) {
@@ -269,6 +275,7 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
             flags |= SeekFlags.ACCURATE;
             start = byte_seek.start_byte;
             stop = byte_seek.end_byte;
+            debug("Performing byte-range seek: bytes %lld to %lld", start, stop);
         } else {
             this.error (new DataSourceError.SEEK_FAILED (_("Unsupported seek type")));
             return false;

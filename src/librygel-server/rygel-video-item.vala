@@ -87,6 +87,8 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
     public override void add_uri (string uri) {
         base.add_uri (uri);
 
+        // TODO: This may need to be coordinated with the setting of MediaResources (since
+        //       the mime type(s) aren't known until the MRs are established) 
         this.add_thumbnail_for_uri (uri, this.mime_type);
 
         var subtitle_manager = SubtitleManager.get_default ();

@@ -79,7 +79,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     private string dtcp_host;
 
     public ODIDMediaEngine() {
-        message("constructing");
+        debug("constructing");
         var profiles_config = new Gee.ArrayList<string>();
         var config = MetaConfig.get_default();
 
@@ -101,12 +101,12 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 if (Dtcpip.init_dtcp_library (dtcp_storage) != 0) {
                     error ("DTCP-IP init failed for storage path: %s",dtcp_storage);
                 } else {
-                    message ("DTCP-IP storage loaded successfully");
+                    debug ("DTCP-IP storage loaded successfully");
                     if (Dtcpip.server_dtcp_init (dtcp_port) != 0) {
                         error ("DTCP-IP source init failed: host %s, port %d, storage %s",
                                this.dtcp_host, this.dtcp_port, this.dtcp_storage);
                     } else {
-                        message ("DTCP-IP source initialized: host %s, port %d, storage %s",
+                        debug ("DTCP-IP source initialized: host %s, port %d, storage %s",
                                  this.dtcp_host, this.dtcp_port, this.dtcp_storage);
                         dtcp_initialized = true;
                     }
@@ -115,20 +115,20 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 error("Error initializing DTCP: " + err.message);
             }
         } else {
-            message ("DTCP-IP is disabled");
+            debug ("DTCP-IP is disabled");
         }
 
         foreach (var row in profiles_config) {
             var columns = row.split(",");
             if (columns.length < 2)
             {
-                message( "OdidMediaEngine profile entry \""
+                debug( "OdidMediaEngine profile entry \""
                          + row + "\" is malformed: Expected 2 entries and found "
                          + columns.length.to_string() );
                 break;
             }
 
-            message("OdidMediaEngine: configuring profile entry: " + row);
+            debug("OdidMediaEngine: configuring profile entry: " + row);
             // Note: This profile list won't affect what profiles are included in the 
             //       primary res block
             profiles.append(new DLNAProfile(columns[0],columns[1]));
@@ -152,7 +152,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
             odid_item_path = keyFile.get_string ("item", "odid_uri");
 
-            message("get_resources_for_uri: processing item directory: " + odid_item_path);
+            debug("get_resources_for_uri: processing item directory: " + odid_item_path);
 
             var directory = File.new_for_uri(odid_item_path);
             
@@ -161,7 +161,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             FileInfo file_info;
             while ((file_info = enumerator.next_file ()) != null) {
                 if (file_info.get_file_type () == FileType.DIRECTORY) {
-                    message( "get_resources_for_uri:   processing resource directory: "
+                    debug( "get_resources_for_uri:   processing resource directory: "
                              + file_info.get_name());
                     // A directory in an item directory is a resource
                     try {
@@ -169,8 +169,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                                                      + file_info.get_name() + "/");
                         if (res != null) {
                             resources.add(res);
-                            message("get_resources_for_uri:     created resource: " + res.get_name());
-                            message("get_resources_for_uri:       resource profile: "
+                            debug("get_resources_for_uri:     created resource: " + res.get_name());
+                            debug("get_resources_for_uri:       resource profile: "
                                     + res.protocol_info.to_string());
                         }
                     } catch (Error err) {
@@ -260,7 +260,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         if (res.uri != null) {
             // Our URI (and content) is not Rygel-hosted. So no need to look for content
             //  (there really shouldn't be any...)
-            message("Found URI in resource metadata for %s: %s", res_dir_uri, res.uri);
+            debug("Found URI in resource metadata for %s: %s", res_dir_uri, res.uri);
             return res;
         }
 
@@ -577,7 +577,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 }
 
 public static Rygel.MediaEngine module_get_instance() {
-    message("module_get_instance");
+    debug("module_get_instance");
     return new Rygel.ODIDMediaEngine();
 }
 

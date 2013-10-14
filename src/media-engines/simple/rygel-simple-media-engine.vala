@@ -50,7 +50,7 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
         if (!uri.has_prefix ("file://")) {
             return null;
         }
-
+        debug("creating data source for %s", uri);
         return new SimpleDataSource (uri);
     }
 }

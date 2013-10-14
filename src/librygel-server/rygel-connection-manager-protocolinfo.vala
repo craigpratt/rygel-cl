@@ -104,6 +104,9 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
         foreach (var media_item in media_objects) {
             if (media_item is MediaItem) {
                 MediaItem t_item = (media_item as MediaItem);
+                if (t_item.media_resources == null) {
+                    continue;
+                }
 
                 foreach (var media_resource in t_item.media_resources) {
                     MediaResource t_resource = (media_resource as MediaResource);

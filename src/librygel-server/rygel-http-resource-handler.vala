@@ -46,10 +46,15 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
         this.media_item = media_item;
         this.cancellable = cancellable;
         this.media_resource_name = media_resource_name;
-        foreach (var resource in media_item.media_resources) {
-            if (resource.get_name() == media_resource_name) {
-                this.media_resource = resource;
+        if (media_item.media_resources != null) {
+            foreach (var resource in media_item.media_resources) {
+                if (resource.get_name() == media_resource_name) {
+                    this.media_resource = resource;
+                }
             }
+        } else {
+            warning("MediaItem without resources (%s)", media_item.uris[0]);
+            // TODO: Determine if/how we're getting here
         }
         if (this.media_resource == null) {
             throw new HTTPRequestError.NOT_FOUND ("MediaResource %s not found", media_resource_name);
