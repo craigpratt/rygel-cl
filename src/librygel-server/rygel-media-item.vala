@@ -115,7 +115,7 @@ public abstract class Rygel.MediaItem : MediaObject {
     // Live media items need to provide a nice working implementation of this
     // method if they can/do not provide a valid URI
     public virtual DataSource? create_stream_source_for_resource (string? host_ip = null,
-                                                                  MediaResource? resource) {
+                                                                  MediaResource? resource = null) {
         if (this.uris.size == 0) {
             return null;
         }

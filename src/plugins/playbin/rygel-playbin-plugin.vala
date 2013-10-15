@@ -35,6 +35,11 @@ internal class Rygel.Playbin.Plugin : Rygel.MediaRendererPlugin {
         base (Plugin.NAME, _("GStreamer Player"));
     }
 
+    public override void constructed () {
+        base.constructed ();
+        this.supported_profiles = Player.get_default ().supported_profiles;
+    }
+
     public override MediaPlayer? get_player () {
         return Playbin.Player.get_default ();
     }

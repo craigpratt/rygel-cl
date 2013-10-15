@@ -84,8 +84,10 @@ internal class Rygel.PlayerController : Object {
                     actions = "Stop,Seek,Pause";
                     break;
                 case "STOPPED":
+                    actions = "Play";
+                    break;
                 case "PAUSED_PLAYBACK":
-                    actions = "Play,Seek";
+                    actions = "Stop,Play,Seek";
                     break;
                 default:
                     break;
@@ -213,7 +215,8 @@ internal class Rygel.PlayerController : Object {
                                         (item.get_xml_string ());
             this.player.uri = res.get_uri ();
             if (item.upnp_class.has_prefix ("object.item.image") &&
-                this.collection != null) {
+                this.collection != null &&
+                this.player.playback_state != "STOPPED") {
                 this.setup_image_timeouts (item.lifetime);
             }
         }

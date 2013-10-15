@@ -31,7 +31,7 @@ dnl Required versions of library packages
 dnl Not all of these are actually used, depending on the configure options.
 GLIB_REQUIRED=2.31.13
 LIBXML_REQUIRED=2.7
-VALA_REQUIRED=0.20.0
+VALA_REQUIRED=0.22.0
 VALADOC_REQUIRED=0.2
 GSSDP_REQUIRED=0.13.0
 GUPNP_REQUIRED=0.19.0
@@ -379,29 +379,34 @@ dnl documenation
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 AM_CONDITIONAL([HAVE_XSLTPROC], [test x"$XSLTPROC" != x])
 
-dnl Use valadoc for API documentation:
+dnl Use valadoc and gtk-doc for API documentation:
 dnl This is on by default when using autogen.sh 
 dnl (so it is not on by default when building from a tarball with configure.)
-AC_ARG_ENABLE(valadoc,
-  AS_HELP_STRING([--enable-valadoc[=@<:@no/auto/yes@:>@]], [Enable valadoc support]),,
-    [enable_valadoc=no])
+AC_ARG_ENABLE(apidocs,
+              AS_HELP_STRING([--enable-apidocs[=@<:@no/auto/yes@:>@]],
+                             [Create API documentation using valadoc and GTK-Doc]),,
+    [enable_apidocs=auto])
 
 found_valadoc=no
-AS_IF([test "x$enable_valadoc" != "xno"], [
+AS_IF([test "x$enable_apidocs" != "xno"], [
     AC_PATH_PROG(VALADOC, valadoc, :)
     AS_IF([test -x "$VALADOC"], [
       found_valadoc=yes
       AC_SUBST(VALADOC)
-      PKG_CHECK_MODULES([GTKDOC],[gtk-doc >= 1.0])
+      PKG_CHECK_MODULES([GTKDOC],[gtk-doc >= 1.0],,
+                        AS_IF([test "x$enable_apidocs" == "xyes"],
+                              [AC_MSG_ERROR([Unable to find gtk-doc])],
+                              [found_valadoc=no])
+                        )
     ], [
-      AS_IF([test "x$enable_valadoc" == "xyes"], AC_MSG_ERROR([Unable to find valadoc]))
+      AS_IF([test "x$enable_apidocs" == "xyes"], AC_MSG_ERROR([Unable to find valadoc]))
     ])
   ])
 
 AM_CONDITIONAL(ENABLE_VALADOC, test x$found_valadoc = xyes)
 
 AC_SUBST([RYGEL_PLUGIN_LINKER_FLAGS],
-         ["-shared -fPIC -module -avoid-version -Wl,-z,defs"])
+         ["-module -avoid-version -Wl,-z,defs"])
 AC_SUBST([RYGEL_PLUGIN_DIR],
          [${libdir}/rygel-2.0/plugins])
 AC_SUBST([RYGEL_MEDIA_ENGINE_DIR],
@@ -480,6 +485,7 @@ echo "
         uninstalled:            ${enable_uninstalled}
         preferences ui:         ${HAVE_GTK}
         Media Engine:           ${with_media_engine}
+        API documentation:      ${found_valadoc}
     Plugins:
         examples:               ${enable_example_plugins}
         tracker:                ${enable_tracker_plugin}

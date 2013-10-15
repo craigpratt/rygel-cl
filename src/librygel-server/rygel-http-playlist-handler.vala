@@ -176,7 +176,15 @@ internal class Rygel.HTTPPlaylistHandler : Rygel.HTTPGetHandler {
         var protocol = request.http_server.get_protocol ();
 
         try {
-            return request.object.add_resource (didl_object, null, protocol, new MediaResource("dummy"));
+            var res = request.object.add_resource ( didl_object, null, protocol,
+                                                    new MediaResource("dummy") );
+
+            // set DLNA profile to get proper contentFeatures header
+            if (this.playlist_type == SerializerType.DIDL_S) {
+                res.protocol_info.dlna_profile = "DIDL_S";
+            }
+
+            return res;
         } catch (Error error) {
             return null as DIDLLiteResource;
         }

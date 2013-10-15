@@ -28,7 +28,7 @@ public errordomain Rygel.MediaExport.DatabaseError {
 }
 
 namespace Rygel.MediaExport {
-    extern static int utf8_collate_str (string a, string b);
+    extern static int utf8_collate_str (uint8[] a, uint8[] b);
 }
 
 /**
@@ -45,7 +45,8 @@ internal class Rygel.MediaExport.Database : SqliteWrapper {
     private static void utf8_contains (Sqlite.Context context,
                                        Sqlite.Value[] args)
                                        requires (args.length == 2) {
-        if (args[1].to_text() == null) {
+        if (args[0].to_text () == null ||
+            args[1].to_text () == null) {
            context.result_int (0);
 
            return;
@@ -74,10 +75,7 @@ internal class Rygel.MediaExport.Database : SqliteWrapper {
         unowned uint8[] _b = (uint8[]) b;
         _b.length = blen;
 
-        var str_a = ((string) _a);
-        var str_b = ((string) _b);
-
-        return utf8_collate_str (str_a, str_b);
+        return utf8_collate_str (_a, _b);
     }
 
     /**

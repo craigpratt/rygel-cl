@@ -93,7 +93,7 @@ internal abstract class Rygel.MediaQueryAction : GLib.Object, StateMachine {
 
     protected virtual void parse_args () throws Error {
         int64 index, requested_count;
-        
+
         // Browse and Search action must have 6 mandatory arguments
         if (action.get_argument_count () != 6) {
             throw new ContentDirectoryError.INVALID_ARGS
@@ -118,13 +118,17 @@ internal abstract class Rygel.MediaQueryAction : GLib.Object, StateMachine {
 
         if (this.object_id == null) {
             // Sorry we can't do anything without ObjectID
-            throw new ContentDirectoryError.NO_SUCH_OBJECT
-                                        (_("No such object"));
+            throw new ContentDirectoryError.INVALID_ARGS
+                                        (_("ObjectID argument missing"));
         }
 
         if (index < 0 || requested_count < 0) {
             throw new ContentDirectoryError.INVALID_ARGS
                                         (_("Invalid range"));
+        }
+
+        if (this.filter == null) {
+            throw new ContentDirectoryError.INVALID_ARGS (_("Missing filter"));
         }
 
         this.index = (uint) index;
@@ -185,12 +189,12 @@ internal abstract class Rygel.MediaQueryAction : GLib.Object, StateMachine {
             var media_object = yield this.root_container.find_object
                                         (this.object_id, this.cancellable);
             if (media_object == null) {
-                if (this.object_id_arg == "ObjectID"){
+                if (this.object_id_arg == "ObjectID") {
                     throw new ContentDirectoryError.NO_SUCH_OBJECT
-                                            (_("No such object"));                
-                }else{
+                                            (_("No such object"));
+                } else {
                     throw new ContentDirectoryError.NO_SUCH_CONTAINER
-                                            (_("No such container"));   
+                                            (_("No such container"));
                 }
             }
             debug ("object '%s' found.", this.object_id);

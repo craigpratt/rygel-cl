@@ -125,14 +125,7 @@ internal class Rygel.ImportResource : GLib.Object, Rygel.StateMachine {
                      this.destination_uri,
                      error.message);
 
-            int code;
-            if (error is ContentDirectoryError) {
-                code = error.code;
-            } else {
-                code = 719;
-            }
-
-            this.action.return_error (code, error.message);
+            this.action.return_error (error.code, error.message);
             this.status = TransferStatus.ERROR;
             this.completed ();
 
@@ -174,8 +167,14 @@ internal class Rygel.ImportResource : GLib.Object, Rygel.StateMachine {
     }
 
     private async MediaItem fetch_item () throws Error {
-        var uri = new HTTPItemURI.from_string (this.destination_uri,
+        HTTPItemURI uri;
+        try {
+            uri = new HTTPItemURI.from_string (this.destination_uri,
                                                this.http_server);
+        } catch (Error error) {
+            throw new ContentDirectoryError.NO_SUCH_DESTINATION_RESOURCE
+                                            (error.message);
+        }
         var media_object = yield this.root_container.find_object (uri.item_id,
                                                                   null);
         string msg = null;
@@ -212,7 +211,7 @@ internal class Rygel.ImportResource : GLib.Object, Rygel.StateMachine {
                 file.delete (this.cancellable);
             } catch (Error error) {};
 
-            var phrase = status_get_phrase (message.status_code);
+            var phrase = Status.get_phrase (message.status_code);
             if (message.status_code == 404) {
                 this.action.return_error (714, phrase);
             } else {
@@ -236,8 +235,7 @@ internal class Rygel.ImportResource : GLib.Object, Rygel.StateMachine {
             } else {
                 this.status = TransferStatus.ERROR;
             }
-            this.session.cancel_message (message,
-                                         KnownStatusCode.CANCELLED);
+            this.session.cancel_message (message, Status.CANCELLED);
         }
     }
 
@@ -266,7 +264,7 @@ internal class Rygel.ImportResource : GLib.Object, Rygel.StateMachine {
             if (!(message.status_code >= 200 && message.status_code <= 299)) {
                 this.status = TransferStatus.ERROR;
 
-                var phrase = status_get_phrase (message.status_code);
+                var phrase = Status.get_phrase (message.status_code);
                 this.action.return_error (714, phrase);
             }
         }

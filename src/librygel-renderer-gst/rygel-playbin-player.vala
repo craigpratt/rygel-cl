@@ -2,7 +2,7 @@
  * Copyright (C) 2008 OpenedHand Ltd.
  * Copyright (C) 2009,2010,2011,2012 Nokia Corporation.
  * Copyright (C) 2012 Openismus GmbH
- * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2012,2013 Intel Corporation.
  *
  * Author: Jorn Baayen <jorn@openedhand.com>
  *         Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
@@ -26,6 +26,7 @@
 
 using Gst;
 using GUPnP;
+using Rygel.Renderer;
 
 /**
  * Implementation of RygelMediaPlayer for GStreamer.
@@ -335,6 +336,12 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
     }
 
     public bool seek (int64 time) {
+        // Playbin doesn't return false when seeking beyond the end of the
+        // file
+        if (time > this.duration) {
+            return false;
+        }
+
         return this.playbin.seek (1.0,
                                   Format.TIME,
                                   SeekFlags.FLUSH,
@@ -380,12 +387,74 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         return mime_types;
     }
 
+    private GLib.List<DLNAProfile> _supported_profiles;
+    public unowned GLib.List<DLNAProfile> supported_profiles {
+        get {
+            if (_supported_profiles == null) {
+                // FIXME: Check available decoders in registry and register
+                // profiles after that
+                _supported_profiles = new GLib.List<DLNAProfile> ();
+
+                // Image
+                _supported_profiles.prepend (new DLNAProfile ("JPEG_SM",
+                                                              "image/jpeg"));
+                _supported_profiles.prepend (new DLNAProfile ("JPEG_MED",
+                                                              "image/jpeg"));
+                _supported_profiles.prepend (new DLNAProfile ("JPEG_LRG",
+                                                              "image/jpeg"));
+                _supported_profiles.prepend (new DLNAProfile ("PNG_LRG",
+                                                              "image/png"));
+
+                // Audio
+                _supported_profiles.prepend (new DLNAProfile ("MP3",
+                                                              "audio/mpeg"));
+                _supported_profiles.prepend (new DLNAProfile ("MP3X",
+                                                              "audio/mpeg"));
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("AAC_ADTS_320",
+                                         "audio/vnd.dlna.adts"));
+                _supported_profiles.prepend (new DLNAProfile ("AAC_ISO_320",
+                                                              "audio/mp4"));
+                _supported_profiles.prepend (new DLNAProfile ("AAC_ISO_320",
+                                                              "audio/3gpp"));
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("LPCM",
+                                         "audio/l16;rate=44100;channels=2"));
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("LPCM",
+                                         "audio/l16;rate=44100;channels=1"));
+                _supported_profiles.prepend (new DLNAProfile ("WMABASE",
+                                                              "audio/x-ms-wma"));
+                _supported_profiles.prepend (new DLNAProfile ("WMAFULL",
+                                                              "audio/x-ms-wma"));
+                _supported_profiles.prepend (new DLNAProfile ("WMAPRO",
+                                                              "audio/x-ms-wma"));
+
+                // Video
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("MPEG_TS_SD_EU_ISO",
+                                         "video/mpeg"));
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("MPEG_TS_SD_NA_ISO",
+                                         "video/mpeg"));
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("MPEG_TS_HD_NA_ISO",
+                                         "video/mpeg"));
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("AVC_MP4_BL_CIF15_AAC_520",
+                                         "video/mp4"));
+            }
+
+            return _supported_profiles;
+        }
+    }
+
     private bool is_rendering_image () {
         dynamic Element typefind;
 
         typefind = (this.playbin as Gst.Bin).get_by_name ("typefind");
         Caps caps = typefind.caps;
-        var structure = caps.get_structure (0);
+        unowned Structure structure = caps.get_structure (0);
 
         return structure.get_name () == "image/jpeg" ||
                structure.get_name () == "image/png";

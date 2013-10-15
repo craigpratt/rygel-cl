@@ -1,10 +1,7 @@
 /*
- * Copyright (C) 2008-2009 Nokia Corporation.
  * Copyright (C) 2012 Intel Corporation.
  *
- * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
- *                               <zeeshan.ali@nokia.com>
- *         Jens Georg <jensg@openismus.com>
+ * Author: Jens Georg <jensg@openismus.com>
  *
  * This file is part of Rygel.
  *
@@ -23,17 +20,25 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-public errordomain Rygel.HTTPSeekRequestError {
-    INVALID_RANGE = Soup.Status.BAD_REQUEST,
-    OUT_OF_RANGE = Soup.Status.REQUESTED_RANGE_NOT_SATISFIABLE,
-}
-
 /**
- * HTTPSeekRequest is an abstract base for a variety of seek request types.
+ * Data class representing a DLNA profile.
+ * It contains the name and the corresponding DLNA mime type.
  *
+ * Note: The mime type can deviate from mime types typically used elsewhere.
  */
-public abstract class Rygel.HTTPSeekRequest : GLib.Object {
-    // For designating fields that are unset
-    public static const int64 UNSPECIFIED = -1;
-    // Note: -1 is significant in that libsoup also uses it to designate an "unknown" value
+public class Rygel.Renderer.DLNAProfile {
+    public string mime;
+    public string name;
+
+    public DLNAProfile (string name, string mime) {
+        this.mime = mime;
+        this.name = name;
+    }
+
+    /**
+     * Compare two DLNA profiles by name
+     */
+    public static int compare_by_name (DLNAProfile a, DLNAProfile b) {
+        return a.name.ascii_casecmp (b.name);
+    }
 }

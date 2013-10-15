@@ -248,10 +248,10 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
             message.request_headers.append ("getContentFeatures.dlna.org",
                                             "1");
             message.finished.connect ((msg) => {
-                if ((msg.status_code == KnownStatusCode.MALFORMED ||
-                     msg.status_code == KnownStatusCode.BAD_REQUEST ||
-                     msg.status_code == KnownStatusCode.METHOD_NOT_ALLOWED ||
-                     msg.status_code == KnownStatusCode.NOT_IMPLEMENTED) &&
+                if ((msg.status_code == Status.MALFORMED ||
+                     msg.status_code == Status.BAD_REQUEST ||
+                     msg.status_code == Status.METHOD_NOT_ALLOWED ||
+                     msg.status_code == Status.NOT_IMPLEMENTED) &&
                     msg.method == "HEAD") {
                     debug ("Peer does not support HEAD, trying GET");
                     msg.method = "GET";
@@ -264,7 +264,7 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
                     return;
                 }
 
-                if (msg.status_code != KnownStatusCode.OK) {
+                if (msg.status_code != Status.OK) {
                     warning ("Failed to access %s: %s",
                              _uri,
                              msg.reason_phrase);
@@ -313,6 +313,10 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
         } else {
             this.controller.metadata = _metadata;
             this.controller.uri = _uri;
+
+            this.track_metadata = _metadata;
+            this.track_uri = _uri;
+
             if (_uri == "") {
                 this.controller.n_tracks = 0;
                 this.controller.track = 0;
@@ -524,7 +528,7 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
 
         action.set ("PlayMedia",
                         typeof (string),
-                        "NOT_IMPLEMENTED",
+                        "None,Network",
                     "RecMedia",
                         typeof (string),
                         "NOT_IMPLEMENTED",
@@ -625,11 +629,25 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
                         out target);
         switch (unit) {
         case "ABS_TIME":
-        case "REL_TIME":
             debug ("Seeking to %s.", target);
 
             if (!this.player.seek (TimeUtils.time_from_string (target))) {
-                action.return_error (710, _("Seek mode not supported"));
+                action.return_error (711, _("Illegal seek target"));
+
+                return;
+            }
+
+            action.return ();
+
+            return;
+        case "REL_TIME":
+            debug ("Relative seek to %s.", target);
+
+            var seek_target = this.player.position +
+                              TimeUtils.time_from_string (target);
+
+            if (!this.player.seek (seek_target)) {
+                action.return_error (711, _("Illegal seek target"));
 
                 return;
             }

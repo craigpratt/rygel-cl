@@ -185,11 +185,11 @@ public class Rygel.HTTPGet : HTTPRequest {
             this.server.unpause_message (this.msg);
             if (error is DLNAPlaySpeedError.INVALID_SPEED_FORMAT) {
                 // TODO: log something?
-                this.end (Soup.KnownStatusCode.BAD_REQUEST);
+                this.end (Soup.Status.BAD_REQUEST);
                 // Per DLNA 7.5.4.3.3.16.3
             } else if (error is DLNAPlaySpeedError.SPEED_NOT_PRESENT) {
                 // TODO: log something?
-                this.end (Soup.KnownStatusCode.NOT_ACCEPTABLE);
+                this.end (Soup.Status.NOT_ACCEPTABLE);
                  // Per DLNA 7.5.4.3.3.16.5
             } else {
                 throw error;
@@ -224,9 +224,9 @@ public class Rygel.HTTPGet : HTTPRequest {
             this.server.unpause_message (this.msg);
 
             if (error is HTTPSeekRequestError.INVALID_RANGE) {
-                this.end (Soup.KnownStatusCode.BAD_REQUEST);
+                this.end (Soup.Status.BAD_REQUEST);
             } else if (error is HTTPSeekRequestError.OUT_OF_RANGE) {
-                this.end (Soup.KnownStatusCode.REQUESTED_RANGE_NOT_SATISFIABLE);
+                this.end (Soup.Status.REQUESTED_RANGE_NOT_SATISFIABLE);
             } else {
                 throw error;
             }
@@ -307,9 +307,9 @@ public class Rygel.HTTPGet : HTTPRequest {
         {
             int response_code;
             if (this.msg.response_headers.get_one ("Content-Range") != null) {
-                response_code = Soup.KnownStatusCode.PARTIAL_CONTENT;
+                response_code = Soup.Status.PARTIAL_CONTENT;
             } else {
-                response_code = Soup.KnownStatusCode.OK;
+                response_code = Soup.Status.OK;
             }
             this.msg.set_status (response_code);
         }
@@ -328,7 +328,7 @@ public class Rygel.HTTPGet : HTTPRequest {
 
         yield response.run ();
 
-        this.end (Soup.KnownStatusCode.NONE);
+        this.end (Soup.Status.NONE);
     }
 
     private void ensure_correct_mode () throws HTTPRequestError {

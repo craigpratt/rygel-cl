@@ -43,7 +43,7 @@ public class Rygel.GstLaunch.VideoItem : Rygel.VideoItem, Item {
     }
 
     public override DataSource? create_stream_source_for_resource (string? host_ip = null,
-                                                                  MediaResource? resource) {
+                                                                  MediaResource? resource = null) {
         return this.create_source ();
     }
 }
