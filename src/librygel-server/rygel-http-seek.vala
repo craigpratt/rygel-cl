@@ -5,7 +5,6 @@
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jens Georg <jensg@openismus.com>
- *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -36,5 +35,5 @@ public errordomain Rygel.HTTPSeekRequestError {
 public abstract class Rygel.HTTPSeekRequest : GLib.Object {
     // For designating fields that are unset
     public static const int64 UNSPECIFIED = -1;
-    // Note: -1 is significant in that Soup also uses it to designate an "unknown" value
+    // Note: -1 is significant in that libsoup also uses it to designate an "unknown" value
 }

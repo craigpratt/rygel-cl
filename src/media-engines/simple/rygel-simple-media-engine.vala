@@ -32,7 +32,7 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
 
     public SimpleMediaEngine () { }
 
-    public override unowned List<DLNAProfile> get_renderable_dlna_profiles() {
+    public override unowned List<DLNAProfile> get_dlna_profiles() {
         return this.profiles;
     }
 

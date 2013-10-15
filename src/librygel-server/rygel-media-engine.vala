@@ -84,7 +84,7 @@ public abstract class Rygel.MediaEngine : GLib.Object {
     }
 
     /**
-     * Get a list of the DLNA profiles that the media engine can consume.
+     * Get a list of the DLNA profiles that the media engine can stream.
      *
      * This information is needed to implement DLNA's
      * ConnectionManager.GetProtocolInfo call and to determine whether Rygel
@@ -92,7 +92,7 @@ public abstract class Rygel.MediaEngine : GLib.Object {
      *
      * @return A list of #RygelDLNAProfile<!-- -->s
      */
-    public abstract unowned List<DLNAProfile> get_renderable_dlna_profiles ();
+    public abstract unowned List<DLNAProfile> get_dlna_profiles ();
 
     /**
      * Get the supported MediaResources for the given content uri.

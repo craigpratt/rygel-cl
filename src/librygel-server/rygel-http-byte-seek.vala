@@ -5,7 +5,6 @@
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jens Georg <jensg@openismus.com>
- *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *

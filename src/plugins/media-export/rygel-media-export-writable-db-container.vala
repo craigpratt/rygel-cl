@@ -45,12 +45,11 @@ internal class Rygel.MediaExport.WritableDbContainer : TrackableDbContainer,
         this.create_classes = new ArrayList<string> ();
 
         // Items
-        // Disabling Non video item class
-        //this.create_classes.add (Rygel.ImageItem.UPNP_CLASS);
-        //this.create_classes.add (Rygel.PhotoItem.UPNP_CLASS);
+        this.create_classes.add (Rygel.ImageItem.UPNP_CLASS);
+        this.create_classes.add (Rygel.PhotoItem.UPNP_CLASS);
         this.create_classes.add (Rygel.VideoItem.UPNP_CLASS);
-        //this.create_classes.add (Rygel.AudioItem.UPNP_CLASS);
-        //this.create_classes.add (Rygel.MusicItem.UPNP_CLASS);
+        this.create_classes.add (Rygel.AudioItem.UPNP_CLASS);
+        this.create_classes.add (Rygel.MusicItem.UPNP_CLASS);
         this.create_classes.add (Rygel.PlaylistItem.UPNP_CLASS);
 
         // Containers

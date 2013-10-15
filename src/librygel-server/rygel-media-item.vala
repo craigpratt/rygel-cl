@@ -35,9 +35,6 @@ private errordomain Rygel.MediaItemError {
  * These objects correspond to items in the UPnP ContentDirectory's DIDL-Lite XML.
  */
 public abstract class Rygel.MediaItem : MediaObject {
-    // TODO: Add List of MediaResources. Note that subclasses will also need to be changed
-    //       to store media resource parameters in a MediaResource
-
     // Resource info
     // TODO: Remove me (this will be in MediaResource)
     public string mime_type { get; set; }
@@ -244,7 +241,7 @@ public abstract class Rygel.MediaItem : MediaObject {
         if (this.date != null) {
             didl_item.date = this.date;
         }
-        
+
         if (this.creator != null && this.creator != "") {
             var creator = didl_item.add_creator ();
             creator.name = this.creator;

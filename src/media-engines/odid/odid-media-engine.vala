@@ -135,8 +135,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         }
     }
 
-    public override unowned GLib.List<DLNAProfile> get_renderable_dlna_profiles() {
-        debug("get_renderable_dlna_profiles");
+    public override unowned GLib.List<DLNAProfile> get_dlna_profiles() {
+        debug("get_dlna_profiles");
         return this.profiles;
     }
 

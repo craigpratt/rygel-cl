@@ -108,7 +108,7 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
         }
     }
 
-    public override unowned GLib.List<DLNAProfile> get_renderable_dlna_profiles() {
+    public override unowned GLib.List<DLNAProfile> get_dlna_profiles() {
         return this.dlna_profiles;
     }
 
@@ -137,7 +137,7 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
             return null;
         }
     }
-    
+
     public DataSource create_data_source_from_element (Element element) {
         return new GstDataSource.from_element (element);
     }
