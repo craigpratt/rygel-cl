@@ -45,7 +45,6 @@
 
 using GLib;
 using Gee;
-using Gst.PbUtils;
 
 internal class FileQueueEntry {
     public File file;

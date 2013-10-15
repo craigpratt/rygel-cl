@@ -48,11 +48,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-using Gst;
-using Gst.PbUtils;
 using Gee;
-using GUPnP;
-using GUPnPDLNA;
 
 /**
  * Metadata extractor based on Gstreamer. Just set the URI of the media on the

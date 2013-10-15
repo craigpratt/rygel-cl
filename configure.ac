@@ -180,15 +180,10 @@ AS_IF([test "x$with_media_engine" = "xgstreamer"],
           [
             PKG_CHECK_MODULES([RYGEL_PLUGIN_ODID_DEPS],
                               [$RYGEL_COMMON_MODULES gio-2.0 >= $GIO_REQUIRED
-                               gupnp-dlna-2.0 >= $GUPNP_DLNA_REQUIRED
-                               gupnp-dlna-gst-2.0 >= $GUPNP_DLNA_REQUIRED
-                               gstreamer-app-1.0 >= $GSTREAMER_APP_REQUIRED
-                               gstreamer-tag-1.0 >= $GSTREAMER_TAG_REQUIRED
-                               gstreamer-pbutils-1.0 >= $GSTPBU_REQUIRED
                                libsoup-2.4 >= $LIBSOUP_REQUIRED
                                sqlite3 >= $LIBSQLITE3_REQUIRED
                                uuid])
-            RYGEL_PLUGIN_ODID_DEPS_VALAFLAGS="$RYGEL_COMMON_MODULES_VALAFLAGS --pkg gupnp-dlna-2.0 --pkg gupnp-dlna-gst-2.0 --pkg gstreamer-tag-1.0 --pkg gstreamer-app-1.0 --pkg gstreamer-pbutils-1.0 --pkg sqlite3"
+            RYGEL_PLUGIN_ODID_DEPS_VALAFLAGS="$RYGEL_COMMON_MODULES_VALAFLAGS --pkg sqlite3"
             AC_SUBST([RYGEL_PLUGIN_ODID_DEPS_VALAFLAGS])
           ])
 
@@ -206,7 +201,6 @@ AS_IF([test "x$with_media_engine" = "xgstreamer"],
       [
         RYGEL_DISABLE_PLUGIN([playbin])
         RYGEL_DISABLE_PLUGIN([media-export])
-        RYGEL_DISABLE_PLUGIN([odid])
         RYGEL_DISABLE_PLUGIN([gst-launch])
       ])
  
