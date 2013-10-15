@@ -32,7 +32,6 @@ MAINTAINERCLEANFILES = Makefile.in
 
 RYGEL_COMMON_DEFINES_CFLAGS = \
 	-DDATA_DIR='"$(shareddir)"' \
-        -g \
 	-include config.h
 
 
