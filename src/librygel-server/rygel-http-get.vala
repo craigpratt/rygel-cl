@@ -35,7 +35,8 @@
  */
 
 /**
- * Responsible for handling HTTP GET & HEAD client requests. */
+ * Responsible for handling HTTP GET & HEAD client requests.
+ */
 public class Rygel.HTTPGet : HTTPRequest {
     private const string TRANSFER_MODE_HEADER = "transferMode.dlna.org";
     private const string SERVER_NAME = "CVP2-RI-DMS";
