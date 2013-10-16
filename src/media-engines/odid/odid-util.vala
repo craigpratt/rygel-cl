@@ -23,10 +23,8 @@
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
- */
-
-/**
- * Author : Parthiban Balasubramanian <p.balasubramanian@cablelabs.com>
+ *
+ * Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  */
 
 using Dtcpip;
