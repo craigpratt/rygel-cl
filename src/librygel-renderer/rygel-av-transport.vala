@@ -23,6 +23,15 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+/*
+ * Modifications made by Cable Television Laboratories, Inc.
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
+ * Contact: http://www.cablelabs.com/
+ *
+ * Author: Neha Shanbhag <N.Shanbhag@cablelabs.com>
+ * Author: Sivakumar Mani <siva@orexel.com>
+ */
+
 using GUPnP;
 using Soup;
 
