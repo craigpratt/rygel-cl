@@ -19,6 +19,16 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
+
+/*
+ * Modifications made by Cable Television Laboratories, Inc.
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
+ * Contact: http://www.cablelabs.com/
+ *
+ * Author: Craig Pratt <craig@ecaspia.com>
+ * Author: Doug Galligan <doug@sentosatech.com>>
+ */
+
 using GUPnP;
 
 /**

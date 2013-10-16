@@ -24,14 +24,18 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
+/*
+ * Modifications made by Cable Television Laboratories, Inc.
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
+ * Contact: http://www.cablelabs.com/
+ *
+ * Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
+ */
 
 using Gee;
 using GLib;
 using GUPnP;
 
-/**
- * Author : Parthiban Balasubramanian <p.balasubramanian@cablelabs.com>
- */
 public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
 
     private static ConnectionManagerProtocolInfo cm_protocol_info = null;

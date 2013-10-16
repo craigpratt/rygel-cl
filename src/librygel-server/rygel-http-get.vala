@@ -25,9 +25,17 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-/**
- * Responsible for handling HTTP GET & HEAD client requests.
+/*
+ * Modifications made by Cable Television Laboratories, Inc.
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
+ * Contact: http://www.cablelabs.com/
+ *
+ * Author: Craig Pratt <craig@ecaspia.com>
+ * Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  */
+
+/**
+ * Responsible for handling HTTP GET & HEAD client requests. */
 public class Rygel.HTTPGet : HTTPRequest {
     private const string TRANSFER_MODE_HEADER = "transferMode.dlna.org";
     private const string SERVER_NAME = "CVP2-RI-DMS";
