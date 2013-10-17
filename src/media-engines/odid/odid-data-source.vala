@@ -25,6 +25,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * Author: Craig Pratt <craig@ecaspia.com>
+ * Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  */
 
 /*
@@ -36,7 +37,6 @@
 /**
  * A simple data source for use with the ODID media engine.
  */
-using Dtcpip;
 using GUPnP;
 
 internal class Rygel.ODIDDataSource : DataSource, Object {
@@ -268,8 +268,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 = new DTCPCleartextByteSeekResponse(this.range_start,this.range_end-1,total_size);
             
             seek_response.encrypted_length = 
-                               (int64)Dtcpip.get_encrypted_length( seek_response.range_length,
-                                                                   uint16.MAX );
+                               (int64)DTCPShim.get_encrypted_length( seek_response.range_length,
+                                                                     uint16.MAX );
             
             response_list.add(seek_response);
             debug ("Byte range for cleartext byte seek response: bytes %lld through %lld",
@@ -425,7 +425,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         debug ("Starting data source for %s", content_uri);
 
         if (this.content_protected) {
-            Dtcpip.server_dtcp_open (out dtcp_session_handle, 0);
+            DTCPShim.server_dtcp_open (out dtcp_session_handle, 0);
 
             if (dtcp_session_handle == -1) {
                 warning ("DTCP-IP session not opened");
@@ -478,7 +478,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
     public void clear_dtcp_session() {
         if (dtcp_session_handle != -1) {
-            int ret_close = Dtcpip.server_dtcp_close (dtcp_session_handle);
+            int ret_close = DTCPShim.server_dtcp_close (dtcp_session_handle);
             debug ("Dtcp session closed : %d",ret_close);
             dtcp_session_handle = -1;
         }
@@ -542,8 +542,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                     uchar cci = 0x3; // TODO: Put the CCI bits in resource.info
 
                     // Encrypt the data
-                    int return_value = Dtcpip.server_dtcp_encrypt ( dtcp_session_handle, cci,
-                                                                    slice, out encrypted_data );
+                    int return_value = DTCPShim.server_dtcp_encrypt ( dtcp_session_handle, cci,
+                                                                      slice, out encrypted_data );
                     debug ("Encryption returned: %d and the encryption size : %s",
                            return_value,
                            (encrypted_data == null) ? "NULL" : encrypted_data.length.to_string() );
@@ -553,7 +553,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                             this.data_available (encrypted_data);
                         }
 
-                        int ret_free = Dtcpip.server_dtcp_free (encrypted_data);
+                        int ret_free = DTCPShim.server_dtcp_free (encrypted_data);
                         debug ("DTCP-IP data reference freed : %d", ret_free);
 
                         return false;

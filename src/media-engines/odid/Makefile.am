@@ -11,15 +11,19 @@ librygel_media_engine_odid_la_SOURCES = \
 librygel_media_engine_odid_la_VALAFLAGS = \
 	$(RYGEL_COMMON_LIBRYGEL_SERVER_VALAFLAGS) \
 	$(RYGEL_COMMON_VALAFLAGS) \
-	--pkg dtcpip
+	$(RYGEL_MEDIA_ENGINE_ODID_DEPS_VALAFLAGS)
 
 librygel_media_engine_odid_la_CFLAGS = \
 	$(LIBRYGEL_SERVER_DEPS_CFLAGS) \
 	$(RYGEL_COMMON_LIBRYGEL_SERVER_CFLAGS) \
+	$(RYGEL_MEDIA_ENGINE_ODID_DEPS_CFLAGS) \
 	-DG_LOG_DOMAIN='"MediaEngine-ODID"'
+
 librygel_media_engine_odid_la_LIBADD = \
 	$(LIBRYGEL_SERVER_DEPS_LIBS) \
+	$(RYGEL_MEDIA_ENGINE_ODID_DEPS_LIBS) \
 	$(RYGEL_COMMON_LIBRYGEL_SERVER_LIBS)
+
 librygel_media_engine_odid_la_LDFLAGS = \
 	$(RYGEL_PLUGIN_LINKER_FLAGS)
 
