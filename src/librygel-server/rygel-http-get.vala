@@ -180,29 +180,32 @@ public class Rygel.HTTPGet : HTTPRequest {
         // Check for DLNA PlaySpeed request only if Range or Range.dtcp.com is not
         // in the request. DLNA 7.5.4.3.3.19.2, DLNA Link Protection : 7.6.4.4.2.12
         // (is 7.5.4.3.3.19.2 compatible with the use case in 7.5.4.3.2.24.5?)
-        // Note: We need to check the speed since direction factors into validating
+        // Note: We need to check the speed first since direction factors into validating
         //       the time-seek request
         try {
             if ( !(requested_byte_seek || requested_cleartext_seek)
                  && DLNAPlaySpeedRequest.requested(this) ) {
                 this.speed_request = new DLNAPlaySpeedRequest.from_request(this);
                 debug("Processing playspeed %s", speed_request.speed.to_string());
+                if (this.speed_request.speed.is_normal_rate()) {
+                    // This is not a scaled-rate request. Treat it as if it wasn't even there
+                    this.speed_request = null;
+                }
             } else {
                 this.speed_request = null;
             }
         } catch (DLNAPlaySpeedError error) {
             this.server.unpause_message (this.msg);
             if (error is DLNAPlaySpeedError.INVALID_SPEED_FORMAT) {
-                // TODO: log something?
                 this.end (Soup.Status.BAD_REQUEST);
                 // Per DLNA 7.5.4.3.3.16.3
             } else if (error is DLNAPlaySpeedError.SPEED_NOT_PRESENT) {
-                // TODO: log something?
                 this.end (Soup.Status.NOT_ACCEPTABLE);
                  // Per DLNA 7.5.4.3.3.16.5
             } else {
                 throw error;
             }
+            debug("Error processing PlaySpeed: %s", error.message);
             return;
         }
 

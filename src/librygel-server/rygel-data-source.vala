@@ -71,7 +71,8 @@ public interface Rygel.DataSource : GLib.Object {
      * Preroll the data with the given seek and playspeed.
      *
      * @param seek    optional seek/range specifier
-     * @param playspeed optional playback rate specifier
+     * @param playspeed optional playback rate specifier. This will only be provided
+     *                  when a scaled rate is requested (the speed will not be 0.0 or 1.0)
      *
      * @return List of HTTPResponseElements appropriate for the content request and
      *         optional seek/playspeed (e.g. Content-Range, TimeSeekRange.dlna.org,
