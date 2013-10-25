@@ -45,14 +45,6 @@
             <name>A_ARG_TYPE_Result</name>
             <dataType>int</dataType>
         </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>A_ARG_TYPE_RegistrationReqMsg</name>
-            <dataType>bin.base64</dataType>
-        </stateVariable>
-        <stateVariable sendEvents="no">
-            <name>A_ARG_TYPE_RegistrationRespMsg</name>
-            <dataType>bin.base64</dataType>
-        </stateVariable>
         <stateVariable sendEvents="yes">
             <name>AuthorizationGrantedUpdateID</name>
             <dataType>ui4</dataType>
