@@ -296,7 +296,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             res.protocol_info.dlna_operation = DLNAOperation.NONE;
             // We'll OR in TIMESEEK if we have an index file...
             res.cleartext_size = res.size;
-            res.size = (int64)DTCPShim.get_encrypted_length(res.cleartext_size, uint16.MAX);
+            res.size = (int64)DTCPShim.get_encrypted_length(res.cleartext_size,
+                                                            ODIDUtil.get_chunk_size());
             debug ("Encrypted size from DTCP library: %lld",res.size);
         } else {
             res.protocol_info.dlna_operation = DLNAOperation.RANGE;

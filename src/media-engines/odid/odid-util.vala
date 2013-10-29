@@ -31,6 +31,8 @@ public class Rygel.ODIDUtil : Object {
     public const int64 PACKET_SIZE_188 = 188;
     public const int64 PACKET_SIZE_192 = 192;
 
+    public const int64 KILOBYTES_TO_BYTES = 1024;
+
     private ODIDUtil() {
 
     }
@@ -82,6 +84,23 @@ public class Rygel.ODIDUtil : Object {
      */
     public bool is_item_protected (MediaItem item){
         return false;
+    }
+
+    /**
+     * Returns the chunk size in bytes to be used while streaming.
+     * rygel.conf will provide value in KiloBytes
+     */
+    public static int64 get_chunk_size () {
+        var config = MetaConfig.get_default();
+        int64 chunk_size;
+        try {
+            var chunk_size_str = config.get_string ("OdidMediaEngine", "chunk-size");
+            chunk_size = int64.parse (chunk_size_str) * KILOBYTES_TO_BYTES;
+            debug ("Streaming chunk size : %"+int64.FORMAT, chunk_size);
+        } catch (Error err) {
+            error("Error reading ODIDMediaEngine property: " + err.message);
+        }
+        return chunk_size;
     }
 
 }
