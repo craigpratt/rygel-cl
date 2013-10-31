@@ -37,6 +37,7 @@ using GUPnP;
  */
 public abstract class Rygel.HTTPGetHandler: GLib.Object {
     private const string TRANSFER_MODE_HEADER = "transferMode.dlna.org";
+    private const string DEFAULT_TRANSFER_MODE = "Streaming";
 
     public Cancellable cancellable { get; set; }
 
@@ -44,7 +45,13 @@ public abstract class Rygel.HTTPGetHandler: GLib.Object {
     public virtual void add_response_headers (HTTPGet request)
                                               throws HTTPRequestError {
         var mode = request.msg.request_headers.get_one (TRANSFER_MODE_HEADER);
-        if (mode != null) {
+
+        // Per DLNA 7.5.4.3.2.33.2, if the transferMode header is empty it
+        // must be treated as Streaming mode request else send the validated
+        // transferMode value in the response.
+        if (mode == null) {
+            request.msg.response_headers.append (TRANSFER_MODE_HEADER, DEFAULT_TRANSFER_MODE);
+        } else {
             // FIXME: Is it OK to just copy the value of this header from
             // request to response? All we do to entertain this header is to
             // set the priority of IO operations.
