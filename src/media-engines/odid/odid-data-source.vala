@@ -268,7 +268,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             
             seek_response.encrypted_length = 
                                (int64)DTCPShim.get_encrypted_length( seek_response.range_length,
-                                                                     ODIDUtil.get_chunk_size());
+                                                                     ODIDMediaEngine.chunk_size);
             
             response_list.add(seek_response);
             debug ("Byte range for cleartext byte seek response: bytes %lld through %lld",
@@ -512,7 +512,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 }
 
                 var start = this.range_start;
-                var stop = start + ODIDUtil.get_chunk_size();
+                var stop = start + ODIDMediaEngine.chunk_size;
                 if (stop > this.range_end) {
                     stop = this.range_end;
                 }

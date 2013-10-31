@@ -90,16 +90,9 @@ public class Rygel.ODIDUtil : Object {
      * Returns the chunk size in bytes to be used while streaming.
      * rygel.conf will provide value in KiloBytes
      */
-    public static int64 get_chunk_size () {
-        var config = MetaConfig.get_default();
-        int64 chunk_size;
-        try {
-            var chunk_size_str = config.get_string ("OdidMediaEngine", "chunk-size");
-            chunk_size = int64.parse (chunk_size_str) * KILOBYTES_TO_BYTES;
-            debug ("Streaming chunk size : %"+int64.FORMAT, chunk_size);
-        } catch (Error err) {
-            error("Error reading ODIDMediaEngine property: " + err.message);
-        }
+    public static int64 get_chunk_size (string chunk_size_str) {
+        var chunk_size = int64.parse (chunk_size_str) * KILOBYTES_TO_BYTES;
+        debug ("Streaming chunk size : %"+int64.FORMAT, chunk_size);
         return chunk_size;
     }
 

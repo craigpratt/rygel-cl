@@ -71,6 +71,9 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     public static const uint INDEXFILE_FIELD_FRAMESIZE_OFFSET = 37;
     public static const uint INDEXFILE_FIELD_FRAMESIZE_LENGTH = 10;
 
+    // Variable to hold chunk size for streaming
+    public static int64 chunk_size;
+
     // DTCP control variables
     private bool dtcp_initialized;
     private string dtcp_storage;
@@ -83,12 +86,16 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         var config = MetaConfig.get_default();
 
         bool dtcp_enabled = false;
+        string chunk_size_str;
         try {
             dtcp_enabled = config.get_bool ("OdidMediaEngine", "dtcp-enabled");
             profiles_config = config.get_string_list( "OdidMediaEngine", "profiles");
+            chunk_size_str = config.get_string ("OdidMediaEngine", "chunk-size");
         } catch (Error err) {
             error("Error reading ODIDMediaEngine property: " + err.message);
         }
+
+        chunk_size = ODIDUtil.get_chunk_size (chunk_size_str);
 
         dtcp_initialized = false;
         if (dtcp_enabled) {
@@ -297,7 +304,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             // We'll OR in TIMESEEK if we have an index file...
             res.cleartext_size = res.size;
             res.size = (int64)DTCPShim.get_encrypted_length(res.cleartext_size,
-                                                            ODIDUtil.get_chunk_size());
+                                                            chunk_size);
             debug ("Encrypted size from DTCP library: %lld",res.size);
         } else {
             res.protocol_info.dlna_operation = DLNAOperation.RANGE;
