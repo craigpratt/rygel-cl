@@ -98,6 +98,11 @@ public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
                                                    TIMESEEKRANGE_HEADER, range);
         }
 
+        if (!range.substring (4).contains ("-")) {
+            throw new HTTPSeekRequestError.INVALID_RANGE("Invalid %s request with no '-': '%s'",
+                                                  TIMESEEKRANGE_HEADER, range);
+        }
+
         var range_tokens = range.substring (4).split ("-", 2);
 
         int64 start = UNSPECIFIED;
