@@ -39,6 +39,8 @@ internal class Rygel.AVTransport : Service {
     private Session session;
     private string protocol_info;
 
+    private const string protected_content_mime = "application/x-dtcp1";
+
     public string track_metadata {
         owned get { return this.player.metadata ?? ""; }
 
@@ -331,9 +333,14 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
         }
 
         var normalized = mime.down ().replace (" ", "");
-	if( normalized.contains("application/x-dtcp1")){
-	    normalized = "application/x-dtcp1";
-	}
+        if (normalized.contains (protected_content_mime)) {
+            var content_format = normalized.split (";",4);
+            // Split with = as the delimiter, ex: CONTENTFORMAT="video/mpeg"
+            var mime_type = content_format[3].split ("=",2);
+            // Trim the quotes around the value.
+            normalized = mime_type[1].substring (1, mime_type[1].length-2);
+            debug ("Protected content format : %s", normalized);
+        }
 
         return normalized in this.player.get_mime_types ();
     }
