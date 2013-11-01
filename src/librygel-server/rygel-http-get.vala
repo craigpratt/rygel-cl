@@ -165,6 +165,11 @@ public class Rygel.HTTPGet : HTTPRequest {
                 throw new HTTPRequestError.UNACCEPTABLE ( "Cleartext seek not supported for "
                                                           + this.uri.to_string() );
             }
+            if (requested_byte_seek) {
+                    // Per DLNA Link Protection 7.6.4.3.3.9
+                    throw new HTTPRequestError.UNACCEPTABLE ( "Both Cleartext and Range seek requested "
+                                                              + this.uri.to_string());
+            }
         } else if (requested_byte_seek) {
             if (!supports_byte_seek) {
                 throw new HTTPRequestError.UNACCEPTABLE ( "Byte seek not supported for "
