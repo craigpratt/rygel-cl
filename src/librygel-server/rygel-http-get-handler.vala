@@ -52,9 +52,6 @@ public abstract class Rygel.HTTPGetHandler: GLib.Object {
         if (mode == null) {
             request.msg.response_headers.append (TRANSFER_MODE_HEADER, DEFAULT_TRANSFER_MODE);
         } else {
-            // FIXME: Is it OK to just copy the value of this header from
-            // request to response? All we do to entertain this header is to
-            // set the priority of IO operations.
             request.msg.response_headers.append (TRANSFER_MODE_HEADER, mode);
         }
 
