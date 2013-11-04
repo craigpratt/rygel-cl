@@ -369,8 +369,15 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         }
 
         if (!start_offset_found) {
-            throw new DataSourceError.SEEK_FAILED("Start time %lld is out of index file range",
-                                                  start_time);
+            if (is_reverse && (last_time_offset > start_time)) {
+                start_time = last_time_offset;
+                start_offset = int64.parse(strip_leading_zeros(last_data_offset));
+                debug ("offsets_for_time_range: found start of range (%s): time %lld, offset %lld",
+                                 (is_reverse ? "reverse" : "forward"), start_time, start_offset);
+            } else {
+                throw new DataSourceError.SEEK_FAILED("Start time %lld is out of index file range",
+                                                      start_time);
+            }
         }
 
         if (!end_offset_found) {
