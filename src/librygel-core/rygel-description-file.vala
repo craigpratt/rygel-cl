@@ -239,6 +239,10 @@ public class Rygel.DescriptionFile : Object {
 
         }
 
+        if (PluginCapabilities.DIAGNOSTICS in capabilities) {
+            flags += "+DIAGE+";
+        }
+
         // Set the flags we found; otherwise remove whatever is in the
         // template.
         if (flags.length > 0) {

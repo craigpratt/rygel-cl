@@ -29,14 +29,21 @@ which gnome-autogen.sh || {
     exit 1
 }
 
+DEFAULT_ARGS="--enable-vala --enable-valadoc --enable-maintainer-mode  --enable-debug  --enable-example-plugins --enable-mediathek-plugin --enable-gst-launch-plugin --enable-strict-valac"
+
 mkdir -p m4
 
-# require automak 1.11 for vala support
+if [ "x$1" = "xdevel" ]; then
+    DEFAULT_ARGS="$DEFAULT_ARGS --enable-uninstalled --enable-debug --disable-apidocs"
+    shift
+elif [ "x$1" = "xrelease" ]; then
+    DEFAULT_ARGS="$DEFAULT_ARGS --enable-apidocs --disable-debug"
+    shift
+fi
+
+# require automake 1.11 for vala support
 REQUIRED_AUTOMAKE_VERSION=1.11 \
 REQUIRED_AUTOCONF_VERSION=2.64 \
 REQUIRED_LIBTOOL_VERSION=2.2.6 \
 REQUIRED_INTLTOOL_VERSION=0.40.0 \
-bash gnome-autogen.sh --enable-vala --enable-valadoc --enable-maintainer-mode --enable-debug \
-                 --enable-example-plugins \
-                 --enable-mediathek-plugin --enable-gst-launch-plugin \
-                 --enable-strict-valac "$@"
+bash gnome-autogen.sh $DEFAULT_ARGS "$@"
