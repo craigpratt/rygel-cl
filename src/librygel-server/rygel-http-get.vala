@@ -350,8 +350,22 @@ public class Rygel.HTTPGet : HTTPRequest {
 
     private void ensure_correct_mode () throws HTTPRequestError {
         var mode = this.msg.request_headers.get_one (TRANSFER_MODE_HEADER);
-        var correct = true;
 
+        HTTPRequestError transfer_mode_error = new HTTPRequestError.UNACCEPTABLE
+                                                ("%s mode not supported for '%s'",
+                                                 mode,
+                                                 this.object.id);
+
+        // Get the resource to check if the protocolInfo supports
+        // the requested transfer mode.
+        if (this.handler is HTTPMediaResourceHandler) {
+            MediaResource resource = (this.handler as HTTPMediaResourceHandler)
+                                                               .media_resource;
+            if (!resource.is_transfer_mode_enabled (mode))
+              throw transfer_mode_error;
+        }
+
+        var correct = true;
         switch (mode) {
         case "Streaming":
             correct = (!(this.handler is HTTPPlaylistHandler)) && (
@@ -372,11 +386,8 @@ public class Rygel.HTTPGet : HTTPRequest {
             break;
         }
 
-        if (!correct) {
-            throw new HTTPRequestError.UNACCEPTABLE
-                                        ("%s mode not supported for '%s'",
-                                         mode,
-                                         this.object.id);
-        }
+        if (!correct)
+          throw transfer_mode_error;
     }
+
 }
