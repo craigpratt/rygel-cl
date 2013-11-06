@@ -164,12 +164,11 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
                 !proxy.has_prefix ("https://")) {
                 proxy = "http://" + proxy;
             }
-            this.session = new SessionAsync.with_options (Soup.SESSION_PROXY_URI,
-                                                          new Soup.URI (proxy));
+            this.session = new Session.with_options (Soup.SESSION_PROXY_URI,
+                                                     new Soup.URI (proxy));
         } else {
-            this.session = new SessionAsync ();
+            this.session = new Session ();
         }
-        this.session.add_feature_by_type (typeof (Soup.ProxyResolverDefault));
         this.protocol_info = plugin.get_protocol_info ();
     }
 
@@ -648,22 +647,19 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
                         out target);
         switch (unit) {
         case "ABS_TIME":
-            debug ("Seeking to %s.", target);
+        case "REL_TIME":
+            debug ("Seeking %s to %s.", unit, target);
 
-            if (!this.player.seek (TimeUtils.time_from_string (target))) {
-                action.return_error (711, _("Illegal seek target"));
+            var seek_target = TimeUtils.time_from_string (target);
+            if (unit == "REL_TIME") {
+                seek_target += this.player.position;
+            }
+
+            if (!this.player.can_seek) {
+                action.return_error (710, _("Seek mode not supported"));
 
                 return;
             }
-
-            action.return ();
-
-            return;
-        case "REL_TIME":
-            debug ("Relative seek to %s.", target);
-
-            var seek_target = this.player.position +
-                              TimeUtils.time_from_string (target);
 
             if (!this.player.seek (seek_target)) {
                 action.return_error (711, _("Illegal seek target"));

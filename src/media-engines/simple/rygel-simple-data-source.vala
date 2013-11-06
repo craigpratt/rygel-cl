@@ -42,8 +42,8 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
     private Thread<void*> thread;
     private Mutex mutex = Mutex ();
     private Cond cond = Cond ();
-    private uint64 first_byte = 0;
-    private uint64 last_byte = 0;
+    private Posix.off_t first_byte = 0;
+    private Posix.off_t last_byte = 0;
     private bool frozen = false;
     private bool stop_thread = false;
 
@@ -69,8 +69,8 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
             }
 
             var byte_seek = seek_request as HTTPByteSeekRequest;
-            this.first_byte = byte_seek.start_byte;
-            this.last_byte = byte_seek.end_byte + 1;
+            this.first_byte = (Posix.off_t) byte_seek.start_byte;
+            this.last_byte = (Posix.off_t) (byte_seek.end_byte + 1);
             debug("Processing byte seek request for bytes %lld-%lld of %s",
                     byte_seek.start_byte, byte_seek.end_byte, this.uri);
             var seek_response = new HTTPByteSeekResponse.from_request(byte_seek);
@@ -132,14 +132,25 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
 
     private void* thread_func () {
         var file = File.new_for_commandline_arg (this.uri);
-        debug ("Thread started - sending bytes %lld-%lld (%lld bytes) of %s",
-                 this.first_byte, this.last_byte,this.last_byte-this.first_byte, this.uri);
+        debug ("Spawning new thread for streaming file %s", this.uri);
+        int fd = -1;
         try {
-            var mapped = new MappedFile (file.get_path (), false);
-            if (this.last_byte == 0) {
-                this.last_byte = mapped.get_length ();
+            fd = Posix.open (file.get_path (), Posix.O_RDONLY, 0);
+            if (fd < 0) {
+                throw new IOError.FAILED ("Failed to open file '%s': %s",
+                                          file.get_path (),
+                                          Posix.strerror (Posix.errno));
             }
-            
+
+            if (this.last_byte == 0) {
+                this.last_byte = Posix.lseek (fd, 0, Posix.SEEK_END);
+                Posix.lseek (fd, 0, Posix.SEEK_SET);
+            }
+
+            if (this.first_byte != 0) {
+                 Posix.lseek (fd, this.first_byte, Posix.SEEK_SET);
+            }
+
             while (true) {
                 bool exit;
                 this.mutex.lock ();
@@ -162,9 +173,15 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
                     stop = this.last_byte;
                 }
 
-                unowned uint8[] data = (uint8[]) mapped.get_contents ();
-                data.length = (int) mapped.get_length ();
-                uint8[] slice = data[start:stop];
+                var slice = new uint8[stop - start];
+                var len = (int) Posix.read (fd, slice, slice.length);
+                if (len < 0) {
+                    throw new IOError.FAILED ("Failed to read file '%s': %s",
+                                              file.get_path (),
+                                              Posix.strerror (Posix.errno));
+                }
+
+                slice.length = len;
                 this.first_byte = stop;
 
                 // There's a potential race condition here.
@@ -177,7 +194,11 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
                 });
             }
         } catch (Error error) {
-            warning ("Failed to map file: %s", error.message);
+            warning ("Failed to stream file %s: %s",
+                     file.get_path (),
+                     error.message);
+        } finally {
+            Posix.close (fd);
         }
 
         // Signal that we're done streaming

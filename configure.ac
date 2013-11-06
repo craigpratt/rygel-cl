@@ -27,9 +27,11 @@ dnl Disable generation of static libraries
 LT_PREREQ([2.2.6])
 LT_INIT([dlopen disable-static])
 
+AC_SYS_LARGEFILE
+
 dnl Required versions of library packages
 dnl Not all of these are actually used, depending on the configure options.
-GLIB_REQUIRED=2.31.13
+GLIB_REQUIRED=2.34.0
 LIBXML_REQUIRED=2.7
 VALA_REQUIRED=0.22.0
 VALADOC_REQUIRED=0.2
@@ -42,7 +44,7 @@ GSTPBU_REQUIRED=1.0
 GIO_REQUIRED=2.26
 GEE_REQUIRED=0.8.0
 UUID_REQUIRED=1.41.3
-LIBSOUP_REQUIRED=2.34.0
+LIBSOUP_REQUIRED=2.42.0
 GTK_REQUIRED=3.0
 
 dnl Additional requirements for media-export plugin
@@ -58,7 +60,7 @@ VALAFLAGS="--target-glib=2.32 $VALAFLAGS"
 RYGEL_BASE_MODULES="gupnp-1.0 >= $GUPNP_REQUIRED gee-0.8 >= $GEE_REQUIRED"
 PKG_CHECK_MODULES([LIBRYGEL_CORE_DEPS], [$RYGEL_BASE_MODULES uuid >= $UUID_REQUIRED gssdp-1.0 >= $GSSDP_REQUIRED gio-2.0 >= $GIO_REQUIRED gmodule-2.0 libxml-2.0 >= $LIBXML_REQUIRED])
 RYGEL_BASE_MODULES_VALAFLAGS='--pkg gupnp-1.0 --pkg gee-0.8'
-LIBRYGEL_CORE_DEPS_VALAFLAGS="$RYGEL_BASE_MODULES_VALAFLAGS --pkg gssdp-1.0 --pkg gio-2.0 --pkg gmodule-2.0"
+LIBRYGEL_CORE_DEPS_VALAFLAGS="$RYGEL_BASE_MODULES_VALAFLAGS --pkg gssdp-1.0 --pkg gio-2.0 --pkg gmodule-2.0 --pkg posix"
 AC_SUBST([LIBRYGEL_CORE_DEPS_VALAFLAGS])
 
 RYGEL_COMMON_MODULES="$RYGEL_BASE_MODULES gupnp-av-1.0 >= $GUPNP_AV_REQUIRED"

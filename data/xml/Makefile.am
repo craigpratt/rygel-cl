@@ -8,6 +8,7 @@ xml_in_files = MediaServer3.xml.in \
                AVTransport2.xml.in \
                RenderingControl2.xml.in \
                UIList.xml.in \
+               BasicManagement2.xml.in \
                X_MS_MediaReceiverRegistrar1.xml.in
 
 xml_DATA = $(xml_in_files:.xml.in=.xml)
