@@ -1,10 +1,12 @@
 /*
  * Copyright (C) 2008 OpenedHand Ltd.
  * Copyright (C) 2009 Nokia Corporation.
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
  *
  * Author: Jorn Baayen <jorn@openedhand.com>
  *         Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
+ *         Sivakumar Mani <siva@orexel.com>
  *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -72,19 +74,21 @@ public class Rygel.MPRIS.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
+    private string _playback_speed;
     public string playback_speed {
         owned get {
-            return this.double_to_rational (this.actual_player.rate);
+            return this._playback_speed;
         }
 
         set {
-            this.actual_player.rate = this.rational_to_double (value);
+            this.actual_player.rate = this.play_speed_to_double (value);
+            this._playback_speed = value;
         }
     }
 
     public double minimum_rate {
         get {
-            return this.rational_to_double (_allowed_playback_speeds[0]);
+            return this.play_speed_to_double (_allowed_playback_speeds[0]);
         }
     }
 
@@ -94,7 +98,7 @@ public class Rygel.MPRIS.Player : GLib.Object, Rygel.MediaPlayer {
 
             assert (i > 0);
 
-            return this.rational_to_double (_allowed_playback_speeds[i-1]);
+            return this.play_speed_to_double (_allowed_playback_speeds[i-1]);
         }
     }
 
@@ -126,6 +130,12 @@ public class Rygel.MPRIS.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
+    public bool can_seek_bytes {
+        get {
+            return false;
+        }
+    }
+
     public double volume {
         get {
             return this.actual_player.volume;
@@ -149,11 +159,24 @@ public class Rygel.MPRIS.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
+    public int64 size {
+        get {
+            return 0;
+        }
+    }
+
     public int64 position {
         get {
             return this.actual_player.position;
         }
     }
+
+    public int64 byte_position {
+        get {
+            return 0;
+        }
+    }
+
 
     public Player (Plugin plugin) {
         this.actual_player = plugin.actual_player;
@@ -172,6 +195,10 @@ public class Rygel.MPRIS.Player : GLib.Object, Rygel.MediaPlayer {
         } catch (Error error) {}
 
         return ret;
+    }
+
+    public bool seek_bytes (int64 bytes) {
+        return false;
     }
 
     public string[] get_protocols () {
@@ -193,34 +220,6 @@ public class Rygel.MPRIS.Player : GLib.Object, Rygel.MediaPlayer {
         default:
             assert_not_reached ();
         }
-    }
-
-    private double rational_to_double (string r)
-    {
-         string[] rational;
-
-         rational = r.split("/", 2);
-
-         assert (rational[0] != "0");
-
-         if (rational[1] != null) {
-             assert (rational[1] != "0");
-         } else {
-             return double.parse (rational[0]);
-         }
-
-         return double.parse (rational[0]) / double.parse (rational[1]);
-    }
-
-    private string double_to_rational (double d)
-    {
-         foreach (var r in _allowed_playback_speeds) {
-             if (Math.fabs (rational_to_double (r) - d) < 0.1) {
-                 return r;
-             }
-         }
-
-         return "";
     }
 
     private void on_properties_changed (DBusProxy actual_player,
