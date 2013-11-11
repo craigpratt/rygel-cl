@@ -22,9 +22,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- *
- * Author: Neha Shanbhag <N.Shanbhag@cablelabs.com>
- * Author: Sivakumar Mani <siva@orexel.com>
  */
 
 using Gst;
@@ -84,11 +81,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                                         "application/x-shockwave-flash",
                                         "video/x-ms-asf",
                                         "video/x-xvid",
-                                        "video/x-ms-wmv",
-                                        "video/vnd.dlna.mpeg-tts",
-                                        "application/x-dtcp1",
-
-					 };
+                                        "video/x-ms-wmv" };
     private static Player player;
 
     private bool is_live;
@@ -149,7 +142,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-    private string[] _allowed_playback_speeds = {"-64", "-32", "-16", "-8", "-4", "-2", "-1", "1/2", "1", "2", "4", "8", "10", "16", "32", "64"};
+    private string[] _allowed_playback_speeds = {"1"};
     public string[] allowed_playback_speeds {
         owned get {
             return this._allowed_playback_speeds;
@@ -303,19 +296,6 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-    public int64 position_byte {
-       get {
-            int64 pos;
-
-            if (this.playbin.query_position (Format.BYTES, out pos)) {
-                return pos;
-            } else {
-                return 0;
-            }
-        }
-    }
-
-
     private Player () {
         this.playbin = ElementFactory.make ("playbin", null);
         this.foreign = false;
@@ -354,34 +334,6 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                                   time * Gst.USECOND,
                                   Gst.SeekType.NONE,
                                   -1);
-    }
-
-    public bool seek_dlna (int64 target, string unit, double rate) {
-   
-	if(unit == "ABS_TIME" || unit == "REL_TIME"){
-	debug("seek2() ABS_TIME or REL_TIME %lld", target);
-		return this.playbin.seek (rate,
-                                  Format.TIME,
-                                  SeekFlags.FLUSH,
-                                  Gst.SeekType.SET,
-                                  target * Gst.USECOND, 
-                                  Gst.SeekType.NONE,
-                                  -1);
-
-	}else if( unit == "ABS_COUNT" || unit == "REL_COUNT"){
-	debug("seek2() ABS_COUNT or REL_COUNT %lld", target);
-    		return this.playbin.seek (rate,
-                                  Format.BYTES,
-                                  SeekFlags.FLUSH,
-                                  Gst.SeekType.SET,
-                                  target,
-                                  Gst.SeekType.NONE,
-                                  -1);
-	}else{
-		warning("seek_dlna() wrong unit!!");
-		return false;
-	}
-
     }
 
     public string[] get_protocols () {

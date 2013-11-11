@@ -21,14 +21,6 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Sivakumar Mani <siva@orexel.com>
- */
-
 using Rygel.MPRIS;
 using Rygel.MPRIS.MediaPlayer;
 using FreeDesktop;
@@ -163,13 +155,6 @@ public class Rygel.MPRIS.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-    public int64 position_byte {
-        get {
-            return this.actual_player.position_byte;
-        }
-    }
-
-
     public Player (Plugin plugin) {
         this.actual_player = plugin.actual_player;
         this.mime_types = plugin.mime_types;
@@ -183,17 +168,6 @@ public class Rygel.MPRIS.Player : GLib.Object, Rygel.MediaPlayer {
 
         try {
             this.actual_player.seek (time - this.position);
-            ret = true;
-        } catch (Error error) {}
-
-        return ret;
-    }
-
-    public bool seek_dlna (int64 target, string unit, double rate) {
-        var ret = false;
-
-        try {
-            this.actual_player.seek_dlna (target, unit, rate);
             ret = true;
         } catch (Error error) {}
 

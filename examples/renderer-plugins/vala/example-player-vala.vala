@@ -17,14 +17,6 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
- 
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Sivakumar Mani <siva@orexel.com>
- */
 
 using GUPnP;
 
@@ -186,17 +178,7 @@ public class Rygel.Example.PlayerVala : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-    public int64 position_byte {
-        get {
-            return this._position;
-        }
-    }
-
     public bool seek (int64 time) {
-        return false;
-    }
-
-    public bool seek_dlna (int64 target, string unit, double rate) {
         return false;
     }
 

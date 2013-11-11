@@ -23,15 +23,6 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Neha Shanbhag <N.Shanbhag@cablelabs.com>
- * Author: Sivakumar Mani <siva@orexel.com>
- */
-
 using GUPnP;
 using Soup;
 
@@ -134,7 +125,6 @@ internal class Rygel.AVTransport : Service {
         action_invoked["GetMediaInfo_Ext"].connect (this.get_media_info_ex_cb);
         action_invoked["GetTransportInfo"].connect (this.get_transport_info_cb);
         action_invoked["GetPositionInfo"].connect (this.get_position_info_cb);
-action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_position_info_cb); //siva_fix
         action_invoked["GetDeviceCapabilities"].connect
                                         (this.get_device_capabilities_cb);
         action_invoked["GetTransportSettings"].connect
@@ -519,25 +509,6 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
         action.return ();
     }
 
-    private void x_dlna_get_byte_position_info_cb (Service       service,
-                              		           ServiceAction action) {
-        if (!this.check_instance_id (action)) {
-            return;
-        }
-
-        action.set ("TrackSize",
-                        typeof (uint),
-                        uint.MAX, 
-                    "RelByte",
-			typeof(int64),
-                        this.player.position_byte,
-                    "AbsByte",
-                        typeof (int64),
-                        this.player.position_byte);
-
-        action.return ();
-    }
-
     private void get_device_capabilities_cb (Service       service,
                                              ServiceAction action) {
         if (!this.check_instance_id (action)) {
@@ -597,20 +568,8 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
             return;
         }
 
+        this.player.playback_state = "PLAYING";
         this.player.playback_speed = speed;
-	this.changelog.log ("speed specified in play()", speed);
-        
-        // Playback at 1x.
-        if (speed == "1")
-        {
-            this.player.playback_state = "PLAYING";
-        }
-        // Playback at more than 1x. Playspeed trick mode.
-        else
-        {
-            this.changelog.log ("Seeking to %s\n", this.player.position_as_str);
-            this.player.seek_dlna (this.player.position, "ABS_TIME", double.parse(this.player.playback_speed));
-        }
 
         action.return ();
     }
@@ -637,7 +596,6 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
         }
 
         string unit, target;
-	int64 count=0;
 
         action.get ("Unit",
                         typeof (string),
@@ -663,21 +621,6 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
 
             if (!this.player.seek (seek_target)) {
                 action.return_error (711, _("Illegal seek target"));
-
-                return;
-            }
-
-            action.return ();
-
-            return;
-	case "ABS_COUNT":
-        case "REL_COUNT":
-	case "X_DLNA_REL_BYTE":
-            debug ("Seeking bytes to %s.", target);
-	    target.scanf("%lld", &count);
-
-            if (!this.player.seek_dlna (count, "REL_COUNT", double.parse(this.player.playback_speed))) {
-                action.return_error (710, _("Seek mode not supported"));
 
                 return;
             }

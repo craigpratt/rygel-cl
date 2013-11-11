@@ -22,14 +22,6 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Sivakumar Mani <siva@orexel.com>
- */
-
 /**
  * This interface maps UPnP AVTransport:2 methods to the plugin's specific implementation.
  *
@@ -90,9 +82,6 @@ public interface Rygel.MediaPlayer : GLib.Object {
     /// Position in the current media in microseconds
     public abstract int64 position { get; }
 
-    ///Position in the current media in bytes
-    public abstract int64 position_byte { get; }
-
     /// The position as a human-readable string, in HH:MM:SS format
     public string position_as_str {
         owned get {
@@ -105,13 +94,6 @@ public interface Rygel.MediaPlayer : GLib.Object {
      * this many microseconds after the start.
      */
     public abstract bool seek (int64 time);
-
-
-    /**
-     * Seek to a point in the current media that is
-     * this many microseconds or bytes after the start.
-     */
-    public abstract bool seek_dlna (int64 target, string unit, double rate);
 
     /**
      * Return the protocols supported by this renderer,
