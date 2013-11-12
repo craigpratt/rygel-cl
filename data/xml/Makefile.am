@@ -9,8 +9,8 @@ xml_in_files = MediaServer3.xml.in \
                RenderingControl2.xml.in \
                UIList.xml.in \
                BasicManagement2.xml.in \
-               X_MS_MediaReceiverRegistrar1.xml.in
-
+               X_MS_MediaReceiverRegistrar1.xml.in \
+               profiles.xml.in   
 xml_DATA = $(xml_in_files:.xml.in=.xml)
 
 # Strip newlines and leading spaces from XML files as not all devices like them

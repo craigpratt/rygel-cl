@@ -56,10 +56,10 @@ public class Rygel.MediaRendererPlugin : Rygel.Plugin {
                 foreach (var profile in value) {
                     _supported_profiles.prepend (profile);
                 }
-
-                _supported_profiles.prepend (new DLNAProfile ("DIDL_S",
-                                                              "text/xml"));
-                _supported_profiles.reverse ();
+                // TODO: Add this to the profiles xml
+               // _supported_profiles.prepend (new DLNAProfile ("DIDL_S",
+               //                                               "text/xml"));
+               // _supported_profiles.reverse ();
             }
         }
     }
@@ -144,18 +144,33 @@ public class Rygel.MediaRendererPlugin : Rygel.Plugin {
                 if (protocols[0] != protocol) {
                     this.sink_protocol_info += ",";
                 }
-
+				
                 foreach (var profile in this.supported_profiles) {
                     if (supported_profiles.data.name != profile.name) {
                         this.sink_protocol_info += ",";
                     }
-                    this.sink_protocol_info += protocol + ":*:" +
-                                               profile.mime +
-                                               ":DLNA.ORG_PN=" + profile.name;
-                }
+                    // Mandatory param
+                    this.sink_protocol_info += protocol + ":*:" + profile.mime + ":DLNA.ORG_PN=" + profile.name;
+					if ( (profile.operations != "") ||(profile.flags != "")) {
+						this.sink_protocol_info += ";";
+							
+						// Optional param
+						if (profile.operations != "") {
+							this.sink_protocol_info += "DLNA.ORG_OP=" + profile.operations;
+						}
+
+						if ((profile.operations != "") && (profile.flags != "")) 
+							this.sink_protocol_info += ":DLNA.ORG_FLAGS=" + profile.flags;							
+						else if (profile.flags != "")
+							this.sink_protocol_info += "DLNA.ORG_FLAGS=" + profile.flags;							
+					}
+				}
             }
 
-            var mime_types = player.get_mime_types ();
+            // Compeltely remove this part of the logic to add wild card in the 4th field
+            // of protocolInfo . Per DLNA 7.4.1.3.12.8, DLNA.ORG_PN for CMS:SinkProtocolInfo
+            // is mandatory, so have to remove the wild card addition.
+            /*var mime_types = player.get_mime_types ();
 
             foreach (var protocol in protocols) {
                 if (protocols[0] != protocol ||
@@ -170,7 +185,7 @@ public class Rygel.MediaRendererPlugin : Rygel.Plugin {
 
                     this.sink_protocol_info += protocol + ":*:" + mime_type + ":*";
                 }
-            }
+            } */
         }
 
         return this.sink_protocol_info;
