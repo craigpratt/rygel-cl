@@ -258,6 +258,10 @@ public class Rygel.DescriptionFile : Object {
             // Add X_DLNADOC element that holds DIAGE capability
             // in the device template
             add_dlna_doc_diage_element ();
+        } else {
+            // Remove X_DLNADOC element that holds DIAGE capability
+            // in the device template if it is disabled
+            remove_dlna_doc_diage_element ();
         }
 
         // Set the flags we found; otherwise remove whatever is in the
@@ -279,7 +283,7 @@ public class Rygel.DescriptionFile : Object {
         Xml.XPath.Object* dlna_doc_object = null;
 
         // Check if the X_DLNADOC node has already +DIAGE+ dev cap
-        if (is_diag_node_present (X_DLNADOC_DIAGE_XPATH)) {
+        if (is_diag_node_unavailable (X_DLNADOC_DIAGE_XPATH)) {
             // Get all X_DLNADOC node and extract the 'capability host & version'
             if (get_dlna_doc_nodes (X_DLNADOC_NODE_XPATH, ref dlna_doc_object)) {
                 for (int i=0; i < dlna_doc_object->nodesetval->length(); i++) {
@@ -308,6 +312,20 @@ public class Rygel.DescriptionFile : Object {
         }
     }
 
+    // Remove the X_DLNADOC element with +DIAGE+ if disabled.
+    public void remove_dlna_doc_diage_element () {
+        Xml.XPath.Object* diage_object = null;
+        if (get_diag_nodes (X_DLNADOC_DIAGE_XPATH, ref diage_object)) {
+            for (int i=0; i < diage_object->nodesetval->length(); i++) {
+                Xml.Node* node = diage_object->nodesetval->item (i);
+                if (node != null) {
+                    node->unlink ();
+                    delete node;
+                }
+            }
+        }
+    }
+
     private Xml.Node* get_device_element () {
         return Rygel.XMLUtils.get_element
                               ((Xml.Node *) this.doc.doc,
@@ -315,12 +333,21 @@ public class Rygel.DescriptionFile : Object {
                                "device");
     }
 
-    private bool is_diag_node_present (string diage_node_xpath) {
+    private bool is_diag_node_unavailable (string diage_node_xpath) {
         var context = new XPath.Context (this.doc.doc);
         var diage_node = context.eval_expression (diage_node_xpath);
         return (diage_node != null &&
                 diage_node->type == XPath.ObjectType.NODESET &&
                 diage_node->nodesetval->is_empty ());
+    }
+
+    private bool get_diag_nodes (string diage_node_xpath,
+                                 ref Xml.XPath.Object* diage_object) {
+        var context = new XPath.Context (this.doc.doc);
+        diage_object = context.eval_expression (diage_node_xpath);
+        return (diage_object != null &&
+                diage_object->type == XPath.ObjectType.NODESET &&
+                !diage_object->nodesetval->is_empty ());
     }
 
     private bool get_dlna_doc_nodes (string dlna_doc_xpath,
