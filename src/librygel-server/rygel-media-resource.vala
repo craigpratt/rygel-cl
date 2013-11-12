@@ -38,6 +38,7 @@ public class Rygel.MediaResource : GLib.Object {
     
     private string name;
     public string uri { get; set; }
+    public string import_uri { get; set; }
     public ProtocolInfo protocol_info { get; set; default = null; }
     public string extension { get; set; default = null; }
     public int64 size { get; set; default = -1; }
