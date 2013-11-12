@@ -38,6 +38,7 @@ public class Rygel.MediaResource : GLib.Object {
     
     private string name;
     public string uri { get; set; }
+    public string import_uri { get; set; }
     public ProtocolInfo protocol_info { get; set; default = null; }
     public string extension { get; set; default = null; }
     public int64 size { get; set; default = -1; }
@@ -109,59 +110,53 @@ public class Rygel.MediaResource : GLib.Object {
         return didl_resource;
     }
 
-    public bool supports_arbitrary_byte_seek() {
-        bool supported = ((this.protocol_info.dlna_operation & DLNAOperation.RANGE) != 0);
-        return supported;
+    public bool supports_arbitrary_byte_seek () {
+        return is_dlna_operation_mode_set (this.protocol_info, DLNAOperation.RANGE);
     }
 
-    public bool supports_arbitrary_time_seek() {
-        bool supported = ((this.protocol_info.dlna_operation & DLNAOperation.TIMESEEK) != 0);
-        return supported;
+    public bool supports_arbitrary_time_seek () {
+        return is_dlna_operation_mode_set (this.protocol_info, DLNAOperation.TIMESEEK);
     }
     
-    public bool supports_limited_byte_seek() {
-        return check_flag (this.protocol_info,DLNAFlags.BYTE_BASED_SEEK);
+    public bool supports_limited_byte_seek () {
+        return is_dlna_protocol_flag_set (this.protocol_info, DLNAFlags.BYTE_BASED_SEEK);
     }
     
-    public bool supports_limited_time_seek() {
-        return check_flag (this.protocol_info,DLNAFlags.TIME_BASED_SEEK);
+    public bool supports_limited_time_seek () {
+        return is_dlna_protocol_flag_set (this.protocol_info, DLNAFlags.TIME_BASED_SEEK);
     }
 
-    public bool supports_limited_cleartext_byte_seek() {
-        return check_flag (this.protocol_info,DLNAFlags.LOP_CLEARTEXT_BYTESEEK);
+    public bool supports_limited_cleartext_byte_seek () {
+        return is_dlna_protocol_flag_set (this.protocol_info, DLNAFlags.LOP_CLEARTEXT_BYTESEEK);
     }
 
-    public bool supports_full_cleartext_byte_seek() {
-        return check_flag (this.protocol_info,DLNAFlags.CLEARTEXT_BYTESEEK_FULL);
+    public bool supports_full_cleartext_byte_seek () {
+        return is_dlna_protocol_flag_set (this.protocol_info, DLNAFlags.CLEARTEXT_BYTESEEK_FULL);
     }
 
-    public bool is_link_protection_enabled() {
-        return check_flag (this.protocol_info,DLNAFlags.LINK_PROTECTED_CONTENT);
+    public bool is_link_protection_enabled () {
+        return is_dlna_protocol_flag_set (this.protocol_info, DLNAFlags.LINK_PROTECTED_CONTENT);
     }
 
     public bool is_transfer_mode_enabled (string? transfer_mode) {
-        string transfer_mode_requested = transfer_mode;
         bool supported;
 
-        if (transfer_mode == null) {
+        switch (transfer_mode) {
+            case null :
             // If transfer mode is empty in request, then default is Streaming mode.
-            transfer_mode_requested = "Streaming";
-        }
-
-        switch (transfer_mode_requested) {
             case "Streaming" :
-                supported = check_flag (this.protocol_info,
-                                        DLNAFlags.STREAMING_TRANSFER_MODE);
+                supported = is_dlna_protocol_flag_set ( this.protocol_info,
+                                                        DLNAFlags.STREAMING_TRANSFER_MODE );
                 break;
 
             case "Interactive" :
-                supported = check_flag (this.protocol_info,
-                                        DLNAFlags.INTERACTIVE_TRANSFER_MODE);
+                supported = is_dlna_protocol_flag_set ( this.protocol_info,
+                                                        DLNAFlags.INTERACTIVE_TRANSFER_MODE );
                 break;
 
             case "Background" :
-                supported = check_flag (this.protocol_info,
-                                        DLNAFlags.BACKGROUND_TRANSFER_MODE);
+                supported = is_dlna_protocol_flag_set ( this.protocol_info,
+                                                        DLNAFlags.BACKGROUND_TRANSFER_MODE );
                 break;
 
             default:
@@ -172,15 +167,15 @@ public class Rygel.MediaResource : GLib.Object {
         return supported;
     }
 
-    // This is to check if any of the cleartext byte seek operation is supported.
-    public bool is_cleartext_range_support_enabled() {
-        return (check_flag (this.protocol_info, DLNAFlags.CLEARTEXT_BYTESEEK_FULL) ||
-                check_flag (this.protocol_info, DLNAFlags.LOP_CLEARTEXT_BYTESEEK));
+    public bool is_streamable () {
+        return is_dlna_protocol_flag_set (this.protocol_info,DLNAFlags.STREAMING_TRANSFER_MODE);
     }
 
-    private bool check_flag (ProtocolInfo protocol_info, int flag) {
-        long flag_value = long.parse ("%0.8d".printf (protocol_info.dlna_flags));
-        return ((flag_value & flag) == flag);
+    // This is to check if any of the cleartext byte seek operations are supported.
+    public bool is_cleartext_range_support_enabled () {
+        return ( is_dlna_protocol_flag_set( this.protocol_info,
+                                            DLNAFlags.CLEARTEXT_BYTESEEK_FULL
+                                            | DLNAFlags.LOP_CLEARTEXT_BYTESEEK ) );
     }
 
     public bool supports_playspeed() {
@@ -188,7 +183,14 @@ public class Rygel.MediaResource : GLib.Object {
     }
     
     public string to_string() {
-        // TODO: incorporate all set fields
+        // TODO: incorporate more fields
         return name + ":{" + ((protocol_info == null) ? "null" : protocol_info.to_string());
+    }
+    public static bool is_dlna_protocol_flag_set (ProtocolInfo protocol_info, long flags) {
+        return ((protocol_info.dlna_flags & flags) != 0);
+    }
+
+    public static bool is_dlna_operation_mode_set (ProtocolInfo protocol_info, long flags) {
+        return ((protocol_info.dlna_operation & flags) != 0);
     }
 }
