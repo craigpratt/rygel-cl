@@ -138,7 +138,7 @@ public class Rygel.MediaResource : GLib.Object {
         return is_dlna_protocol_flag_set (this.protocol_info, DLNAFlags.LINK_PROTECTED_CONTENT);
     }
 
-    public bool is_transfer_mode_enabled (string? transfer_mode) {
+    public bool supports_transfer_mode (string? transfer_mode) {
         bool supported;
 
         switch (transfer_mode) {
