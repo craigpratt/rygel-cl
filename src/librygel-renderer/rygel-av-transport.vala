@@ -2,11 +2,14 @@
  * Copyright (C) 2008 OpenedHand Ltd.
  * Copyright (C) 2009,2010 Nokia Corporation.
  * Copyright (C) 2012 Openismus GmbH.
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
  *
  * Author: Jorn Baayen <jorn@openedhand.com>
  *         Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jens Georg <jensg@openismus.com>
+ *         Neha Shanbhag <N.Shanbhag@cablelabs.com>
+ *         Sivakumar Mani <siva@orexel.com>
  *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -21,15 +24,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- */
-
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Neha Shanbhag <N.Shanbhag@cablelabs.com>
- * Author: Sivakumar Mani <siva@orexel.com>
  */
 
 using GUPnP;
@@ -134,7 +128,6 @@ internal class Rygel.AVTransport : Service {
         action_invoked["GetMediaInfo_Ext"].connect (this.get_media_info_ex_cb);
         action_invoked["GetTransportInfo"].connect (this.get_transport_info_cb);
         action_invoked["GetPositionInfo"].connect (this.get_position_info_cb);
-action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_position_info_cb); //siva_fix
         action_invoked["GetDeviceCapabilities"].connect
                                         (this.get_device_capabilities_cb);
         action_invoked["GetTransportSettings"].connect
@@ -147,6 +140,8 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
         action_invoked["Seek"].connect (this.seek_cb);
         action_invoked["Next"].connect (this.next_cb);
         action_invoked["Previous"].connect (this.previous_cb);
+        action_invoked["X_DLNA_GetBytePositionInfo"].connect
+                                        (this.x_dlna_get_byte_position_info_cb);
 
         this.controller.notify["playback-state"].connect (this.notify_state_cb);
         this.controller.notify["n-tracks"].connect (this.notify_n_tracks_cb);
@@ -519,25 +514,6 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
         action.return ();
     }
 
-    private void x_dlna_get_byte_position_info_cb (Service       service,
-                              		           ServiceAction action) {
-        if (!this.check_instance_id (action)) {
-            return;
-        }
-
-        action.set ("TrackSize",
-                        typeof (uint),
-                        uint.MAX, 
-                    "RelByte",
-			typeof(int64),
-                        this.player.position_byte,
-                    "AbsByte",
-                        typeof (int64),
-                        this.player.position_byte);
-
-        action.return ();
-    }
-
     private void get_device_capabilities_cb (Service       service,
                                              ServiceAction action) {
         if (!this.check_instance_id (action)) {
@@ -597,20 +573,9 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
             return;
         }
 
+        // Speed change will take effect when playback state is changed
         this.player.playback_speed = speed;
-	this.changelog.log ("speed specified in play()", speed);
-        
-        // Playback at 1x.
-        if (speed == "1")
-        {
-            this.player.playback_state = "PLAYING";
-        }
-        // Playback at more than 1x. Playspeed trick mode.
-        else
-        {
-            this.changelog.log ("Seeking to %s\n", this.player.position_as_str);
-            this.player.seek_dlna (this.player.position, "ABS_TIME", double.parse(this.player.playback_speed));
-        }
+        this.player.playback_state = "PLAYING";
 
         action.return ();
     }
@@ -637,7 +602,6 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
         }
 
         string unit, target;
-	int64 count=0;
 
         action.get ("Unit",
                         typeof (string),
@@ -648,12 +612,11 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
         switch (unit) {
         case "ABS_TIME":
         case "REL_TIME":
-            debug ("Seeking %s to %s.", unit, target);
-
             var seek_target = TimeUtils.time_from_string (target);
-            if (unit == "REL_TIME") {
+            if (unit != "ABS_TIME") {
                 seek_target += this.player.position;
             }
+            debug ("Seeking to %lld sec", seek_target / TimeSpan.SECOND);
 
             if (!this.player.can_seek) {
                 action.return_error (710, _("Seek mode not supported"));
@@ -670,14 +633,24 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
             action.return ();
 
             return;
-	case "ABS_COUNT":
         case "REL_COUNT":
-	case "X_DLNA_REL_BYTE":
-            debug ("Seeking bytes to %s.", target);
-	    target.scanf("%lld", &count);
+        case "X_DLNA_REL_BYTE":
+        case "ABS_COUNT":
+            var seek_target = int64.parse (target);
 
-            if (!this.player.seek_dlna (count, "REL_COUNT", double.parse(this.player.playback_speed))) {
+            if (unit != "ABS_COUNT") {
+                seek_target += this.player.byte_position;
+            }
+            debug ("Seeking to %lld bytes.", seek_target);
+
+            if (!this.player.can_seek_bytes) {
                 action.return_error (710, _("Seek mode not supported"));
+
+                return;
+            }
+
+            if (!this.player.seek_bytes (seek_target)) {
+                action.return_error (711, _("Illegal seek target"));
 
                 return;
             }
@@ -721,6 +694,38 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
         } else {
             action.return_error (711, _("Illegal seek target"));
         }
+    }
+
+    private void x_dlna_get_byte_position_info_cb (Service       service,
+                                                   ServiceAction action) {
+        if (!this.check_instance_id (action)) {
+            return;
+        }
+
+        if (this.controller.uri == "") {
+            action.set ("TrackSize",
+                            typeof (string),
+                            "",
+                        "RelByte",
+                            typeof (string),
+                            "",
+                        "AbsByte",
+                            typeof (string),
+                            "");
+        } else {
+            var position = this.player.byte_position.to_string ();
+            action.set ("TrackSize",
+                            typeof (string),
+                            this.player.size.to_string (),
+                        "RelByte",
+                            typeof (string),
+                            position,
+                        "AbsByte",
+                            typeof (string),
+                            position);
+        }
+
+        action.return ();
     }
 
     private void notify_state_cb (Object player, ParamSpec p) {
@@ -803,7 +808,7 @@ action_invoked["X_DLNA_GetBytePositionInfo"].connect (this.x_dlna_get_byte_posit
         return result;
     }
 
-    private bool is_playlist (string mime, string? features) {
+    private bool is_playlist (string? mime, string? features) {
         return mime == "text/xml" && features != null &&
                features.has_prefix ("DLNA.ORG_PN=DIDL_S");
     }

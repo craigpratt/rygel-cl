@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2012 Intel Corporation
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * This file is part of Rygel.
  *
@@ -16,14 +17,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- */
- 
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Sivakumar Mani <siva@orexel.com>
  */
 
 using GUPnP;
@@ -148,6 +141,7 @@ public class Rygel.Example.PlayerVala : GLib.Object, Rygel.MediaPlayer {
     }
 
     public bool can_seek { get { return false; } }
+    public bool can_seek_bytes { get { return false; } }
 
     private string _content_features = "";
     public string? content_features {
@@ -179,6 +173,12 @@ public class Rygel.Example.PlayerVala : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
+    public int64 size {
+        get {
+            return 0;
+        }
+    }
+
     private int64 _position = 0;
     public int64 position {
         get {
@@ -186,9 +186,9 @@ public class Rygel.Example.PlayerVala : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-    public int64 position_byte {
+    public int64 byte_position {
         get {
-            return this._position;
+            return 0;
         }
     }
 
@@ -196,7 +196,7 @@ public class Rygel.Example.PlayerVala : GLib.Object, Rygel.MediaPlayer {
         return false;
     }
 
-    public bool seek_dlna (int64 target, string unit, double rate) {
+    public bool seek_bytes (int64 bytes) {
         return false;
     }
 

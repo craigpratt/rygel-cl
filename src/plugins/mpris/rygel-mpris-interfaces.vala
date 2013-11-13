@@ -21,14 +21,6 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Sivakumar Mani <siva@orexel.com>
- */
-
 [DBus (name = "org.mpris.MediaPlayer2")]
 public interface Rygel.MPRIS.MediaPlayerProxy : DBusProxy {
     public const string IFACE = "org.mpris.MediaPlayer2";
@@ -50,7 +42,6 @@ public interface Rygel.MPRIS.MediaPlayer.PlayerProxy : DBusProxy,
 
     public abstract double volume { get; set; }
     public abstract int64 position { get; }
-    public abstract int64 position_byte { get; }
     public abstract bool can_seek { get; }
     public abstract bool can_control { get; }
     public abstract HashTable<string,Variant> metadata { owned get; }
@@ -60,6 +51,5 @@ public interface Rygel.MPRIS.MediaPlayer.PlayerProxy : DBusProxy,
     public abstract void stop () throws DBusError;
     public abstract void play () throws DBusError;
     public abstract void seek (int64 offset) throws DBusError;
-    public abstract void seek_dlna (int64 offset, string unit, double rate) throws DBusError;
     public abstract void open_uri (string uri) throws DBusError;
 }

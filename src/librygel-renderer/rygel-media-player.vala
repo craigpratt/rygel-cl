@@ -1,11 +1,13 @@
 /*
  * Copyright (C) 2008 OpenedHand Ltd.
  * Copyright (C) 2009,2010 Nokia Corporation.
- * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2012,2013 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Jorn Baayen <jorn@openedhand.com>
  *         Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
+ *         Sivakumar Mani <siva@orexel.com>
  *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -20,14 +22,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- */
-
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Sivakumar Mani <siva@orexel.com>
  */
 
 /**
@@ -59,6 +53,9 @@ public interface Rygel.MediaPlayer : GLib.Object {
     /// Duration of the current media in microseconds
     public abstract int64 duration { get; }
 
+    /// Size of the current media in bytes
+    public abstract int64 size { get; }
+
     /**
      * A DIDLLite document describing the current media URI or null.
      * The document is either the one received from a UPnP control point or
@@ -71,6 +68,9 @@ public interface Rygel.MediaPlayer : GLib.Object {
 
     /// The current media supports time-based seeking
     public abstract bool can_seek { get; }
+
+    /// The current media supports byte-based seeking
+    public abstract bool can_seek_bytes { get; }
 
     /**
      * The contents of the contentFeatures.dlna.org HTTP header,
@@ -91,7 +91,7 @@ public interface Rygel.MediaPlayer : GLib.Object {
     public abstract int64 position { get; }
 
     ///Position in the current media in bytes
-    public abstract int64 position_byte { get; }
+    public abstract int64 byte_position { get; }
 
     /// The position as a human-readable string, in HH:MM:SS format
     public string position_as_str {
@@ -106,12 +106,10 @@ public interface Rygel.MediaPlayer : GLib.Object {
      */
     public abstract bool seek (int64 time);
 
-
     /**
-     * Seek to a point in the current media that is
-     * this many microseconds or bytes after the start.
+     * Seek to a byte position in the current media.
      */
-    public abstract bool seek_dlna (int64 target, string unit, double rate);
+    public abstract bool seek_bytes (int64 bytes);
 
     /**
      * Return the protocols supported by this renderer,
@@ -122,4 +120,23 @@ public interface Rygel.MediaPlayer : GLib.Object {
     /// Return the MIME types supported by this renderer.
     /// The mime types in this list should be all lowercase.
     public abstract string[] get_mime_types ();
+
+    /**
+     * Transform a fractional playspeed (e.g. "-1/4") to double.
+     * Input values are expected to be valid rational numbers.
+     */
+    protected double play_speed_to_double (string speed)
+    {
+         string[] rational = speed.split ("/", 2);
+
+         assert (rational[0] != "0");
+
+         if (rational[1] == null) {
+             return double.parse (rational[0]);
+         }
+
+         assert (rational[1] != "0");
+
+         return double.parse (rational[0]) / double.parse (rational[1]);
+    }
 }

@@ -162,7 +162,9 @@ internal class Rygel.ODID.SQLFactory : Object {
     "SELECT " + ALL_OBJECT_STRING +
     "FROM Object o " +
         "JOIN Closure c ON (o.upnp_id = c.descendant) " +
-    "WHERE c.ancestor = ? AND c.depth = 1 %s" +
+    "LEFT OUTER JOIN Resource r " +
+    "ON o.upnp_id = r.object_fk "+
+    "WHERE c.ancestor = ? AND c.depth = 1 %s " +
     "LIMIT ?,?";
 
     private const string GET_OBJECTS_BY_FILTER_STRING_WITH_ANCESTOR =

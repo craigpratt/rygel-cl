@@ -361,11 +361,12 @@ public class Rygel.HTTPGet : HTTPRequest {
         if (this.handler is HTTPMediaResourceHandler) {
             MediaResource resource = (this.handler as HTTPMediaResourceHandler)
                                                                .media_resource;
-            if (!resource.is_transfer_mode_enabled (mode))
+            if (!resource.supports_transfer_mode (mode))
               throw transfer_mode_error;
         }
 
         var correct = true;
+
         switch (mode) {
         case "Streaming":
             correct = (!(this.handler is HTTPPlaylistHandler)) && (
@@ -389,5 +390,4 @@ public class Rygel.HTTPGet : HTTPRequest {
         if (!correct)
           throw transfer_mode_error;
     }
-
 }
