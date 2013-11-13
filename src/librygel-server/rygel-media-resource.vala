@@ -80,7 +80,7 @@ public class Rygel.MediaResource : GLib.Object {
         // Note: For a DIDLLiteResource, a value of -1/null also signals "not set"
         this.uri = didl_resource.uri;
         this.size = didl_resource.size64;
-        this.cleartext_size = didl_resource.cleartextSize;
+        this.cleartext_size = didl_resource.cleartext_size;
         this.protocol_info = didl_resource.protocol_info;
         this.duration = didl_resource.duration;
         this.bitrate = didl_resource.bitrate;
@@ -96,7 +96,7 @@ public class Rygel.MediaResource : GLib.Object {
         // Note: For a DIDLLiteResource, a value of -1/null also signals "not set"
         didl_resource.uri = this.uri;
         didl_resource.size64 = this.size;
-        didl_resource.cleartextSize = this.cleartext_size;
+        didl_resource.cleartext_size = this.cleartext_size;
         didl_resource.protocol_info = this.protocol_info;
         didl_resource.duration = this.duration;
         didl_resource.bitrate = this.bitrate;
