@@ -366,6 +366,7 @@ public class Rygel.HTTPGet : HTTPRequest {
         }
 
         var correct = true;
+
         switch (mode) {
         case "Streaming":
             correct = (!(this.handler is HTTPPlaylistHandler)) && (
@@ -389,5 +390,4 @@ public class Rygel.HTTPGet : HTTPRequest {
         if (!correct)
           throw transfer_mode_error;
     }
-
 }
