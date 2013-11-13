@@ -3,11 +3,14 @@
  * Copyright (C) 2009,2010,2011,2012 Nokia Corporation.
  * Copyright (C) 2012 Openismus GmbH
  * Copyright (C) 2012,2013 Intel Corporation.
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
  *
  * Author: Jorn Baayen <jorn@openedhand.com>
  *         Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jens Georg <jensg@openismus.com>
+ *         Neha Shanbhag <N.Shanbhag@cablelabs.com>
+ *         Sivakumar Mani <siva@orexel.com>
  *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -22,9 +25,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- *
- * Author: Neha Shanbhag <N.Shanbhag@cablelabs.com>
- * Author: Sivakumar Mani <siva@orexel.com>
  */
 
 using Gst;
@@ -84,11 +84,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                                         "application/x-shockwave-flash",
                                         "video/x-ms-asf",
                                         "video/x-xvid",
-                                        "video/x-ms-wmv",
-                                        "video/vnd.dlna.mpeg-tts",
-                                        "application/x-dtcp1",
-
-					 };
+                                        "video/x-ms-wmv" };
     private static Player player;
 
     private bool is_live;
@@ -128,12 +124,18 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                     }
                 break;
                 case "PLAYING":
-                    if (state != State.PLAYING ||
-                        pending != State.VOID_PENDING) {
+                    if (this._new_playback_speed != this._playback_speed &&
+                        (state == State.PLAYING || state == State.PAUSED) &&
+                        pending == State.VOID_PENDING) {
+                        /* already playing, but play speed has changed */
                         this._playback_state = "TRANSITIONING";
+                        this.seek (this.position);
+                    } else if (state != State.PLAYING ||
+                               pending != State.VOID_PENDING) {
                         // This needs a check if GStreamer and DLNA agree on
                         // the "liveness" of the source (s0/sn increase in
                         // protocol info)
+                        this._playback_state = "TRANSITIONING";
                         this.is_live = this.playbin.set_state (State.PLAYING)
                                         == StateChangeReturn.NO_PREROLL;
                     } else {
@@ -149,12 +151,21 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-    private string[] _allowed_playback_speeds = {"-64", "-32", "-16", "-8", "-4", "-2", "-1", "1/2", "1", "2", "4", "8", "10", "16", "32", "64"};
+    private string[] _allowed_playback_speeds = {
+        "1/16", "1/8", "1/4", "1/2", "1", "2", "4", "8", "16", "32", "64"
+    };
     public string[] allowed_playback_speeds {
         owned get {
             return this._allowed_playback_speeds;
         }
     }
+
+    /**
+     * Actual _playback_speed is updated when playbin seek succeeds.
+     * Until that point, the playback speed set via api is stored in
+     * _new_playback_speed.
+     **/
+    private string _new_playback_speed = "1";
 
     private string _playback_speed = "1";
     public string playback_speed {
@@ -163,7 +174,10 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
 
         set {
-            this._playback_speed = value;
+            this._new_playback_speed = value;
+            /* theoretically we should trigger a seek here if we were
+             * playing already, but playback state does get changed
+             * after this when "Play" is invoked... */
         }
     }
 
@@ -240,6 +254,13 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
+    public bool can_seek_bytes {
+        get {
+            return this.transfer_mode != TRANSFER_MODE_INTERACTIVE &&
+                   ! this.mime_type.has_prefix ("image/");
+        }
+    }
+
     private string _content_features = "";
     private ProtocolInfo protocol_info;
     public string? content_features {
@@ -291,6 +312,18 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
+    public int64 size {
+        get {
+            int64 dur;
+
+            if (this.playbin.source.query_duration (Format.BYTES, out dur)) {
+                return dur;
+            } else {
+                return 0;
+            }
+        }
+    }
+
     public int64 position {
         get {
             int64 pos;
@@ -303,18 +336,17 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-    public int64 position_byte {
+    public int64 byte_position {
        get {
             int64 pos;
 
-            if (this.playbin.query_position (Format.BYTES, out pos)) {
+            if (this.playbin.source.query_position (Format.BYTES, out pos)) {
                 return pos;
             } else {
                 return 0;
             }
         }
     }
-
 
     private Player () {
         this.playbin = ElementFactory.make ("playbin", null);
@@ -340,48 +372,55 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         return player;
     }
 
+    private bool seek_with_format (Format format, int64 target) {
+        bool seeked;
+
+        var speed = this.play_speed_to_double (this._new_playback_speed);
+        if (speed > 0) {
+            seeked = this.playbin.seek (speed,
+                                        format,
+                                        SeekFlags.FLUSH | SeekFlags.SKIP | SeekFlags.ACCURATE,
+                                        Gst.SeekType.SET,
+                                        target,
+                                        Gst.SeekType.NONE,
+                                        -1);
+        } else {
+            seeked = this.playbin.seek (speed,
+                                        format,
+                                        SeekFlags.FLUSH | SeekFlags.SKIP | SeekFlags.ACCURATE,
+                                        Gst.SeekType.SET,
+                                        0,
+                                        Gst.SeekType.SET,
+                                        target);
+        }
+        if (seeked) {
+            this._playback_speed = this._new_playback_speed;
+        }
+
+        return seeked;
+    }
+
     public bool seek (int64 time) {
+        debug ("Seeking %lld usec, play speed %s", time, this._new_playback_speed);
+
         // Playbin doesn't return false when seeking beyond the end of the
         // file
         if (time > this.duration) {
             return false;
         }
 
-        return this.playbin.seek (1.0,
-                                  Format.TIME,
-                                  SeekFlags.FLUSH,
-                                  Gst.SeekType.SET,
-                                  time * Gst.USECOND,
-                                  Gst.SeekType.NONE,
-                                  -1);
+        return this.seek_with_format (Format.TIME, time * Gst.USECOND);
     }
 
-    public bool seek_dlna (int64 target, string unit, double rate) {
-   
-	if(unit == "ABS_TIME" || unit == "REL_TIME"){
-	debug("seek2() ABS_TIME or REL_TIME %lld", target);
-		return this.playbin.seek (rate,
-                                  Format.TIME,
-                                  SeekFlags.FLUSH,
-                                  Gst.SeekType.SET,
-                                  target * Gst.USECOND, 
-                                  Gst.SeekType.NONE,
-                                  -1);
+    public bool seek_bytes (int64 bytes) {
+        debug ("Seeking %lld bytes, play speed %s", bytes, this._new_playback_speed);
 
-	}else if( unit == "ABS_COUNT" || unit == "REL_COUNT"){
-	debug("seek2() ABS_COUNT or REL_COUNT %lld", target);
-    		return this.playbin.seek (rate,
-                                  Format.BYTES,
-                                  SeekFlags.FLUSH,
-                                  Gst.SeekType.SET,
-                                  target,
-                                  Gst.SeekType.NONE,
-                                  -1);
-	}else{
-		warning("seek_dlna() wrong unit!!");
-		return false;
-	}
+        int64 size = this.size;
+        if (size > 0 && bytes > size) {
+            return false;
+        }
 
+        return this.seek_with_format (Format.BYTES, bytes);
     }
 
     public string[] get_protocols () {

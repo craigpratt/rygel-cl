@@ -92,9 +92,27 @@ internal class Rygel.PlayerController : Object {
                 default:
                     break;
             }
-            if (actions != null && this.player.can_seek) {
-                actions += ",X_DLNA_SeekTime";
 
+            if (actions == null) {
+                return "";
+            }
+
+            if (this.track < this.n_tracks) {
+                actions += ",Next";
+            }
+            if (this.track > 1) {
+                actions += ",Previous";
+            }
+
+            if (this.player.can_seek) {
+                actions += ",X_DLNA_SeekTime";
+            }
+            if (actions != null && this.player.can_seek_bytes) {
+                actions += ",X_DLNA_SeekByte";
+            }
+
+            if (actions != null &&
+                this.player.allowed_playback_speeds.length > 1) {
                 string play_speeds = "";
                 foreach (var speed in this.player.allowed_playback_speeds) {
                     if (speed != "1") {
@@ -106,10 +124,6 @@ internal class Rygel.PlayerController : Object {
                     }
                 }
                 actions += play_speeds;
-            }
-
-            if (actions == null) {
-                return "";
             }
 
             return actions;
