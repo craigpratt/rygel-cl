@@ -26,7 +26,6 @@
  * Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  */
 
-using Dtcpip;
 
 public class Rygel.ODIDUtil : Object {
     private static ODIDUtil util = null;
