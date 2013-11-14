@@ -33,6 +33,7 @@
 
 using Gee;
 using GUPnP;
+using Dtcpip;
 
 public errordomain Rygel.ODIDMediaEngineError {
     CONFIG_ERROR,
@@ -104,11 +105,11 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 this.dtcp_host = config.get_string ("OdidMediaEngine", "dtcp-host");
                 this.dtcp_port = (ushort)config.get_int ("OdidMediaEngine", "dtcp-port",
                                                          6000, 8999);
-                if (DTCPShim.init_dtcp_library (dtcp_storage) != 0) {
+                if (Dtcpip.init_dtcp_library (dtcp_storage) != 0) {
                     error ("DTCP-IP init failed for storage path: %s",dtcp_storage);
                 } else {
                     debug ("DTCP-IP storage loaded successfully");
-                    if (DTCPShim.server_dtcp_init (dtcp_port) != 0) {
+                    if (Dtcpip.server_dtcp_init (dtcp_port) != 0) {
                         error ("DTCP-IP source init failed: host %s, port %d, storage %s",
                                this.dtcp_host, this.dtcp_port, this.dtcp_storage);
                     } else {
@@ -303,7 +304,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             res.protocol_info.dlna_operation = DLNAOperation.NONE;
             // We'll OR in TIMESEEK if we have an index file...
             res.cleartext_size = res.size;
-            res.size = (int64)DTCPShim.get_encrypted_length(res.cleartext_size,
+            res.size = (int64)Dtcpip.get_encrypted_length(res.cleartext_size,
                                                             chunk_size);
             debug ("Encrypted size from DTCP library: %lld",res.size);
         } else {
