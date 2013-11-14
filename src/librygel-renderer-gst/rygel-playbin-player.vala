@@ -339,14 +339,12 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         assert (res != null);
         assert (res->type == Xml.XPath.ObjectType.NODESET);
         assert (res->nodesetval != null);
-        message ("Element length : %d\n", res->nodesetval->length ());
         if (res->nodesetval->length () > 0)
         {
             read_elements = new string[res->nodesetval->length()];
             for (int i = 0; i < res->nodesetval->length (); i++) {
                 Xml.Node* node = res->nodesetval->item (i);
                 read_elements[i] = node->get_content ();
-                message ("Element content :%d %s\n", i, read_elements[i]);
             }
         }
     }
@@ -369,7 +367,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                 mime_types_param[0] = "text/xml";
                 _supported_profiles.prepend (new DLNAProfile.extended
                                              ("DIDL_S",
-                                              "",
+                                              "text/xml",
                                               "",
                                               ""));
                 index = 1;
@@ -384,8 +382,6 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                         break;
 
                     mime_types_param[i] = prop_value;
-
-                    message ("Found the node we want with property:%s\n", mime_types_param[i]);
 
                     // Get the children for this node
                     for (Xml.Node* iter = node->children; iter != null; iter = iter->next) {
@@ -402,7 +398,6 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
 
                             foreach (unowned string str in temp_str)
                             {
-                                stdout.printf("%s\n", str);
                                 string[] key_value = str.split("=", 0);
 
                                 switch (key_value[0])
@@ -454,7 +449,11 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
 
         string[] temp_protocols = null;
         read_elements(protocols_node, ref temp_protocols);
-        message ("Length: %s\n", temp_protocols[0]);
+		if (temp_protocols.length == 0)
+		{
+			error("No Protocols specified. Please add the info to the %s xml file\n", SUPPORT_PROFILE_LIST_PATH);
+		}
+	
         protocols = temp_protocols[0].split(",", 0);
 
         // Extract media-collection value
@@ -463,7 +462,6 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         bool media_collection_flag = false;
 
         read_elements(media_collection_node, ref media_collection_flagstr);
-        message ("%s\n", media_collection_flagstr[0]);
         media_collection_flag = bool.parse(media_collection_flagstr[0]);
 
         Xml.XPath.Object* mime_type_node = cntx.eval_expression (mimetype_xpath);
