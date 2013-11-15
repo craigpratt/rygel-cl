@@ -86,31 +86,16 @@ PKG_CHECK_MODULES([EXAMPLE_DEPS], [$RYGEL_COMMON_MODULES gio-2.0 >= $GIO_REQUIRE
 
 
 dnl Media engine to use
-BUILT_ENGINES="librygel-media-engine-simple"
+BUILT_ENGINES="librygel-media-engine-simple librygel-media-engine-odid"
 
 dnl Disabling the gstreamer media_engine also disables
 dnl anything else that uses gstreamer.
 AC_ARG_WITH([media_engine],
             AS_HELP_STRING(
-                [--with-media-engine=@<:@gstreamer|simple|odid@:>@],
+                [--with-media-engine=@<:@gstreamer|simple@:>@],
                 [Media Engine to use]),
             [with_media_engine="$withval"],
             [with_media_engine="gstreamer"])
-
-dnl It seems like with_media_engine isn't fully working. enabling anything but
-dnl  "gstreamer" results in compile errors...
-
-AS_IF([test "x$with_media_engine" = "xodid"],
-      [
-        BUILT_ENGINES="$BUILT_ENGINES;librygel-media-engine-odid"
-        PKG_CHECK_MODULES([RYGEL_MEDIA_ENGINE_ODID_DEPS],
-                          [dtcpip],
-                          [RYGEL_MEDIA_ENGINE_ODID_DEPS_VALAFLAGS="-D DTCP_SUPPORTED --pkg dtcpip"],
-                          [RYGEL_MEDIA_ENGINE_ODID_DEPS_VALAFLAGS=""])
-        AC_SUBST([RYGEL_MEDIA_ENGINE_ODID_DEPS_VALAFLAGS])
-dnl The gstreamer deps still have to be processed since it's built unconditionally
-        with_media_engine="gstreamer"
-      ])
 
 AS_IF([test "x$with_media_engine" = "xgstreamer"],
       [
@@ -125,7 +110,12 @@ AS_IF([test "x$with_media_engine" = "xgstreamer"],
                            gio-2.0 >= $GIO_REQUIRED])
         RYGEL_MEDIA_ENGINE_GSTREAMER_DEPS_VALAFLAGS="$RYGEL_COMMON_MODULES_VALAFLAGS --pkg gstreamer-base-1.0 --pkg gstreamer-pbutils-1.0 --pkg gupnp-dlna-2.0"
         AC_SUBST([RYGEL_MEDIA_ENGINE_GSTREAMER_DEPS_VALAFLAGS])
-      ])
+
+        PKG_CHECK_MODULES([LIBRYGEL_RENDERER_GST_DEPS], [$RYGEL_COMMON_MODULES gstreamer-1.0 >= $GSTREAMER_REQUIRED gio-2.0 >= $GIO_REQUIRED])
+        LIBRYGEL_RENDERER_GST_DEPS_VALAFLAGS="$RYGEL_COMMON_MODULES_VALAFLAGS --pkg gstreamer-1.0"
+        AC_SUBST([LIBRYGEL_RENDERER_GST_DEPS_VALAFLAGS])
+      ],
+      [enable_gstreamer="no"])
 AM_CONDITIONAL([HAVE_GSTREAMER],[test "x$enable_gstreamer" = "xyes"])
 AC_SUBST([BUILT_ENGINES])
 
@@ -152,18 +142,6 @@ AS_IF([test "x$enable_mediathek_plugin" = "xyes"],
                        libxml-2.0 >= $LIBXML_REQUIRED])
   ])
 
-RYGEL_ADD_PLUGIN([odid],[ODID],[yes])
-AS_IF([test "x$enable_odid_plugin" = "xyes"],
-  [
-    PKG_CHECK_MODULES([RYGEL_PLUGIN_ODID_DEPS],
-                      [$RYGEL_COMMON_MODULES gio-2.0 >= $GIO_REQUIRED
-                       libsoup-2.4 >= $LIBSOUP_REQUIRED
-                       sqlite3 >= $LIBSQLITE3_REQUIRED
-                       uuid])
-    RYGEL_PLUGIN_ODID_DEPS_VALAFLAGS="$RYGEL_COMMON_MODULES_VALAFLAGS --pkg sqlite3"
-    AC_SUBST([RYGEL_PLUGIN_ODID_DEPS_VALAFLAGS])
-  ])
-
 RYGEL_ADD_PLUGIN([ruih],[Ruih],[yes])
 AS_IF([test "x$enable_ruih_plugin" = "xyes"],
   [
@@ -174,7 +152,7 @@ AS_IF([test "x$enable_ruih_plugin" = "xyes"],
                        libxml-2.0 >= $LIBXML_REQUIRED])
   ])
 
-AS_IF([test "x$enable_gstreamer" = "xyes"],
+AS_IF([test "x$with_media_engine" = "xgstreamer"],
       [
         RYGEL_ADD_PLUGIN([playbin],[GStreamer playbin],[yes])
         AS_IF([test "x$enable_playbin_plugin" = "xyes"],
@@ -199,6 +177,18 @@ AS_IF([test "x$enable_gstreamer" = "xyes"],
             AC_SUBST([RYGEL_PLUGIN_MEDIA_EXPORT_DEPS_VALAFLAGS])
           ])
 
+        RYGEL_ADD_PLUGIN([odid],[ODID],[yes])
+        AS_IF([test "x$enable_odid_plugin" = "xyes"],
+          [
+            PKG_CHECK_MODULES([RYGEL_PLUGIN_ODID_DEPS],
+                              [$RYGEL_COMMON_MODULES gio-2.0 >= $GIO_REQUIRED
+                               libsoup-2.4 >= $LIBSOUP_REQUIRED
+                               sqlite3 >= $LIBSQLITE3_REQUIRED
+                               uuid])
+            RYGEL_PLUGIN_ODID_DEPS_VALAFLAGS="$RYGEL_COMMON_MODULES_VALAFLAGS --pkg sqlite3"
+            AC_SUBST([RYGEL_PLUGIN_ODID_DEPS_VALAFLAGS])
+          ])
+
         RYGEL_ADD_PLUGIN([gst-launch],[GStreamer launchline],[no])
         AS_IF([test "x$enable_gst_launch_plugin" = "xyes"],
           [
@@ -206,10 +196,6 @@ AS_IF([test "x$enable_gstreamer" = "xyes"],
             RYGEL_PLUGIN_GST_LAUNCH_DEPS_VALAFLAGS="$RYGEL_COMMON_MODULES_VALAFLAGS"
             AC_SUBST([RYGEL_PLUGIN_GST_LAUNCH_DEPS_VALAFLAGS])
           ])
-
-        PKG_CHECK_MODULES([LIBRYGEL_RENDERER_GST_DEPS], [$RYGEL_COMMON_MODULES gstreamer-1.0 >= $GSTREAMER_REQUIRED gio-2.0 >= $GIO_REQUIRED])
-        LIBRYGEL_RENDERER_GST_DEPS_VALAFLAGS="$RYGEL_COMMON_MODULES_VALAFLAGS --pkg gstreamer-1.0"
-        AC_SUBST([LIBRYGEL_RENDERER_GST_DEPS_VALAFLAGS])
 
         RYGEL_ADD_STAMP([src/media-engines/gstreamer/librygel_media_engine_gst_la_vala.stamp])
         RYGEL_ADD_STAMP([src/librygel-renderer-gst/librygel_renderer_gst_2_0_la_vala.stamp])

@@ -26,6 +26,7 @@
  * Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  */
 
+
 public class Rygel.ODIDUtil : Object {
     private static ODIDUtil util = null;
     public const int64 PACKET_SIZE_188 = 188;
@@ -96,105 +97,4 @@ public class Rygel.ODIDUtil : Object {
         return chunk_size;
     }
 
-}
-
-public class DTCPShim {
-    public static uint64 get_encrypted_length (uint64 cleartext_length, uint64 encrypted_length) {
-#if (DTCP_SUPPORTED)
-        return Dtcpip.get_encrypted_length(cleartext_length, encrypted_length);
-#else
-        error("DTCP get_encrypted_length() called. Disable DTCP or compile with DTCP_SUPPORTED");
-#endif
-    }
-        
-    public static int init_dtcp_library (string storage_path){
-#if (DTCP_SUPPORTED)
-        return Dtcpip.init_dtcp_library(storage_path);
-#else
-        error("DTCP init_dtcp_library() called. Disable DTCP or compile with DTCP_SUPPORTED");
-#endif
-    }
-
-    public static int server_dtcp_init (ushort dtcp_port){
-#if (DTCP_SUPPORTED)
-        return Dtcpip.server_dtcp_init(dtcp_port);
-#else
-        error("DTCP server_dtcp_init() called. Disable DTCP or compile with DTCP_SUPPORTED");
-#endif
-    }
-
-    public static int server_dtcp_open (out int session_handle, int is_audio_only){
-#if (DTCP_SUPPORTED)
-        return Dtcpip.server_dtcp_open(out session_handle, is_audio_only);
-#else
-        error("DTCP server_dtcp_open() called. Disable DTCP or compile with DTCP_SUPPORTED");
-#endif
-    }
-
-    public static int server_dtcp_encrypt (int session_handle, uchar cci, uint8[] cleartext_data,
-                                           out unowned uint8[] encrypted_data) {
-#if (DTCP_SUPPORTED)
-        return Dtcpip.server_dtcp_encrypt(session_handle, cci, cleartext_data, out encrypted_data);
-#else
-        error("DTCP server_dtcp_encrypt() called. Disable DTCP or compile with DTCP_SUPPORTED");
-
-#endif
-    }
-
-    public static int server_dtcp_free (uint8[] encrypted_data){
-#if (DTCP_SUPPORTED)
-        return Dtcpip.server_dtcp_free(encrypted_data);
-#else
-        error("DTCP server_dtcp_free() called. Disable DTCP or compile with DTCP_SUPPORTED");
-#endif
-    }
-
-    public static int server_dtcp_close (int session_handle){
-#if (DTCP_SUPPORTED)
-        return Dtcpip.server_dtcp_close(session_handle);
-#else
-        error("DTCP server_dtcp_close() called. Disable DTCP or compile with DTCP_SUPPORTED");
-#endif
-    }
-
-    public static int client_dtcp_init (){
-#if (DTCP_SUPPORTED)
-        return Dtcpip.client_dtcp_init();
-#else
-        error("DTCP client_dtcp_init() called. Disable DTCP or compile with DTCP_SUPPORTED");
-#endif
-    }
-
-    public static int client_dtcp_open (string ip_addr, ushort ip_port, out int session_handle){
-#if (DTCP_SUPPORTED)
-        return Dtcpip.client_dtcp_open(ip_addr, ip_port, out session_handle);
-#else
-        error("DTCP client_dtcp_open() called. Disable DTCP or compile with DTCP_SUPPORTED");
-#endif
-    }
-
-    public static int client_dtcp_decrypt (int session_handle, uint8[] encrypted_data,
-                                           out unowned uint8[] cleartext_data){
-#if (DTCP_SUPPORTED)
-        return Dtcpip.client_dtcp_decrypt(session_handle, encrypted_data, out cleartext_data);
-#else
-        error("DTCP client_dtcp_decrypt() called. Disable DTCP or compile with DTCP_SUPPORTED");
-#endif
-    }
-
-    public static int client_dtcp_free (uint8[] cleartext_data){
-#if (DTCP_SUPPORTED)
-        return Dtcpip.client_dtcp_free(cleartext_data);
-#else
-        error("DTCP client_dtcp_free() called. Disable DTCP or compile with DTCP_SUPPORTED");
-#endif
-    }
-
-    public static int client_dtcp_close (int session_handle){
-#if (DTCP_SUPPORTED)
-        return Dtcpip.client_dtcp_close(session_handle);
-#else
-        error("DTCP client_dtcp_close() called. Disable DTCP or compile with DTCP_SUPPORTED");
-#endif
-    }
 }
