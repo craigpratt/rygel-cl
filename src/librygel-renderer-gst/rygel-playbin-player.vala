@@ -30,6 +30,7 @@
 using Gst;
 using GUPnP;
 using Rygel.Renderer;
+using Xml;
 
 /**
  * Implementation of RygelMediaPlayer for GStreamer.
@@ -41,57 +42,42 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
     private const string TRANSFER_MODE_INTERACTIVE = "Interactive";
     private const string PROTOCOL_INFO_TEMPLATE = "http-get:%s:*:%s";
 
-    private const string[] protocols = { "http-get", "rtsp" };
-    private const string[] mime_types = {
-                                        "audio/mpeg",
-                                        "application/ogg",
-                                        "audio/x-vorbis",
-                                        "audio/x-vorbis+ogg",
-                                        "audio/ogg",
-                                        "audio/x-ms-wma",
-                                        "audio/x-ms-asf",
-                                        "audio/x-flac",
-                                        "audio/x-flac+ogg",
-                                        "audio/flac",
-                                        "audio/mp4",
-                                        "audio/3gpp",
-                                        "audio/vnd.dlna.adts",
-                                        "audio/x-mod",
-                                        "audio/x-wav",
-                                        "audio/x-ac3",
-                                        "audio/x-m4a",
-                                        "audio/l16;rate=44100;channels=2",
-                                        "audio/l16;rate=44100;channels=1",
-                                        "audio/l16;channels=2;rate=44100",
-                                        "audio/l16;channels=1;rate=44100",
-                                        "audio/l16;rate=44100",
-                                        "image/jpeg",
-                                        "image/png",
-                                        "video/x-theora",
-                                        "video/x-theora+ogg",
-                                        "video/x-oggm",
-                                        "video/ogg",
-                                        "video/x-dirac",
-                                        "video/x-wmv",
-                                        "video/x-wma",
-                                        "video/x-msvideo",
-                                        "video/x-3ivx",
-                                        "video/x-3ivx",
-                                        "video/x-matroska",
-                                        "video/x-mkv",
-                                        "video/mpeg",
-                                        "video/mp4",
-                                        "application/x-shockwave-flash",
-                                        "video/x-ms-asf",
-                                        "video/x-xvid",
-                                        "video/x-ms-wmv" };
+    private const string protocol_xpath  = "/supported-profiles/protocols";
+    private const string media_collection_xpath  = "/supported-profiles/media-collection";
+    private const string mimetype_xpath  = "/supported-profiles/mime-type";
+
+    protected static string MIME_TYPE_NAME_PROPERTY   = "name";
+    protected static const string DLNA_ORG_PN         = "DLNA.ORG_PN";
+    protected static const string DLNA_ORG_OP         = "DLNA.ORG_OP";
+    protected static const string DLNA_ORG_FLAGS      = "DLNA.ORG_FLAGS";
+    protected static const string SUPPORT_PROFILE_LIST_PATH = BuildConfig.DATA_DIR + "/xml/profiles.xml";
+    private string[] protocols = null;
+    private string[] mime_types = null;
+
     private static Player player;
 
     private bool is_live;
     private bool foreign;
     private bool buffering;
 
-    public dynamic Element playbin { get; private set; }
+
+    public dynamic Gst.Element playbin { get; private set; }
+
+    protected void print_array(string[] arr)    {
+        foreach(unowned string str in arr)
+        {
+            debug (" %s\n", str);
+        }
+    }
+
+    protected void print_supported_profiles(GLib.List<DLNAProfile> supported_profs) {
+        supported_profs.foreach ((entry) => {
+                debug ("Mime: %s ", entry.mime);
+                debug ("Name: %s ", entry.name);
+                debug ("Operations: %s ", entry.operations);
+                debug ("Flags: %s\n", entry.flags);
+            });
+    }
 
     private string _playback_state = "NO_MEDIA_PRESENT";
     public string playback_state {
@@ -281,7 +267,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                 } else {
                     this.transfer_mode = null;
                 }
-            } catch (Error error) {
+            } catch (GLib.Error error) {
                 this.protocol_info = null;
                 this.transfer_mode = null;
             }
@@ -348,10 +334,163 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
+
+    private void read_elements(Xml.XPath.Object* res, ref string[] read_elements)    {
+        assert (res != null);
+        assert (res->type == Xml.XPath.ObjectType.NODESET);
+        assert (res->nodesetval != null);
+        if (res->nodesetval->length () > 0)
+        {
+            read_elements = new string[res->nodesetval->length()];
+            for (int i = 0; i < res->nodesetval->length (); i++) {
+                Xml.Node* node = res->nodesetval->item (i);
+                read_elements[i] = node->get_content ();
+            }
+        }
+    }
+
+    private void get_mime_attributes(Xml.XPath.Object* res, ref string[] mime_types_param, bool media_collection_flag)    {
+        int num_of_mimes = res->nodesetval->length ();
+        assert (res != null);
+        assert (res->type == Xml.XPath.ObjectType.NODESET);
+        assert (res->nodesetval != null);
+
+        num_of_mimes = media_collection_flag == true ? res->nodesetval->length () + 1:num_of_mimes;
+
+        if (num_of_mimes > 0)
+        {
+            int index = 0;
+            mime_types_param = new string[num_of_mimes];
+            if (media_collection_flag == true)
+            {
+                // add elements
+                mime_types_param[0] = "text/xml";
+                _supported_profiles.prepend (new DLNAProfile.extended
+                                             ("DIDL_S",
+                                              "text/xml",
+                                              "",
+                                              ""));
+                index = 1;
+            }
+
+            for (int i = index; i < num_of_mimes; i++) {
+                Xml.Node* node = null;
+                if ( res->nodesetval != null && res->nodesetval->item(i) != null ) {
+                    node = res->nodesetval->item(i);
+                    string prop_value = node->get_prop(MIME_TYPE_NAME_PROPERTY);
+                    if (prop_value == null)
+                        break;
+
+                    mime_types_param[i] = prop_value;
+
+                    // Get the children for this node
+                    for (Xml.Node* iter = node->children; iter != null; iter = iter->next) {
+                        // Spaces between tags are also nodes, discard them
+                        if (iter->type != ElementType.ELEMENT_NODE) {
+                            continue;
+                        }
+
+                        string dlna_profile = iter->get_content();
+                        if (dlna_profile != null)
+                        {
+                            string[] temp_str = dlna_profile.split (";", 0);
+                            string dlna_org_pn = "", dlna_org_op = "", dlna_org_flags = "";
+
+                            foreach (unowned string str in temp_str)
+                            {
+                                string[] key_value = str.split("=", 0);
+
+                                switch (key_value[0])
+                                {
+                                case DLNA_ORG_PN:
+                                    dlna_org_pn = key_value[1];
+                                    break;
+                                case DLNA_ORG_OP:
+                                    dlna_org_op = key_value[1];
+                                    break;
+                                case DLNA_ORG_FLAGS:
+                                    dlna_org_flags = key_value[1];
+                                    break;
+                                }
+                            }
+
+                            if (dlna_org_pn != null)
+                            {
+                                _supported_profiles.prepend (new DLNAProfile.extended
+                                                             (dlna_org_pn,
+                                                              prop_value ?? "",
+                                                              dlna_org_op ?? "",
+                                                              dlna_org_flags ?? ""));
+                            }
+                        }
+                    }
+                } else {
+                    message ("failed to find the expected node");
+                }
+            }
+        }
+    }
+
+    private void parse_file () {
+        // Parse the document from path
+        Xml.Doc* doc = Xml.Parser.parse_file (SUPPORT_PROFILE_LIST_PATH);
+        if (doc == null) {
+            error ("File %s not found or permissions missing\n", SUPPORT_PROFILE_LIST_PATH);
+        }
+
+        Xml.XPath.Context cntx = new Xml.XPath.Context (doc);
+        if (cntx==null)
+        {
+            error ("failed to create the xpath context\n");
+        }
+
+        // Extract the protocol values
+        Xml.XPath.Object* protocols_node = cntx.eval_expression (protocol_xpath);
+
+        string[] temp_protocols = null;
+        read_elements(protocols_node, ref temp_protocols);
+		if (temp_protocols.length == 0)
+		{
+			error("No Protocols specified. Please add the info to the %s xml file\n", SUPPORT_PROFILE_LIST_PATH);
+		}
+	
+        protocols = temp_protocols[0].split(",", 0);
+
+        // Extract media-collection value
+        Xml.XPath.Object* media_collection_node = cntx.eval_expression (media_collection_xpath);
+        string[] media_collection_flagstr = null;
+        bool media_collection_flag = false;
+
+        read_elements(media_collection_node, ref media_collection_flagstr);
+        media_collection_flag = bool.parse(media_collection_flagstr[0]);
+
+        Xml.XPath.Object* mime_type_node = cntx.eval_expression (mimetype_xpath);
+        string[] temp_mime_types = null;
+
+        if (mime_type_node == null)
+        {
+            warning ("failed to evaluate xpath\n");
+        }
+        else
+        {
+            get_mime_attributes(mime_type_node, ref temp_mime_types, media_collection_flag);
+            mime_types = temp_mime_types;
+        }
+
+        delete protocols_node;
+        delete media_collection_node;
+        delete mime_type_node;
+        delete doc;
+
+        // Do the parser cleanup to free the used memory
+        Parser.cleanup ();
+    }
+
     private Player () {
         this.playbin = ElementFactory.make ("playbin", null);
         this.foreign = false;
         this.setup_playbin ();
+        this.parse_file();
     }
 
     public Player.wrap (Gst.Element playbin) {
@@ -434,67 +573,13 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
     private GLib.List<DLNAProfile> _supported_profiles;
     public unowned GLib.List<DLNAProfile> supported_profiles {
         get {
-            if (_supported_profiles == null) {
-                // FIXME: Check available decoders in registry and register
-                // profiles after that
-                _supported_profiles = new GLib.List<DLNAProfile> ();
-
-                // Image
-                _supported_profiles.prepend (new DLNAProfile ("JPEG_SM",
-                                                              "image/jpeg"));
-                _supported_profiles.prepend (new DLNAProfile ("JPEG_MED",
-                                                              "image/jpeg"));
-                _supported_profiles.prepend (new DLNAProfile ("JPEG_LRG",
-                                                              "image/jpeg"));
-                _supported_profiles.prepend (new DLNAProfile ("PNG_LRG",
-                                                              "image/png"));
-
-                // Audio
-                _supported_profiles.prepend (new DLNAProfile ("MP3",
-                                                              "audio/mpeg"));
-                _supported_profiles.prepend (new DLNAProfile ("MP3X",
-                                                              "audio/mpeg"));
-                _supported_profiles.prepend (new DLNAProfile
-                                        ("AAC_ADTS_320",
-                                         "audio/vnd.dlna.adts"));
-                _supported_profiles.prepend (new DLNAProfile ("AAC_ISO_320",
-                                                              "audio/mp4"));
-                _supported_profiles.prepend (new DLNAProfile ("AAC_ISO_320",
-                                                              "audio/3gpp"));
-                _supported_profiles.prepend (new DLNAProfile
-                                        ("LPCM",
-                                         "audio/l16;rate=44100;channels=2"));
-                _supported_profiles.prepend (new DLNAProfile
-                                        ("LPCM",
-                                         "audio/l16;rate=44100;channels=1"));
-                _supported_profiles.prepend (new DLNAProfile ("WMABASE",
-                                                              "audio/x-ms-wma"));
-                _supported_profiles.prepend (new DLNAProfile ("WMAFULL",
-                                                              "audio/x-ms-wma"));
-                _supported_profiles.prepend (new DLNAProfile ("WMAPRO",
-                                                              "audio/x-ms-wma"));
-
-                // Video
-                _supported_profiles.prepend (new DLNAProfile
-                                        ("MPEG_TS_SD_EU_ISO",
-                                         "video/mpeg"));
-                _supported_profiles.prepend (new DLNAProfile
-                                        ("MPEG_TS_SD_NA_ISO",
-                                         "video/mpeg"));
-                _supported_profiles.prepend (new DLNAProfile
-                                        ("MPEG_TS_HD_NA_ISO",
-                                         "video/mpeg"));
-                _supported_profiles.prepend (new DLNAProfile
-                                        ("AVC_MP4_BL_CIF15_AAC_520",
-                                         "video/mp4"));
-            }
-
+            this.print_supported_profiles (_supported_profiles);
             return _supported_profiles;
         }
     }
 
     private bool is_rendering_image () {
-        dynamic Element typefind;
+        dynamic Gst.Element typefind;
 
         typefind = (this.playbin as Gst.Bin).get_by_name ("typefind");
         Caps caps = typefind.caps;
@@ -586,7 +671,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
 
             break;
         case MessageType.ERROR:
-            Error error;
+            GLib.Error error;
             string debug_message;
 
             message.parse_error (out error, out debug_message);
@@ -603,7 +688,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-    private void on_source_setup (Element pipeline, dynamic Element source) {
+    private void on_source_setup (Gst.Element pipeline, dynamic Gst.Element source) {
         if (source.get_type ().name () == "GstSoupHTTPSrc" &&
             this.transfer_mode != null) {
             debug ("Setting transfer mode to %s", this.transfer_mode);

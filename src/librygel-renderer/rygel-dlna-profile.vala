@@ -29,11 +29,22 @@
 public class Rygel.Renderer.DLNAProfile {
     public string mime;
     public string name;
+    public string operations;
+    public string flags;
 
     public DLNAProfile (string name, string mime) {
         this.mime = mime;
         this.name = name;
+        this.operations = "";
+        this.flags = "";
     }
+
+    public DLNAProfile.extended (string name, string mime, string operations, string flags) {
+        this.mime = mime;
+        this.name = name;
+        this.operations = operations;
+        this.flags = flags;
+	}
 
     /**
      * Compare two DLNA profiles by name
