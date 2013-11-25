@@ -34,16 +34,16 @@ int dtcpip_cmn_init(char* pIPAndPort);
 
 int dtcpip_snk_init(void);
 int dtcpip_snk_open(char* ip_addr, unsigned short ip_port, int *session_handle);
-int dtcpip_snk_alloc_decrypt(int session_handle, char* encrypted_data, unsigned int encrypted_size,
- char** cleartext_data, unsigned int* cleartext_size);
+int dtcpip_snk_alloc_decrypt(int session_handle, char* encrypted_data, size_t encrypted_size,
+ char** cleartext_data, size_t* cleartext_size);
 int dtcpip_snk_free(char* cleartext_data);
 int dtcpip_snk_close(int session_handle);
 
 int dtcpip_src_init(unsigned short dtcp_port);
 int dtcpip_src_open(int* session_handle, int is_audio_only);
 int dtcpip_src_alloc_encrypt(int session_handle, unsigned char cci,
-char* cleartext_data, unsigned int cleartext_size,
-char** encrypted_data,unsigned int* encrypted_size);
+char* cleartext_data, size_t cleartext_size,
+char** encrypted_data,size_t* encrypted_size);
 int dtcpip_src_free(char* encrypted_data);
 int dtcpip_src_close(int session_handle);
 int dtcpip_src_close_socket(int session_handle);
