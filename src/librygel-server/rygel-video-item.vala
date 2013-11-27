@@ -144,32 +144,34 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
             contributor.name = this.author;
         }
 
-        foreach (var subtitle in this.subtitles) {
-            string protocol;
-            try {
-                protocol = this.get_protocol_for_uri (subtitle.uri);
-            } catch (Error e) {
-                message("Could not determine protocol for " + subtitle.uri);
-                continue;
-            }
+        if (!this.place_holder) {
+            foreach (var subtitle in this.subtitles) {
+                string protocol;
+                try {
+                    protocol = this.get_protocol_for_uri (subtitle.uri);
+                } catch (Error e) {
+                    message("Could not determine protocol for " + subtitle.uri);
+                    continue;
+                }
 
-            if (http_server.is_local () || protocol != "internal") {
-                subtitle.add_didl_node (didl_item);
-            }
+                if (http_server.is_local () || protocol != "internal") {
+                    subtitle.add_didl_node (didl_item);
+                }
 
-            if (!this.place_holder && http_server.need_proxy (subtitle.uri)) {
-                var uri = subtitle.uri; // Save the original URI
-                var index = this.subtitles.index_of (subtitle);
+                if (http_server.need_proxy (subtitle.uri)) {
+                    var uri = subtitle.uri; // Save the original URI
+                    var index = this.subtitles.index_of (subtitle);
 
-                subtitle.uri = http_server.create_uri_for_item (this,
-                                                                subtitle.caption_type,
-                                                                -1,
-                                                                index,
-                                                                null);
-                subtitle.add_didl_node (didl_item);
+                    subtitle.uri = http_server.create_uri_for_item (this,
+                                                                    subtitle.caption_type,
+                                                                    -1,
+                                                                    index,
+                                                                    null);
+                    subtitle.add_didl_node (didl_item);
 
-                // Now restore the original URI
-                subtitle.uri = uri;
+                    // Now restore the original URI
+                    subtitle.uri = uri;
+                }
             }
         }
 

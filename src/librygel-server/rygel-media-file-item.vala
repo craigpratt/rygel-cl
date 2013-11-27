@@ -156,10 +156,7 @@ public abstract class Rygel.MediaFileItem : MediaItem {
             //  at this point) with any secondary representations or alternate delivery
             //  mechanisms they can provide
             this.add_resources (http_server);
-
-            // Note: Primary resources should be front-loaded on the resource list in order
-            //       of preference (unless a subclass decided some other resource should be
-            //       at the front)
+            
             this.serialize_resource_list (didl_item, http_server);
         }
 
