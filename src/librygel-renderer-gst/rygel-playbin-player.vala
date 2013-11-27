@@ -302,7 +302,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         get {
             int64 dur;
 
-            if (this.playbin.source.query_duration (Format.BYTES, out dur)) {
+            if (this.playbin.query_duration (Format.BYTES, out dur)) {
                 return dur;
             } else {
                 return 0;
@@ -544,7 +544,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
 
         // Playbin doesn't return false when seeking beyond the end of the
         // file
-        if (time > this.duration) {
+        if (this.duration > 0 && time > this.duration) {
             return false;
         }
 
