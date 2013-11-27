@@ -60,21 +60,11 @@ public class Rygel.HTTPByteSeekRequest : Rygel.HTTPSeekRequest {
                                                  HTTPRequestError {
         base ();
         Soup.Range[] ranges;
-        int64 start, stop, total_size;
+        int64 start, stop;
         unowned string range = request.msg.request_headers.get_one ("Range");
         string range_header_str = null;
 
-        if (request.thumbnail != null) {
-            total_size = request.thumbnail.size;
-        } else if (request.subtitle != null) {
-            total_size = request.subtitle.size;
-        } else if (request.handler is HTTPMediaResourceHandler) {
-            MediaResource resource = (request.handler as HTTPMediaResourceHandler)
-                                     .media_resource;
-            total_size = resource.size;
-        } else {
-            total_size = (request.object as MediaItem).size;
-        }
+        int64 total_size = request.handler.get_resource_size();
         // TODO: Deal with resources that support Range but don't have fixed/known sizes
 
         // Check if Range is present in the header
@@ -127,16 +117,7 @@ public class Rygel.HTTPByteSeekRequest : Rygel.HTTPSeekRequest {
             force_seek = hack.force_seek ();
         } catch (Error error) { }
 
-        bool resource_with_byte_seek
-                = (request.handler is HTTPMediaResourceHandler)
-                  && (request.handler as HTTPMediaResourceHandler)
-                     .media_resource.supports_arbitrary_byte_seek();
-
-        return force_seek
-               || (!(request.object is MediaContainer) && (request.object as MediaItem).size > 0)
-               || resource_with_byte_seek
-               || (request.thumbnail != null && request.thumbnail.size > 0)
-               || (request.subtitle != null && request.subtitle.size > 0);
+        return force_seek || request.handler.supports_byte_seek();
     }
 
     public static bool requested (HTTPGet request) {

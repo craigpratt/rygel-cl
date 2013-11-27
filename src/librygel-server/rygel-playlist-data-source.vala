@@ -26,7 +26,6 @@
  * Contact: http://www.cablelabs.com/
  *
  * Author: Craig Pratt <craig@ecaspia.com>
- * Author: Doug Galligan <doug@sentosatech.com>>
  */
 
 using GUPnP;
@@ -54,7 +53,7 @@ internal class Rygel.PlaylistDatasource : Rygel.DataSource, Object {
 
     public signal void data_ready ();
 
-    public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
+    public async Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
                                                      DLNAPlaySpeedRequest? playspeed_request)
        throws Error {
         if (seek_request != null) {
@@ -120,83 +119,6 @@ internal class Rygel.PlaylistDatasource : Rygel.DataSource, Object {
         } catch (Error error) {
             warning ("Could not generate playlist: %s", error.message);
             this.error (error);
-        }
-    }
-}
-
-/**
- * RygelHTTPPlaylistHandler implements a special handler for generating XML
- * playlists (DIDL_S format as defined by DLNA) on-the-fly.
- */
-internal class Rygel.HTTPPlaylistHandler : Rygel.HTTPGetHandler {
-    private SerializerType playlist_type;
-
-    public static bool is_supported (string playlist_format) {
-        return playlist_format == "DIDL_S" || playlist_format == "M3U";
-    }
-
-    public HTTPPlaylistHandler (string playlist_format,
-                                Cancellable? cancellable) {
-        if (playlist_format == "DIDL_S") {
-            this.playlist_type = SerializerType.DIDL_S;
-        } else if (playlist_format == "M3U") {
-            this.playlist_type = SerializerType.M3UEXT;
-        }
-
-        this.cancellable = cancellable;
-    }
-
-    public override void add_response_headers (HTTPGet request)
-                                               throws HTTPRequestError {
-        // TODO: Why do we use response_headers.append instead of set_content_type
-        switch (this.playlist_type) {
-            case SerializerType.DIDL_S:
-                request.msg.response_headers.append ("Content-Type",
-                                                     "text/xml");
-                break;
-            case SerializerType.M3UEXT:
-                request.msg.response_headers.append ("ContentType",
-                                                     "audio/x-mpegurl");
-                break;
-            default:
-                assert_not_reached ();
-        }
-
-        base.add_response_headers (request);
-    }
-
-    public override HTTPResponse render_body (HTTPGet request)
-                                              throws HTTPRequestError {
-        try {
-            var source = new PlaylistDatasource
-                                        (this.playlist_type,
-                                         request.object as MediaContainer,
-                                         request.http_server,
-                                         request.hack);
-
-            return new HTTPResponse (request, this, source);
-        } catch (Error error) {
-            throw new HTTPRequestError.NOT_FOUND (error.message);
-        }
-    }
-
-    protected override DIDLLiteResource add_resource
-                                        (DIDLLiteObject didl_object,
-                                         HTTPGet        request) {
-        var protocol = request.http_server.get_protocol ();
-
-        try {
-            var res = request.object.add_resource ( didl_object, null, protocol,
-                                                    new MediaResource("dummy") );
-
-            // set DLNA profile to get proper contentFeatures header
-            if (this.playlist_type == SerializerType.DIDL_S) {
-                res.protocol_info.dlna_profile = "DIDL_S";
-            }
-
-            return res;
-        } catch (Error error) {
-            return null as DIDLLiteResource;
         }
     }
 }

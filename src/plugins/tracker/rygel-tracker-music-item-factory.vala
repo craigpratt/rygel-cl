@@ -71,10 +71,10 @@ public class Rygel.Tracker.MusicItemFactory : ItemFactory {
         this.properties.add ("upnp:bitrate");
     }
 
-    public override MediaItem create (string          id,
-                                      string          uri,
-                                      SearchContainer parent,
-                                      Sparql.Cursor   metadata)
+    public override MediaFileItem create (string          id,
+                                          string          uri,
+                                          SearchContainer parent,
+                                          Sparql.Cursor   metadata)
                                       throws GLib.Error {
         var item = new MusicItem (id, parent, "");
 
@@ -83,7 +83,7 @@ public class Rygel.Tracker.MusicItemFactory : ItemFactory {
         return item;
     }
 
-    protected override void set_metadata (MediaItem item,
+    protected override void set_metadata (MediaFileItem item,
                                           string    uri,
                                           Sparql.Cursor metadata)
                                           throws GLib.Error {
@@ -137,6 +137,8 @@ public class Rygel.Tracker.MusicItemFactory : ItemFactory {
         }
 
         music.lookup_album_art ();
+
+        base.add_resources(music);
     }
 }
 

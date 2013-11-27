@@ -28,11 +28,13 @@
  * Author: Craig Pratt <craig@ecaspia.com>
  */
 
+using GUPnP;
+
 /**
  * The simple media engine does not use GStreamer or any other
  * multimedia framework. Therefore its capabilities are limited.
  *
- * It does not support transcoding - get_transcoders() returns null.
+ * It does not support transcoding - get_resources() returns null.
  * Also, its RygelSimpleDataSource does not support time-base seeking.
  */
 internal class Rygel.SimpleMediaEngine : MediaEngine {
@@ -44,17 +46,53 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
         return this.profiles;
     }
 
-    public override Gee.List<MediaResource>? get_resources_for_uri(string uri) {
-        // TODO: Implement me
-        return null;
+    public override async Gee.List<MediaResource> ? get_resources_for_item (MediaObject object) {
+        if (! (object is MediaFileItem)) {
+            warning ("Can only process file-based MediaObjects (MediaFileItems)");
+            return null;
+        }
+
+        var item = object as MediaFileItem; 
+
+        // For MediaFileItems, uri 0 is the file URI referring directly to the content
+        string source_uri = item.uris.get (0);
+        if (!source_uri.has_prefix ("file://")) {
+            warning("Can't process non-file uri " + source_uri);
+        }
+
+        debug("get_resources_for_item (%s)", source_uri);
+
+        Gee.List<MediaResource> resources = new Gee.ArrayList<MediaResource> ();
+
+        var primary_res = item.get_primary_resource ();
+
+        // The SimpleMediaEngine supports only byte-based seek
+        primary_res.dlna_operation = GUPnP.DLNAOperation.RANGE;
+
+        // Add a resource for http consumption (as SimpleMediaEngine can handle http)
+        MediaResource http_res = new MediaResource.from_resource ("primary_http",
+                                                                  primary_res);
+        http_res.uri = ""; // The URI needs to be assigned by the MediaServer
+        resources.add (http_res);
+
+        resources.add (primary_res);
+
+        return resources;
     }
 
-    public override unowned List<Transcoder>? get_transcoders () {
-        return null;
-    }
+    public override DataSource? create_data_source_for_resource (MediaObject object,
+                                                                 MediaResource resource) {
+        if (! (object is MediaFileItem)) {
+            warning ("Can only process file-based MediaObjects (MediaFileItems)");
+            return null;
+        }
 
-    public override DataSource? create_data_source_for_resource
-                                (string uri, MediaResource ? resource) {
+        // For MediaFileItems, uri 0 is the file URI referring directly to the content
+        string source_uri = object.uris.get (0);
+        return new SimpleDataSource (source_uri);
+    }
+    
+    public override DataSource? create_data_source_for_uri (string uri) {
         if (!uri.has_prefix ("file://")) {
             return null;
         }

@@ -152,8 +152,8 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
             }
 
             yield this.create_object_from_didl (container);
-            if (this.object is MediaItem) {
-                yield container.add_item (this.object as MediaItem,
+            if (this.object is MediaFileItem) {
+                yield container.add_item (this.object as MediaFileItem,
                                           this.cancellable);
             } else {
                 yield container.add_container (this.object as MediaContainer,
@@ -168,8 +168,8 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
             this.conclude ();
 
             if (this.container_id == MediaContainer.ANY &&
-                (this.object is MediaItem && (this.object as
-                                              MediaItem).place_holder)) {
+                (this.object is MediaFileItem &&
+                 (this.object as MediaFileItem).place_holder)) {
                 var queue = ObjectRemovalQueue.get_default ();
 
                 queue.queue (this.object, this.cancellable);
@@ -474,11 +474,11 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
     }
 
     private string get_generic_mime_type () {
-        if (!(this.object is MediaItem)) {
+        if (!(this.object is MediaFileItem)) {
             return "";
         }
 
-        var item = this.object as MediaItem;
+        var item = this.object as MediaFileItem;
 
         if (item is ImageItem) {
             return "image";
@@ -506,7 +506,7 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
                                           this.didl_object.title,
                                           this.didl_object.upnp_class);
 
-        if (this.object is MediaItem) {
+        if (this.object is MediaFileItem) {
             this.extract_item_parameters ();
         }
 
@@ -514,13 +514,13 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
         if (this.object.uris.size == 0) {
             var uri = yield this.create_uri (container, this.object.title);
             this.object.uris.add (uri);
-            if (this.object is MediaItem) {
-                (this.object as MediaItem).place_holder = true;
+            if (this.object is MediaFileItem) {
+                (this.object as MediaFileItem).place_holder = true;
             }
         } else {
-            if (this.object is MediaItem) {
+            if (this.object is MediaFileItem) {
                 var file = File.new_for_uri (this.object.uris[0]);
-                (this.object as MediaItem).place_holder = !file.is_native ();
+                (this.object as MediaFileItem).place_holder = !file.is_native ();
             }
         }
 
@@ -530,7 +530,7 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
     }
 
     private void extract_item_parameters () throws Error {
-        var item = this.object as MediaItem;
+        var item = this.object as MediaFileItem;
 
         var resources = this.didl_object.get_resources ();
         if (resources != null && resources.length () > 0) {
@@ -585,9 +585,8 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
 
         var parsed_date = new Soup.Date.from_string (didl_item.date);
         if (parsed_date != null) {
-            (this.object as MediaItem).date = parsed_date.to_string
-                                            (Soup.DateFormat.ISO8601);
-
+            (this.object as MediaFileItem).date = parsed_date.to_string
+                                                   (Soup.DateFormat.ISO8601);
             return;
         }
 

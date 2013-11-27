@@ -82,7 +82,7 @@ public class Rygel.DLNAPlaySpeedRequest : GLib.Object {
             if (request.handler is HTTPMediaResourceHandler) {
                 MediaResource resource = (request.handler as HTTPMediaResourceHandler)
                                                   .media_resource;
-                string[] speeds = resource.protocol_info.get_play_speeds();
+                var speeds = resource.play_speeds;
                 bool found_speed = false;
                 foreach (var speed in speeds) {
                     var cur_speed = new DLNAPlaySpeedRequest.from_string (speed);

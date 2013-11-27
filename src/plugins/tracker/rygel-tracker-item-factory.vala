@@ -80,13 +80,13 @@ public abstract class Rygel.Tracker.ItemFactory {
         this.properties.add ("date");
     }
 
-    public abstract MediaItem create (string          id,
-                                      string          uri,
-                                      SearchContainer parent,
-                                      Sparql.Cursor   metadata)
+    public abstract MediaFileItem create (string          id,
+                                          string          uri,
+                                          SearchContainer parent,
+                                          Sparql.Cursor   metadata)
                                       throws GLib.Error;
 
-    protected void set_ref_id (MediaItem item, string prefix) {
+    protected void set_ref_id (MediaFileItem item, string prefix) {
         if (item.id.has_prefix (prefix)) {
             return;
         }
@@ -99,7 +99,7 @@ public abstract class Rygel.Tracker.ItemFactory {
         item.ref_id = prefix + "," + split_id[1];
     }
 
-    protected virtual void set_metadata (MediaItem     item,
+    protected virtual void set_metadata (MediaFileItem item,
                                          string        uri,
                                          Sparql.Cursor metadata)
                                          throws GLib.Error {
@@ -128,10 +128,28 @@ public abstract class Rygel.Tracker.ItemFactory {
         if (metadata.is_bound (Metadata.DLNA_PROFILE)) {
             item.dlna_profile = metadata.get_string (Metadata.DLNA_PROFILE);
         }
-
-        item.mime_type = metadata.get_string (Metadata.MIME);
+ 
+        if (metadata.is_bound (Metadata.MIME)) {
+            item.mime_type = metadata.get_string (Metadata.MIME);  
+        }
 
         item.add_uri (uri);
+    }
+
+    protected virtual void add_resources (MediaItem item)   
+                                         throws GLib.Error {
+        // Call the MediaEngine to determine which item representations it can support
+        var media_engine = MediaEngine.get_default ( );
+        media_engine.get_resources_for_item.begin ( item,
+                                                   (obj, res) => {
+            var added_resources = media_engine.get_resources_for_item.end (res);
+            message( "Adding %d resources to item source %s", added_resources.size,
+                             item.uris.get (0) );    
+            foreach (var resrc in added_resources) {     
+                message ("Media-export item media resource %s", resrc.get_name ());
+            }
+            item.get_resource_list ().add_all (added_resources);
+           });
     }
 }
 

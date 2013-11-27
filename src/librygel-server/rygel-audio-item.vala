@@ -27,24 +27,46 @@
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  * Contact: http://www.cablelabs.com/
  *
- * Author: Doug Galligan <doug@sentosatech.com>>
+ * Author: Doug Galligan <doug@sentosatech.com>
+ * Author: Craig Pratt <craig@ecaspia.com>
  */
 
 using GUPnP;
 
 /**
- * Represents an audio item.
+ * Represents an audio item contained in a file.
  */
-public class Rygel.AudioItem : MediaItem {
+public class Rygel.AudioItem : MediaFileItem {
     public new const string UPNP_CLASS = "object.item.audioItem";
 
-    // TODO: These are not properties of Items, but of Resources, correct?
-    //       Everything that uses these fields should be audited.
-    public long duration { get; set; default = -1; }  // Duration in seconds
-    public int bitrate { get; set; default = -1; }    // Bytes/second
+    /**
+     * The duration of the source content (this.uri) in seconds.
+     * A value of -1 means the duration is unknown
+     */
+    public long duration { get; set; default = -1; }
 
+    /**
+     * The bitrate of the source content (this.uri) in bytes/second.
+     * A value of -1 means the bitrate is unknown
+     */
+    public int bitrate { get; set; default = -1; }
+
+    /**
+     * The sample frequency of the source content (this.uri) in Hz.
+     * A value of -1 means the sample frequency is unknown
+     */
     public int sample_freq { get; set; default = -1; }
+
+    /**
+     * The bits per sample of the source content (this.uri).
+     * A value of -1 means the bits per sample is unknown
+     */
     public int bits_per_sample { get; set; default = -1; }
+
+    /**
+     * The number of audio channels in the source content (this.uri).
+     * A value of -1 means the number of channels is unknown
+     */
     public int channels { get; set; default = -1; }
 
     public AudioItem (string         id,
@@ -57,25 +79,20 @@ public class Rygel.AudioItem : MediaItem {
                 upnp_class : upnp_class);
     }
 
-    public override bool streamable () {
-        return true;
-    }
-
-    internal override DIDLLiteResource add_resource
-                                        (DIDLLiteObject didl_object,
-                                         string?        uri,
-                                         string         protocol,
-                                         MediaResource  resource,
-                                         string?        import_uri = null)
-                                         throws Error {
-        var res = base.add_resource (didl_object, uri, protocol, resource, import_uri);
+    internal override MediaResource get_primary_resource () {
+        var res = base.get_primary_resource ();
 
         res.duration = this.duration;
         res.bitrate = this.bitrate;
         res.sample_freq = this.sample_freq;
         res.bits_per_sample = this.bits_per_sample;
         res.audio_channels = this.channels;
+        res.dlna_flags |= DLNAFlags.STREAMING_TRANSFER_MODE;
 
         return res;
+    }
+
+    internal override void add_resources (HTTPServer server) {
+        // AudioItem doesn't add secondary resources
     }
 }

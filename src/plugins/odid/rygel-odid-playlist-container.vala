@@ -57,7 +57,7 @@ internal class Rygel.ODID.PlaylistContainer : DBContainer,
         this.uris.add (PlaylistContainer.URI);
     }
 
-    public async void add_item (Rygel.MediaItem item,
+    public async void add_item (Rygel.ODID.MediaItem item,
                                 Cancellable?    cancellable)
                                 throws Error {
         throw new WritableContainerError.NOT_IMPLEMENTED

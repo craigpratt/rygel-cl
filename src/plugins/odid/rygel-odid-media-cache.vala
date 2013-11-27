@@ -124,7 +124,7 @@ public class Rygel.ODID.MediaCache : Object {
     /**
      * Add the item to the cache.
      */
-    public void save_item (Rygel.MediaItem item,
+    public void save_item (Rygel.ODID.MediaItem item,
                            bool override_guarded = false) throws Error {
         try {
             db.begin ();
@@ -549,7 +549,7 @@ public class Rygel.ODID.MediaCache : Object {
         }
         object.id = UUID.get ();
 
-        this.save_item (object as MediaItem);
+        this.save_item (object as Rygel.ODID.MediaItem);
 
         return object.id;
     }
@@ -640,12 +640,15 @@ public class Rygel.ODID.MediaCache : Object {
         }
     }
 
-    private void save_resources (Rygel.MediaItem item) throws Error {
+    private void save_resources (Rygel.ODID.MediaItem item) throws Error {
         // Remove and pre-existing resources
         this.db.exec (this.sql.make (SQLString.DELETE_RESOURCES), { item.id });
 
-        foreach (MediaResource resource in item.media_resources)
+        int index = 0;
+        foreach (MediaResource resource in item.get_resource_list ())
         {
+            // TODO: Remove this if/when ProtocolInfo.to_string is no longer used
+            resource.protocol = "http-get"; // Prevents ProtocolInfo assertion error
             // Fill common properties
             GLib.Value[] values = { resource.size,
                                     resource.width,
@@ -660,13 +663,14 @@ public class Rygel.ODID.MediaCache : Object {
                                     resource.color_depth,
                                     resource.duration,
                                     item.id,
-                                    resource.protocol_info.to_string (),
+                                    resource.get_protocol_info ().to_string (),
                                     resource.cleartext_size,
                                     Database.null (),
                                     -1,
                                     resource.uri,
                                     resource.get_name (),
-                                    resource.extension };
+                                    resource.extension,
+                                    index++ };
                                     
             this.db.exec (this.sql.make (SQLString.SAVE_RESOURCE), values);
         }
@@ -676,7 +680,7 @@ public class Rygel.ODID.MediaCache : Object {
         int type = ObjectType.CONTAINER;
         GLib.Value parent;
 
-        if (object is MediaItem) {
+        if (object is Rygel.ODID.MediaItem) {
             type = ObjectType.ITEM;
         }
 
@@ -712,7 +716,7 @@ public class Rygel.ODID.MediaCache : Object {
         int type = ObjectType.CONTAINER;
         GLib.Value parent;
 
-        if (object is MediaItem) {
+        if (object is Rygel.ODID.MediaItem) {
             type = ObjectType.ITEM;
         }
 
@@ -829,10 +833,10 @@ public class Rygel.ODID.MediaCache : Object {
                                            upnp_class);
 
                 if (uri != null) {
-                    (object as MediaItem).add_uri (uri);
+                    (object as Rygel.ODID.MediaItem).add_uri (uri);
                 }
 
-                fill_item (statement, object as MediaItem);
+                fill_item (statement, object as Rygel.ODID.MediaItem);
 
                 break;
             default:
@@ -841,9 +845,8 @@ public class Rygel.ODID.MediaCache : Object {
 
         if (object != null) {
             object.modified = statement.column_int64 (ObjectColumn.TIMESTAMP);
-            if (object.modified  == int64.MAX && object is MediaItem) {
+            if (object.modified  == int64.MAX && object is Rygel.ODID.MediaItem) {
                 object.modified = 0;
-                (object as MediaItem).place_holder = true;
             }
             object.object_update_id = (uint) statement.column_int64
                                         (ObjectColumn.OBJECT_UPDATE_ID);
@@ -853,13 +856,13 @@ public class Rygel.ODID.MediaCache : Object {
         return object;
     }
 
-    private void fill_item (Statement statement, MediaItem item) {
+    private void fill_item (Statement statement, Rygel.ODID.MediaItem item) {
         // Fill common properties and resources from the database
         item.date = statement.column_text (ObjectColumn.DATE);
         item.creator = statement.column_text (ObjectColumn.CREATOR);
         GLib.Value[] values = { item.id };
 
-        var resources = new Gee.ArrayList<MediaResource>();
+        var resources_list = item.get_resource_list ();
 
         try {
             var cursor = this.exec_cursor (SQLString.GET_RESOURCES_BY_OBJECT,    
@@ -868,8 +871,9 @@ public class Rygel.ODID.MediaCache : Object {
             foreach (var resource_stmt in cursor) {
                 MediaResource res = new MediaResource (resource_stmt.column_text (ResourceColumn.NAME));
 
-                res.protocol_info = new ProtocolInfo.from_string 
-                                    (resource_stmt.column_text (ResourceColumn.PROTOCOL_INFO));
+                var pi = new ProtocolInfo.from_string (resource_stmt.column_text
+                                                          (ResourceColumn.PROTOCOL_INFO));
+                res.set_protocol_info (pi);
 
                 res.duration        = resource_stmt.column_int (ResourceColumn.DURATION);
                 res.width           = resource_stmt.column_int (ResourceColumn.WIDTH);
@@ -884,14 +888,12 @@ public class Rygel.ODID.MediaCache : Object {
                 res.size            = resource_stmt.column_int64 (ResourceColumn.SIZE);
                 res.cleartext_size  = resource_stmt.column_int64 (ResourceColumn.CLEARTEXT_SIZE);
 
-                resources.add(res);
+                resources_list.add (res);
             }
 
         } catch (Error error) {
             warning ("Failed to get update ids: %s", error.message);
         }
-
-        item.media_resources = resources;                
     }
 
     private static string translate_search_expression

@@ -34,13 +34,13 @@
 /**
  * Item that serves data from a gst-launch commandline.
  */
-public interface Rygel.GstLaunch.Item : Rygel.MediaItem {
+public interface Rygel.GstLaunch.Item : Rygel.MediaFileItem {
     public abstract string launch_line { get; protected set; }
 
     protected DataSource? create_source () {
         var engine = MediaEngine.get_default ();
 
-        return engine.create_data_source_for_resource ("gst-launch://" + this.launch_line, null);
+        return engine.create_data_source_for_uri ("gst-launch://" + this.launch_line);
     }
 }
 

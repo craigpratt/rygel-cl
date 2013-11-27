@@ -67,7 +67,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         debug ("Stopped data source");
     }
 
-    public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
+    public async Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
                                                      DLNAPlaySpeedRequest? playspeed_request)
        throws Error {
         debug("source uri: " + source_uri);
@@ -81,10 +81,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             throw new DataSourceError.GENERAL("null resource");
         }
 
-        debug("Resource %s size: %lld", res.get_name(), res.size);
-        debug("Resource %s duration: %lld", res.get_name(), res.duration);
-        debug("Resource %s protocol_info: %s", res.get_name(), res.protocol_info.to_string());
-        debug("Resource %s profile: %s", res.get_name(), res.protocol_info.dlna_profile);
+        debug("Resource " + res.to_string());
 
         KeyFile keyFile = new KeyFile();
         keyFile.load_from_file(File.new_for_uri (source_uri).get_path (),
@@ -96,7 +93,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
         // The resources are published by this engine according to the resource directory name
         //  i.e. the MediaResource "name" field was set to the directory name when
-        //  get_resources_for_uri() was called
+        //  get_resources() was called
         string resource_dir = res.get_name();
         string resource_path = odid_item_path + resource_dir + "/";
         debug ("  resource directory: %s", resource_dir);
@@ -113,13 +110,12 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         this.content_uri = resource_path + content_filename;
         debug ("    content file: %s", content_filename);
 
-        this.content_protected = ( res.protocol_info.dlna_flags
-                                   & DLNAFlags.LINK_PROTECTED_CONTENT ) != 0;
+        this.content_protected = ( res.dlna_flags & DLNAFlags.LINK_PROTECTED_CONTENT ) != 0;
         if (this.content_protected) {
             // Sanity check
-            if (!res.protocol_info.dlna_profile.has_prefix("DTCP_")) {
+            if (!res.dlna_profile.has_prefix("DTCP_")) {
                 throw new DataSourceError.GENERAL("Request to stream protected content in non-protected profile: "
-                                                  + res.protocol_info.dlna_profile );
+                                                  + res.dlna_profile );
             }
             debug ("      Content is protected");
         } else {
@@ -287,7 +283,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                              int64 range_start, int64 range_end, int64 total_size,
                                              out int64 aligned_start, out int64 aligned_end ) {
         //Get the transport stream packet size for the profile
-        string profile_name = res.protocol_info.dlna_profile;
+        string profile_name = res.dlna_profile;
         // Align the bytes to transport packet boundaries
         int64 packet_size = ODIDUtil.get_profile_packet_size(profile_name);
         aligned_start = range_start;

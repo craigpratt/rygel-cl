@@ -292,7 +292,7 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
         }
 
         KeyFile keyFile = new KeyFile();
-
+        
         try {
             keyFile.load_from_file(file.get_path (),
                                    KeyFileFlags.KEEP_COMMENTS |
@@ -300,9 +300,10 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
 
             string id = MediaCache.get_id (file.get_uri ());
 
-            MediaItem item = new VideoItem (id, 
-                                            this.containers.peek_head (),
-                                            keyFile.get_string ("item", "title"));
+            MediaItem item = new Rygel.ODID.MediaItem (id, 
+                                                       this.containers.peek_head (),
+                                                       keyFile.get_string ("item", "title"));
+            // TODO: Determine proper class
 
             if (keyFile.has_key ("item", "date"))    {
                 item.date = keyFile.get_string ("item", "date");
@@ -312,25 +313,34 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
                 item.creator = keyFile.get_string ("item", "creator");
             }
 
-            item.media_resources = MediaEngine.get_default( ).get_resources_for_uri (file.get_uri ());
+            var media_engine = MediaEngine.get_default( );
+
+            // Note: Call async, since it can block for some time
 
             item.add_uri (file.get_uri ());
 
-            if (item != null) {
-                item.parent_ref = this.containers.peek_head ();
-                // This is only necessary to generate the proper <objAdd LastChange
-                // entry
-                if (this.files.peek ().known) {
-                    (item as UpdatableObject).non_overriding_commit.begin ();
-                } else {
-                    var container = item.parent as TrackableContainer;
-                    container.add_child_tracked.begin (item) ;
+            media_engine.get_resources_for_item.begin ( item,
+                                                        (obj, res) => {
+                var engine_resources = media_engine.get_resources_for_item.end(res);
+                debug( "Received %s resources for %s", ( (engine_resources == null) ? "NO"
+                                                         : engine_resources.size.to_string() ),
+                                                       file.get_uri().to_string() );
+                item.get_resource_list ().add_all (engine_resources);
+
+                if (item != null) {
+                    item.parent_ref = this.containers.peek_head ();
+                    // This is only necessary to generate the proper <objAdd LastChange entry
+                    if (this.files.peek ().known) {
+                        (item as UpdatableObject).non_overriding_commit.begin ();
+                    } else {
+                        var container = item.parent as TrackableContainer;
+                        container.add_child_tracked.begin (item) ;
+                    }
                 }
-            }
 
-            this.files.poll ();
-            this.do_update ();
-
+                this.files.poll ();
+                this.do_update ();
+            }); 
         } catch (Error error) {
             warning ("Unable to read item file %s, Message: %s", file.get_path (), error.message);
         }

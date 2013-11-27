@@ -56,10 +56,10 @@ public class Rygel.Tracker.PictureItemFactory : ItemFactory {
         this.properties.add ("width");
     }
 
-    public override MediaItem create (string          id,
-                                      string          uri,
-                                      SearchContainer parent,
-                                      Sparql.Cursor   metadata)
+    public override MediaFileItem create (string          id,
+                                          string          uri,
+                                          SearchContainer parent,
+                                          Sparql.Cursor   metadata)
                                       throws GLib.Error {
         var item = new PhotoItem (id, parent, "");
 
@@ -68,7 +68,7 @@ public class Rygel.Tracker.PictureItemFactory : ItemFactory {
         return item;
     }
 
-    protected override void set_metadata (MediaItem     item,
+    protected override void set_metadata (MediaFileItem item,
                                           string        uri,
                                           Sparql.Cursor metadata)
                                           throws GLib.Error {
@@ -85,6 +85,8 @@ public class Rygel.Tracker.PictureItemFactory : ItemFactory {
         if (metadata.is_bound (PictureMetadata.HEIGHT)) {
             photo.height = (int) metadata.get_integer (PictureMetadata.HEIGHT);
         }
+
+        base.add_resources(photo);
     }
 }
 

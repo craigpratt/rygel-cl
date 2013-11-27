@@ -25,11 +25,13 @@
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  * Contact: http://www.cablelabs.com/
  *
+ * Author: Prasanna Modem <prasanna@ecaspia.com>
  * Author: Craig Pratt <craig@ecaspia.com>
  */
 
 using Gst;
 using Gee;
+using GUPnP;
 
 // Remove for GStreamer 1.0
 [CCode (cname = "PRESET_DIR")]
@@ -40,7 +42,7 @@ extern bool gst_preset_set_app_dir (string app_dir);
 
 public class Rygel.GstMediaEngine : Rygel.MediaEngine {
     private GLib.List<DLNAProfile> dlna_profiles = null;
-    private GLib.List<Transcoder> transcoders = null;
+    private GLib.List<GstTranscoder> transcoders = null;
 
     public GstMediaEngine () {
         unowned string[] args = null;
@@ -116,30 +118,109 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
         }
     }
 
-    public override unowned GLib.List<DLNAProfile> get_dlna_profiles() {
+    public override unowned GLib.List<DLNAProfile> get_dlna_profiles () {
         return this.dlna_profiles;
     }
 
-    public override Gee.List<MediaResource>? get_resources_for_uri(string uri) {
-        // TODO: Implement me
-        return null;
+    public override async Gee.List<MediaResource> ? get_resources_for_item (MediaObject object) {
+        if (! (object is MediaFileItem)) {
+            warning ("Can only process file-based MediaObjects (MediaFileItems)");
+            return null;
+        }
+
+        var item = object as MediaFileItem; 
+
+        // For MediaFileItems, uri 0 is the file URI referring directly to the content
+        string source_uri = item.uris.get (0);
+
+        debug ("get_resources_for_item(%s)", source_uri);
+
+        if (!source_uri.has_prefix ("file://")) {
+            warning ("Can't process non-file uri " + source_uri);
+            return null;
+        }
+
+        Gee.List<MediaResource> resources = new Gee.ArrayList<MediaResource> ();
+
+        var primary_res = item.get_primary_resource ();
+
+        // The GstMediaEngine only supports byte-based seek on the primary resource currently
+        primary_res.dlna_operation = DLNAOperation.RANGE;
+
+        // Add a resource for http consumption
+        MediaResource http_res = new MediaResource.from_resource ("primary_http",
+                                                                  primary_res);
+        http_res.uri = ""; // The URI needs to be assigned by the MediaServer
+        resources.add (http_res);
+
+        var list = new GLib.List<GstTranscoder> ();        
+        foreach (var transcoder in transcoders) {
+            if (transcoder.get_distance (item) != uint.MAX) {
+                list.append (transcoder);
+            }
+        }
+        list.sort_with_data( (transcoder_1, transcoder_2) => {
+                                 return (int) ( transcoder_1.get_distance (item)
+                                                - transcoder_2.get_distance (item) );
+                             } );
+
+        // Put all Transcoders in the list according to their sorted rank
+        foreach (var transcoder in list) {
+            MediaResource res = transcoder.get_resource_for_item (item);
+            if (res != null) 
+                resources.add (res);
+        }
+
+        // Put the primary resource as most-preferred (front of the list)
+        resources.add (primary_res);
+
+        return resources;
     }
 
-    public override unowned GLib.List<Transcoder>? get_transcoders () {
-        return this.transcoders;
-    }
+    public override DataSource? create_data_source_for_resource ( MediaObject object,
+                                                                  MediaResource resource) {
+        if (! (object is MediaFileItem)) {
+            warning ("Can only process file-based MediaObjects (MediaFileItems)");
+            return null;
+        }
+        var item = object as MediaFileItem; 
 
-    public override DataSource? create_data_source_for_resource
-                                (string uri, MediaResource ? resource) {
+        // For MediaFileItems, uri 0 is the file URI referring directly to the content
+        string source_uri = item.uris.get (0);
+        debug ("creating data source for %s", source_uri);
+
         try {
-            DataSource ds = new GstDataSource (uri, resource);
-            debug("creating data source for %s", uri);
-            debug("MediaResource %s, profile %s, mime_type %s", resource.get_name(),
-                  resource.protocol_info.dlna_profile, resource.protocol_info.mime_type);
+            DataSource ds = new GstDataSource (source_uri, resource);
+            debug ("MediaResource %s, profile %s, mime_type %s", resource.get_name (),
+                   resource.dlna_profile, resource.mime_type);
+            if (resource.dlna_conversion == DLNAConversion.TRANSCODED) {
+                foreach (var transcoder in transcoders) {
+                    if (transcoder.name == resource.get_name()) {
+                        debug ("creating data source from transcoder %s (profile %s)",
+                                transcoder.name, transcoder.dlna_profile );
+                        ds = transcoder.create_source (item, ds);
+                        break;
+                    }
+                }
+            }
             return ds;
         } catch (Error error) {
             warning (_("Failed to create GStreamer data source for %s: %s"),
-                     uri,
+                     source_uri,
+                     error.message);
+
+            return null;
+        }
+    }
+
+    public override DataSource? create_data_source_for_uri (string source_uri) {
+        try {
+            debug("creating data source for %s", source_uri);
+            DataSource ds = new GstDataSource (source_uri, null);
+            return ds;
+        } catch (Error error) {
+            warning (_("Failed to create GStreamer data source for %s: %s"),
+                     source_uri,
                      error.message);
 
             return null;

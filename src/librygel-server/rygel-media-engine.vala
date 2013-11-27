@@ -34,10 +34,13 @@ public errordomain Rygel.MediaEngineError {
 
 /**
  * This is the base class for media engines that contain knowledge about 
- * the streaming and (optionally) the transcoding and seeking capabilites
- * of the media library in use. Derived classes also instantiate any
- * transcoding objects supported by the media engine and specify the list
- * of media formats the engine is capable of playing.
+ * the streaming and transformational capabilites of the media library in use.
+ *
+ * Media engines express what representations of a MediaObject they can
+ * produce by returning MediaResource objects which will, in turn, be
+ * used to express to endpoints representations can be streamed from
+ * the MediaServer. These representations may include transformations,
+ * time-scaled representations, and/or encrypted representations. 
  *
  * See, for instance, Rygel's built-in "gstreamer" and "simple" media engines,
  * or the external rygel-gst-0-10-media-engine module.
@@ -48,19 +51,7 @@ public errordomain Rygel.MediaEngineError {
  * media-engine=librygel-media-engine-gst.so
  *
  * Media engines should also derive their own #RygelDataSource,
- * returning an instance of it from create_data_source_for_resource().
- *
- * If this media engine supports transcoding then it will typically
- * implement a set of transcoding classes, typically with one 
- * base class and a number of sub-classes - one for each transcoding
- * format you want to support. These should be returned by the
- * get_transcoders() virtual function. The base transcoder class could
- * provide a generic way to create a #RygelDataSource capable of
- * providing Rygel with a transcoded version of a file using the
- * underlying media framework. The sub-classes could contain the
- * various media-framework-specific parameters required to 
- * transcode to a given format and implement a heuristic that
- * can be used to order an item's transcoded resources.
+ * returning an instance of it from create_data_source().
  *
  * See the
  * <link linkend="implementing-media-engines">Implementing Media Engines</link> section.
@@ -103,45 +94,42 @@ public abstract class Rygel.MediaEngine : GLib.Object {
     public abstract unowned List<DLNAProfile> get_dlna_profiles ();
 
     /**
-     * Get the supported MediaResources for the given content uri.
+     * Retrieve engine-provided resources for the given MediaObject
      *
-     * The MediaResources returned may include formats/profiles that don't match the
-     * raw source content byte-for-byte. 
+     * The MediaResources returned may include formats/profiles that do not match the
+     * source content byte-for-byte (e.g. transcodes, encrypted formats, etc). The
+     * MediaEngine must return a MediaResource for the raw MediaObject content if it
+     * can support streaming the content directly. 
+     *
+     * The order of MediaResources in the returned List should be from most-preferred to
+     * least-preferred and each must have a unique alphanumeric "name" field.
      * 
-     * Each MediaResource returned in the List must have a unique "name" field
-     * (containing only alphanumeric characters). The order of resources in
-     * the List should be from most-preferred to least-preferred. And some fields
-     * related to the delivery protocol will be over-written (e.g. the host address
-     * portion of the URI and the protocol field/deliver flags of the protocolInfo).
+     * Note: The engine should set all delivery-related flags assuming all delivery forms are
+     * supported (e.g. the protocol fields and delivery flags of the ProtocolInfo). And the
+     * resource uri should be set to the empty string for http-delivered resources. The 
+     * effective delivery options and uri will be established by the HTTP server.
      *
-     * Note: To reduce overhead, this call will only be made when source content is
-     * added or changed (the results will be cached).
-     *
-     * @return A list of #MediaResources<!-- -->s or null if no resources are supported
-     *         for the item.
+     * @return A list of #MediaResources<!-- -->s or null if no representations 
+     *         are provided by the engine for the item.
      */
-    public abstract Gee.List<MediaResource>? get_resources_for_uri(string uri);
+    public abstract async Gee.List<MediaResource> ? get_resources_for_item (MediaObject item);
 
     /**
-     * Get a list of the transcoders that are provided by this media engine.
+     * Get a #DataSource for given #MediaResource representation of the #MediaObject.
      *
-     * @return A list of #RygelTranscoder<!-- -->s or null if not supported.
+     * @param item The #MediaObject to create the #DataSource for
+     * @param resource The specific resource to create the #DataSource for
+     *
+     * @return A #DataSource representing the given item resource
      */
-    public abstract unowned List<Transcoder>? get_transcoders ();
+    public abstract DataSource? create_data_source_for_resource (MediaObject item,
+                                                                 MediaResource resource);
 
     /**
-     * Get a data source for the URI which renders the content specified by the uri
-     * according to the MediaResource-specified parameters.
+     * Get a #DataSource for the URI.
      *
-     * Note that the provided #resource will be field-wise equivalent with a MediaResource
-     * obtained from #get_resources_for_uri, but subclasses should not expect objects
-     * references from #get_resources_for_uri to be provided to this method. If #resource
-     * is null, then the DataSource returned should render the raw (unmodified) content.
-     *
-     * @param uri to create the data source for.
-     * @param resource format to render for the data source.
-     * @return A data source representing the uri rendered according to resource parameters
+     * @param uri to create the #DataSource for.
+     * @return A #DataSource representing the uri
      */
-    public abstract DataSource? create_data_source_for_resource
-                                (string uri, MediaResource ? resource);
+    public abstract DataSource? create_data_source_for_uri (string uri);
 }

@@ -26,7 +26,8 @@
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  * Contact: http://www.cablelabs.com/
  *
- * Author: Doug Galligan <doug@sentosatech.com>>
+ * Author: Doug Galligan <doug@sentosatech.com>
+ * Author: Craig Pratt <craig@ecaspia.com>
  */
 
 using GUPnP;
@@ -35,11 +36,8 @@ using Gee;
 /**
  * Represents a media object (container or item).
  *
- * The derived RygelMediaContainer class represents a container,
- * and the derived RygelMediaItem classes (RygelAudioItem,
- * RygelImageItem and RygelVideoItem) represent media items.
- *
- * These objects correspond to items and containers in the UPnP ContentDirectory's DIDL-Lite XML.
+ * The derived RygelMediaContainer class represents a container
+ * and the derived MediaItem classes represent media items.
  */
 public abstract class Rygel.MediaObject : GLib.Object {
     private static Regex real_name_regex;
@@ -58,6 +56,8 @@ public abstract class Rygel.MediaObject : GLib.Object {
     // add virtual set_uri in Object and make add_uri() in Item into set_uri()
     // and make the uri property single-value.
     public Gee.ArrayList<string> uris;
+
+    private Gee.List<MediaResource> media_resources = new Gee.LinkedList<MediaResource> ();
 
     // You can keep both an unowned and owned ref to parent of this MediaObject.
     // In most cases, one will only need to keep an unowned ref to avoid cyclic
@@ -196,9 +196,116 @@ public abstract class Rygel.MediaObject : GLib.Object {
         return writables;
     }
 
+    /**
+     * Return the MediaResource list.
+     */
+    public Gee.List<MediaResource> get_resource_list () {
+        return media_resources;
+    }
+
+    /**
+     * Return a MediaResource list adapted for the HTTPServer
+     */
+    public Gee.List<MediaResource> get_resource_list_for_server (HTTPServer http_server) {
+        var new_list = new Gee.ArrayList<MediaResource> ();
+        foreach (var src_res in get_resource_list ()) {
+            var new_res = new MediaResource.from_resource (src_res.get_name(), src_res);
+            if (new_res.uri == null || new_res.uri == "") {
+                // Any resource without a URI will get a HTTP resource-based URI
+                new_res.uri = http_server.create_uri_for_item
+                                              (this,new_res.extension,-1,-1,new_res.get_name());
+                http_server.set_resource_delivery_options (new_res);
+                new_list.add (new_res);
+            } else { // URI doesn't refer to our HTTP server
+                string protocol;
+                try {
+                    protocol = this.get_protocol_for_uri (new_res.uri);
+                } catch (Error e) {
+                    warning ("Could not determine protocol for " + new_res.uri);
+                    continue;
+                }
+                if (protocol != "internal" || http_server.is_local ()) {
+                    new_list.add (new_res);
+                }
+            }
+        }
+
+        return new_list;
+    }
+
     public abstract DIDLLiteObject? serialize (Serializer serializer,
                                                HTTPServer http_server)
                                                throws Error;
+
+    /**
+     * Serialize the resource list
+     *
+     * Any resource with an empty URIs will get a resource-based HTTP URI and have its protocol
+     * and delivery options adjusted to the HTTPServer.
+     *
+     * Internal (e.g. "file:") resources will only be included when the http server
+     * is on the local host.
+     *
+     * Resources will be serialized in list order.
+     */
+    public void serialize_resource_list (DIDLLiteObject didl_object,
+                                         HTTPServer http_server)
+                                         throws Error {
+        // Note: Intentionally not using get_resource_list_for_server() to avoid a copy
+        foreach (var res in get_resource_list ()) {
+            if (res.uri == null || res.uri == "") {
+                // Any resource without a URI will get a HTTP resource-based URI
+                res.uri = http_server.create_uri_for_item
+                                        (this, res.extension,-1,-1,res.get_name());
+                http_server.set_resource_delivery_options (res);
+                DIDLLiteResource didl_resource = didl_object.add_resource ();
+                res.serialize (didl_resource);
+                res.uri = "";
+            } else { // URI doesn't refer to our HTTP server
+                string protocol;
+                try {
+                    protocol = this.get_protocol_for_uri (res.uri);
+                } catch (Error e) {
+                    warning ("Could not determine protocol for " + res.uri);
+                    continue;
+                }
+                if (protocol != "internal" || http_server.is_local ()) {
+                    // Exclude internal resources when request is non-local
+                    DIDLLiteResource didl_resource = didl_object.add_resource ();
+                    res.serialize (didl_resource);
+                }
+            }
+        }
+    }
+
+    internal string get_protocol_for_uri (string uri) throws Error {
+        var scheme = Uri.parse_scheme (uri);
+        if (scheme == null) {
+            throw new MediaFileItemError.BAD_URI (_("Bad URI: %s"), uri);
+        }
+
+        if (scheme == "http") {
+            return "http-get";
+        } else if (scheme == "file") {
+            return "internal";
+        } else if (scheme == "rtsp") {
+            // FIXME: Assuming that RTSP is always accompanied with RTP over UDP
+            return "rtsp-rtp-udp";
+        } else {
+            // Assume the protocol to be the scheme of the URI
+            warning (_("Failed to probe protocol for URI %s. Assuming '%s'"),
+                     uri,
+                     scheme);
+
+            return scheme;
+        }
+    }
+
+    /**
+     * Create a stream source for the given resource
+     */
+    public abstract DataSource? create_stream_source_for_resource (HTTPRequest request,
+                                                                   MediaResource resource);
 
     internal virtual void apply_didl_lite (DIDLLiteObject didl_object) {
         this.title = didl_object.title;
@@ -284,18 +391,6 @@ public abstract class Rygel.MediaObject : GLib.Object {
         } else {
             return prop1.collate (prop2);
         }
-    }
-
-    internal virtual DIDLLiteResource add_resource
-                                        (DIDLLiteObject object,
-                                         string?        uri,
-                                         string         protocol,
-                                         MediaResource  resource,                                       
-                                         string?        import_uri = null)
-                                         throws Error {
-        var res = object.add_resource ();
-
-        return res;
     }
 
     protected int compare_int_props (int prop1, int prop2) {

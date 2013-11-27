@@ -34,26 +34,22 @@ using GUPnP;
  * The HTTP handler for HTTP ContentResource requests.
  */
 internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
-    private MediaItem media_item;
+    private MediaObject media_object;
     private string media_resource_name;
     public MediaResource media_resource;
 
-    public HTTPMediaResourceHandler (MediaItem media_item,
+    public HTTPMediaResourceHandler (MediaObject media_object,
                                      string media_resource_name,
-                                     Cancellable? cancellable)
-       throws HTTPRequestError {
-        this.media_item = media_item;
+                                     Cancellable? cancellable) throws HTTPRequestError
+    {
+        this.media_object = media_object;
         this.cancellable = cancellable;
         this.media_resource_name = media_resource_name;
-        if (media_item.media_resources != null) {
-            foreach (var resource in media_item.media_resources) {
-                if (resource.get_name() == media_resource_name) {
-                    this.media_resource = resource;
-                }
+        foreach (var resource in media_object.get_resource_list ()) {
+            if (resource.get_name() == media_resource_name) {
+                this.media_resource = new MediaResource.from_resource (resource.get_name (),
+                                                                       resource);
             }
-        } else {
-            warning("MediaItem without resources (%s)", media_item.uris[0]);
-            // TODO: Determine if/how we're getting here
         }
         if (this.media_resource == null) {
             throw new HTTPRequestError.NOT_FOUND ("MediaResource %s not found", media_resource_name);
@@ -62,19 +58,38 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
 
     public override void add_response_headers (HTTPGet request)
                                                throws HTTPRequestError {
-        request.msg.response_headers.append ("Content-Type",
-                                             this.media_resource.protocol_info.mime_type);
+        request.http_server.set_resource_delivery_options (media_resource);
+
+        request.msg.response_headers.append ("Content-Type", this.media_resource.mime_type);
         // Determine cache control
-        if (media_resource.is_link_protection_enabled())
-        {
-            if (request.msg.get_http_version() == Soup.HTTPVersion.@1_1) {
+        if (media_resource.is_link_protection_enabled ()) {
+            if (request.msg.get_http_version () == Soup.HTTPVersion.@1_1) {
                 request.msg.response_headers.append ("Cache-control","no-cache");
             }
             request.msg.response_headers.append ("Pragma","no-cache");
         }
 
+        // Add contentFeatures.dlna.org
+        var protocol_info = media_resource.get_protocol_info ();
+        if (protocol_info != null) {
+            var pi_fields = protocol_info.to_string ().split (":", 4);
+            if (pi_fields[3] != null) {
+                request.msg.response_headers.append ("contentFeatures.dlna.org", pi_fields[3]);
+            }
+        }
+
         // Chain-up
         base.add_response_headers (request);
+    }
+    
+    public override string get_default_transfer_mode () {
+        // Per DLNA 7.5.4.3.2.33.2, the assumed transfer mode is based on the content type
+        // "Streaming" for AV content and "Interactive" for all others
+        return media_resource.get_default_transfer_mode ();
+    }
+
+    public override bool supports_transfer_mode (string mode) {
+        return media_resource.supports_transfer_mode (mode);
     }
 
     public override HTTPResponse render_body (HTTPGet request)
@@ -82,12 +97,10 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
         try {
             DataSource src;
 
-            src = (request.object as MediaItem).create_stream_source_for_resource
-                                        (request.http_server.context.host_ip,
-                                        this.media_resource);
-
+            src = request.object.create_stream_source_for_resource (request, this.media_resource);
             if (src == null) {
-                throw new HTTPRequestError.NOT_FOUND (_("Not found"));
+                throw new HTTPRequestError.NOT_FOUND (_("Couldn't create data source for %s"),
+                                                        this.media_resource.get_name());
             }
 
             return new HTTPResponse (request, this, src);
@@ -96,14 +109,19 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
         }
     }
 
-    protected override DIDLLiteResource add_resource
-                                        (DIDLLiteObject didl_object,
-                                         HTTPGet      request)
-                                        throws Error {
-        DIDLLiteItem didl_item = didl_object as DIDLLiteItem;
+    public override int64 get_resource_size () {
+        return media_resource.size;
+    }
 
-        DIDLLiteResource didl_resource = didl_item.add_resource();
-        media_resource.write_didl_lite(didl_resource);
-        return didl_resource;
+    public override int64 get_resource_duration () {
+        return media_resource.duration;
+    }
+
+    public override bool supports_byte_seek () {
+        return media_resource.supports_arbitrary_byte_seek ();
+    }
+
+    public override bool supports_time_seek () {
+        return media_resource.supports_arbitrary_time_seek ();
     }
 }

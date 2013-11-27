@@ -101,49 +101,52 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
         return cm_protocol_info;
     }
 
-    public void update_source_protocol_info (Rygel.RootDevice root_device, MediaObjects media_objects) {
+    public void update_source_protocol_info (Rygel.RootDevice root_device,
+                                             MediaObjects media_objects,
+                                             HTTPServer http_server) {
 
         union_protocol_string.clear();
         // Iterate through all media objects and extract protocolinfo
-        foreach (var media_item in media_objects) {
-            if (media_item is MediaItem) {
-                MediaItem t_item = (media_item as MediaItem);
-                if (t_item.media_resources == null) {
+        foreach (var media_object in media_objects) {
+            var res_list = media_object.get_resource_list_for_server (http_server);
+            foreach (var media_resource in res_list) {
+                var protocolInfo = media_resource.get_protocol_info ();
+
+                if (protocolInfo == null) {
                     continue;
                 }
 
-                foreach (var media_resource in t_item.media_resources) {
-                    MediaResource t_resource = (media_resource as MediaResource);
-                    string protocolInfo = t_resource.protocol_info.to_string();
+                debug ("Got ProtocolInfo : %s ", protocolInfo.to_string ());
+                string[] key = protocolInfo.to_string ().split (":", 4);
 
-                    debug ("Got ProtocolInfo : %s ", protocolInfo);
-                    string[] key = protocolInfo.split (":");
+                if (key == null) {
+                    continue;
+                }
 
-                    // Fourth field must start with DLNA.ORG_PN
-                    if (key[3].index_of ("DLNA.ORG_PN=",0) != -1) {
-                        string hash_key = t_resource.protocol_info.protocol + ":" +
-                                     t_resource.protocol_info.network + ":" +
-                                     t_resource.protocol_info.mime_type + ":" +
-                                     "DLNA.ORG_PN=" + t_resource.protocol_info.dlna_profile+";";
+                // Fourth field must start with DLNA.ORG_PN
+                if ((key[3] != null) && (key[3].index_of ("DLNA.ORG_PN=",0) != -1)) {
+                    string hash_key = protocolInfo.protocol + ":" +
+                                 protocolInfo.network + ":" +
+                                 protocolInfo.mime_type + ":" +
+                                 "DLNA.ORG_PN=" + protocolInfo.dlna_profile+";";
 
-                        if (union_protocol_string.has_key (hash_key)) {
-                            CMSProtocolInfo cms_info = union_protocol_string.get (hash_key);
+                    if (union_protocol_string.has_key (hash_key)) {
+                        CMSProtocolInfo cms_info = union_protocol_string.get (hash_key);
 
-                            // TODO: Check if the update is needed.
+                        // TODO: Check if the update is needed.
 
-                            // Call to combine the fourth field values if any..
-                            cms_info.combine_fourth_field_values
-                                     (t_resource.protocol_info.get_dlna_operation(),
-                                      t_resource.protocol_info.get_play_speeds(),
-                                      t_resource.protocol_info.get_dlna_flags());
-                        } else {
-                            union_protocol_string.set(hash_key,
-                                                      new CMSProtocolInfo
-                                                      (hash_key,
-                                                       t_resource.protocol_info.get_dlna_operation(),
-                                                       t_resource.protocol_info.get_play_speeds(),
-                                                       t_resource.protocol_info.get_dlna_flags()));
-                        }
+                        // Call to combine the fourth field values if any..
+                        cms_info.combine_fourth_field_values
+                                 (protocolInfo.get_dlna_operation (),
+                                  protocolInfo.get_play_speeds (),
+                                  protocolInfo.get_dlna_flags () );
+                    } else {
+                        union_protocol_string.set (hash_key,
+                                                   new CMSProtocolInfo
+                                                     (hash_key,
+                                                      protocolInfo.get_dlna_operation (),
+                                                      protocolInfo.get_play_speeds (),
+                                                      protocolInfo.get_dlna_flags () ) );
                     }
                 }
             }

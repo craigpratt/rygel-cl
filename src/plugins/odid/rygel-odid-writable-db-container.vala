@@ -80,7 +80,7 @@ internal class Rygel.ODID.WritableDbContainer : TrackableDbContainer,
         }
     }
 
-    public virtual async void add_item (Rygel.MediaItem item,
+    public virtual async void add_item (Rygel.MediaFileItem item,
                                         Cancellable? cancellable)
                                         throws Error {
         item.parent = this;

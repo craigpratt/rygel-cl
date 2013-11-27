@@ -481,7 +481,8 @@ public class Rygel.ContentDirectory: Service {
                                              s_container.sort_criteria,
                                              this.cancellable);
             ConnectionManagerProtocolInfo cms_info = ConnectionManagerProtocolInfo.get_default();
-            cms_info.update_source_protocol_info ((Rygel.RootDevice)this.root_device, media_objects);
+            cms_info.update_source_protocol_info ((Rygel.RootDevice)this.root_device,
+                                                  media_objects, http_server);
         } catch (Error err) {
             warning ("Updating SourceProtocolInfo using CDS list failed.");
         }

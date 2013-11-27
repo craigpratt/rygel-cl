@@ -27,8 +27,7 @@ librygel_odid_la_SOURCES = \
 	rygel-odid-harvesting-task.vala \
 	rygel-odid-object-factory.vala \
 	rygel-odid-writable-db-container.vala \
-	rygel-odid-video-item.vala \
-	rygel-odid-playlist-item.vala \
+	rygel-odid-media-item.vala \
 	rygel-odid-trackable-db-container.vala \
 	rygel-odid-updatable-object.vala \
 	rygel-odid-collate.c

@@ -29,32 +29,32 @@
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  * Contact: http://www.cablelabs.com/
  *
- * Author: Doug Galligan <doug@sentosatech.com>>
+ * Author: Craig Pratt <craig@ecaspia.com>
  */
 
 using GUPnP;
 using Gee;
 
 /**
- * An interface that visual (video and image) items must implement.
+ * An interface representing visual properties of an item stored in a file.
  */
-public interface Rygel.VisualItem : MediaItem {
+public interface Rygel.VisualItem : MediaFileItem {
 
     /**
-     * The width of the item in pixels.
-     * A value of -1 means that the width is unknown and will not, or did not, appear in DIDL-Lite XML.
+     * The width of the source content (this.uri) in pixels.
+     * A value of -1 means that the width is unknown
      */
     public abstract int width { get; set; }
 
     /**
-     * The height of the item in pixels.
-     * A value of -1 means that the height is unknown and will not, or did not, appear in DIDL-Lite XML.
+     * The height of the source content (this.uri) in pixels.
+     * A value of -1 means that the height is unknown
      */
     public abstract int height { get; set; }
 
     /**
-     * The number of bits per pixel used to represent the video or image resource.
-     * A value of -1 means that the color depth is unknown and will not, or did not, appear in DIDL-Lite XML.
+     * The number of bits per pixel in the video or image resource (this.uri).
+     * A value of -1 means that the color depth is unknown
      */
     public abstract int color_depth { get; set; }
 
@@ -77,42 +77,39 @@ public interface Rygel.VisualItem : MediaItem {
         }
     }
 
-    internal void add_thumbnail_resources (DIDLLiteItem didl_item,
-                                           bool         allow_internal)
-                                           throws Error {
-        foreach (var thumbnail in this.thumbnails) {
-            var protocol = this.get_protocol_for_uri (thumbnail.uri);
-
-            if (allow_internal || protocol != "internal") {
-                thumbnail.add_resource (didl_item, protocol);
-            }
-        }
-    }
-
-    internal void add_visual_props (DIDLLiteResource res) {
+    internal void set_visual_resource_properties (MediaResource res) {
         res.width = this.width;
         res.height = this.height;
         res.color_depth = this.color_depth;
     }
 
-    internal void add_thumbnail_proxy_resources (HTTPServer   server,
-                                                 DIDLLiteItem didl_item)
-                                                 throws Error {
+    internal void add_thumbnail_resources (HTTPServer http_server) {
         foreach (var thumbnail in this.thumbnails) {
-            if (server.need_proxy (thumbnail.uri)) {
-                var uri = thumbnail.uri; // Save the original URI
-                var index = this.thumbnails.index_of (thumbnail);
+            if (!this.place_holder) {
+                // Add the defined thumbnail uri unconditionally
+                //  (it will be filtered out if the request is remote)
+                string protocol;
+                try {
+                    protocol = this.get_protocol_for_uri (thumbnail.uri);
+                } catch (Error e) {
+                    message("Could not determine protocol for " + thumbnail.uri);
+                    continue;
+                }
 
-                thumbnail.uri = server.create_uri_for_item (this,
-                                                            index,
-                                                            -1,
-                                                            null,
-                                                            null,
-                                                            null);
-                thumbnail.add_resource (didl_item, server.get_protocol ());
+                var thumb_res = thumbnail.get_resource (protocol);
+                this.get_resource_list ().add (thumb_res);
+                if (http_server.need_proxy (thumbnail.uri)) {
+                    var http_thumb_res = thumbnail.get_resource (http_server.get_protocol ());
 
-                // Now restore the original URI
-                thumbnail.uri = uri;
+                    var index = this.thumbnails.index_of (thumbnail);
+                    // Make a http uri for the thumbnail
+                    http_thumb_res.uri = http_server.create_uri_for_item (this,
+                                                                          thumbnail.file_extension,
+                                                                          index,
+                                                                          -1,
+                                                                          null);
+                    this.get_resource_list ().add (http_thumb_res);
+                }
             }
         }
     }

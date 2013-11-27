@@ -14,6 +14,7 @@ LIBRYGEL_SERVER_VAPI_SOURCE_FILES = \
 	rygel-thumbnail.vala \
 	rygel-video-item.vala \
 	rygel-media-container.vala \
+	rygel-media-file-item.vala \
 	rygel-media-item.vala \
 	rygel-media-resource.vala \
 	rygel-media-object.vala \
@@ -22,8 +23,6 @@ LIBRYGEL_SERVER_VAPI_SOURCE_FILES = \
 	rygel-searchable-container.vala \
 	rygel-trackable-container.vala \
 	rygel-trackable-item.vala \
-	rygel-transcode-manager.vala \
-	rygel-transcoder.vala \
 	rygel-visual-item.vala \
 	rygel-writable-container.vala \
 	rygel-media-server.vala \
@@ -42,8 +41,9 @@ LIBRYGEL_SERVER_NONVAPI_SOURCE_FILES = \
 	rygel-http-byte-seek.vala \
 	rygel-http-get-handler.vala \
 	rygel-http-get.vala \
-	rygel-http-identity-handler.vala \
-	rygel-http-playlist-handler.vala \
+	rygel-http-thumbnail-handler.vala \
+	rygel-http-subtitle-handler.vala \
+	rygel-playlist-data-source.vala \
 	rygel-http-item-uri.vala \
 	rygel-http-post.vala \
 	rygel-http-request.vala \
@@ -51,7 +51,6 @@ LIBRYGEL_SERVER_NONVAPI_SOURCE_FILES = \
 	rygel-http-response-element.vala \
 	rygel-http-server.vala \
 	rygel-http-time-seek.vala \
-	rygel-http-transcode-handler.vala \
 	rygel-http-resource-handler.vala \
 	rygel-import-resource.vala \
 	rygel-object-creator.vala \

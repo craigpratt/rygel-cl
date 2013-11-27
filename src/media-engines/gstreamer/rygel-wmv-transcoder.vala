@@ -19,16 +19,26 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
+
+/*
+ * Modifications made by Cable Television Laboratories, Inc.
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
+ * Contact: http://www.cablelabs.com/
+ *
+ * Author: Prasanna Modem <prasanna@ecaspia.com>
+ */
+
 using Gst;
 using GUPnP;
 
 internal class Rygel.WMVTranscoder : Rygel.VideoTranscoder {
     private const int VIDEO_BITRATE = 1200;
     private const int AUDIO_BITRATE = 64;
-
+    private const string NAME = "WMVHIGH_FULL";
     public WMVTranscoder () {
-        base ("video/x-ms-wmv",
-              "WMVHIGH_FULL",
+        base (NAME,
+              "video/x-ms-wmv",
+              NAME,
               AUDIO_BITRATE,
               VIDEO_BITRATE,
               "video/x-ms-asf,parsed=true",

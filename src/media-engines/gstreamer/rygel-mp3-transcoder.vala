@@ -20,6 +20,15 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
+
+/*
+ * Modifications made by Cable Television Laboratories, Inc.
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
+ * Contact: http://www.cablelabs.com/
+ *
+ * Author: Prasanna Modem <prasanna@ecaspia.com>
+ */
+
 using Gst;
 using GUPnP;
 using Gee;
@@ -30,10 +39,11 @@ using Gee;
 internal class Rygel.MP3Transcoder : Rygel.AudioTranscoder {
     public const int BITRATE = 128;
     private const string FORMAT = "audio/mpeg,mpegversion=1,layer=3";
-
+    private const string NAME = "MP3";
     public MP3Transcoder () {
-        base ("audio/mpeg",
-              "MP3",
+        base (NAME,
+              "audio/mpeg",
+              NAME,
               BITRATE,
               AudioTranscoder.NO_CONTAINER,
               FORMAT,

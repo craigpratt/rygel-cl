@@ -70,20 +70,6 @@ public class Rygel.MusicItem : AudioItem {
         } catch (Error err) {};
     }
 
-    internal override void add_resources (DIDLLiteItem didl_item,
-                                          bool         allow_internal)
-                                          throws Error {
-        base.add_resources (didl_item, allow_internal);
-
-        if (this.album_art != null) {
-            var protocol = this.get_protocol_for_uri (this.album_art.uri);
-
-            if (allow_internal || protocol != "internal") {
-                didl_item.album_art = this.album_art.uri;
-            }
-        }
-    }
-
     internal override int compare_by_property (MediaObject media_object,
                                                string      property) {
         if (!(media_object is MusicItem)) {
@@ -138,33 +124,28 @@ public class Rygel.MusicItem : AudioItem {
             didl_item.genre = this.genre;
         }
 
-        if (didl_item.album_art != null) {
-            didl_item.album_art = MediaItem.address_regex.replace_literal
-                                        (didl_item.album_art,
-                                         -1,
-                                         0,
-                                         http_server.context.host_ip);
+        if (!this.place_holder && this.album_art != null) {
+            var protocol = this.get_protocol_for_uri (this.album_art.uri);
+
+            // Use the existing URI if the server is local or a non-internal/file uri is set
+            if (http_server.is_local () || protocol != "internal") {
+                didl_item.album_art = this.album_art.uri;
+            } else {
+                // Create a http uri for the album art that our server can process
+                string http_uri = http_server.create_uri_for_item (this,
+                                                                   this.album_art.file_extension,
+                                                                   0,
+                                                                   -1,
+                                                                   null);
+                didl_item.album_art = MediaFileItem.address_regex.replace_literal
+                                            (http_uri,
+                                             -1,
+                                             0,
+                                             http_server.context.host_ip);
+            }
         }
 
         return didl_item;
-    }
-
-    internal override void add_proxy_resources (HTTPServer   server,
-                                                DIDLLiteItem didl_item)
-                                                throws Error {
-        base.add_proxy_resources (server, didl_item);
-
-        // Album-art URI comes in the end
-        if (!this.place_holder &&
-            this.album_art != null &&
-            server.need_proxy (this.album_art.uri)) {
-            didl_item.album_art = server.create_uri_for_item (this,
-                                                              0,
-                                                              -1,
-                                                              null,
-                                                              null,
-                                                              null);
-        }
     }
 
     private string get_first (GLib.List<DIDLLiteContributor>? contributors) {

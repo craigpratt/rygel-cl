@@ -88,11 +88,6 @@ internal class Rygel.ODID.ObjectFactory : Object {
                                        string         id,
                                        string         title,
                                        string         upnp_class) {
-        switch (upnp_class) {
-            case Rygel.VideoItem.UPNP_CLASS:
-                return new VideoItem (id, parent, title);
-            default:
-                assert_not_reached ();
-        }
+        return new Rygel.ODID.MediaItem (id, parent, title, upnp_class);
     }
 }

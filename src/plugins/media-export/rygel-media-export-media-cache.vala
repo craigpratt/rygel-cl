@@ -26,7 +26,7 @@
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  * Contact: http://www.cablelabs.com/
  *
- * Author: Doug Galligan <doug@sentosatech.com>>
+ * Author: Doug Galligan <doug@sentosatech.com>
  * Author: Craig Pratt <craig@ecaspia.com>
  */
 
@@ -127,7 +127,7 @@ public class Rygel.MediaExport.MediaCache : Object {
     /**
      * Add the item to the cache.
      */
-    public void save_item (Rygel.MediaItem item,
+    public void save_item (Rygel.MediaFileItem item,
                            bool override_guarded = false) throws Error {
         try {
             db.begin ();
@@ -583,7 +583,7 @@ public class Rygel.MediaExport.MediaCache : Object {
         }
         object.id = UUID.get ();
 
-        this.save_item (object as MediaItem);
+        this.save_item (object as MediaFileItem);
 
         return object.id;
     }
@@ -701,7 +701,7 @@ public class Rygel.MediaExport.MediaCache : Object {
     }
 
 
-    private void save_item_metadata (Rygel.MediaItem item) throws Error {
+    private void save_item_metadata (Rygel.MediaFileItem item) throws Error {
         // Fill common properties
         GLib.Value[] values = { item.size,
                                 item.mime_type,
@@ -765,7 +765,7 @@ public class Rygel.MediaExport.MediaCache : Object {
         int type = ObjectType.CONTAINER;
         GLib.Value parent;
 
-        if (object is MediaItem) {
+        if (object is MediaFileItem) {
             type = ObjectType.ITEM;
         }
 
@@ -798,7 +798,7 @@ public class Rygel.MediaExport.MediaCache : Object {
         int type = ObjectType.CONTAINER;
         GLib.Value parent;
 
-        if (object is MediaItem) {
+        if (object is MediaFileItem) {
             type = ObjectType.ITEM;
         }
 
@@ -911,11 +911,25 @@ public class Rygel.MediaExport.MediaCache : Object {
                                            object_id,
                                            title,
                                            upnp_class);
-                fill_item (statement, object as MediaItem);
+                var item = object as MediaFileItem;
+                fill_item (statement, item);
 
                 if (uri != null) {
-                    (object as MediaItem).add_uri (uri);
+                    item.add_uri (uri);
                 }
+
+                // Call the MediaEngine to determine which item representations it can support
+                var media_engine = MediaEngine.get_default ( );
+                media_engine.get_resources_for_item.begin ( item,
+                                                            (obj, res) => {
+                    var added_resources = media_engine.get_resources_for_item.end (res);
+                    message( "Adding %d resources to item source %s", added_resources.size,
+                             item.uris.get (0) );    
+                    foreach (var resrc in added_resources) {     
+                       message ("Media-export item media resource %s", resrc.get_name ());
+                    }
+                    item.get_resource_list ().add_all (added_resources);
+                  });
                 break;
             default:
                 assert_not_reached ();
@@ -923,9 +937,9 @@ public class Rygel.MediaExport.MediaCache : Object {
 
         if (object != null) {
             object.modified = statement.column_int64 (DetailColumn.TIMESTAMP);
-            if (object.modified  == int64.MAX && object is MediaItem) {
+            if (object.modified  == int64.MAX && object is MediaFileItem) {
                 object.modified = 0;
-                (object as MediaItem).place_holder = true;
+                (object as MediaFileItem).place_holder = true;
             }
             object.object_update_id = (uint) statement.column_int64
                                         (DetailColumn.OBJECT_UPDATE_ID);
@@ -935,58 +949,24 @@ public class Rygel.MediaExport.MediaCache : Object {
         return object;
     }
 
-    private void fill_item (Statement statement, MediaItem item) {
+    private void fill_item (Statement statement, MediaFileItem item) {
         // Fill common properties
         item.date = statement.column_text (DetailColumn.DATE);
+        item.mime_type = statement.column_text (DetailColumn.MIME_TYPE);
+        item.dlna_profile = statement.column_text (DetailColumn.DLNA_PROFILE);
+        item.size = statement.column_int64 (DetailColumn.SIZE);
         item.creator = statement.column_text (DetailColumn.CREATOR);
 
-        // Fill primary MediaResource on the MediaItem.
-        item.media_resources = new Gee.ArrayList<MediaResource>();
-        // TODO: Get the resources from a MediaResource table (e.g. the "Resource" table in ODID
-        //       MediaServer) (Will be included in next patch). Resource name, mime_type, size,
-        //       operational modes, protocol, etc. will all come from this table and contained
-        //       in MediaResource objects.
-        MediaResource res = new MediaResource("primary");
-        
-        res.protocol_info = new ProtocolInfo();
-        item.mime_type = statement.column_text (DetailColumn.MIME_TYPE);
-        res.protocol_info.mime_type = statement.column_text (DetailColumn.MIME_TYPE);
-        if (res.protocol_info.mime_type == null) {
-            message("Found null mime-type for %s", statement.column_text (DetailColumn.URI));
-            res.protocol_info.mime_type = "application/octet-stream";
-        }
-        res.protocol_info.dlna_profile = statement.column_text (DetailColumn.DLNA_PROFILE);
-        res.size = statement.column_int64 (DetailColumn.SIZE);
-        res.uri = ""; // To avoid assertion errors.
-        res.protocol_info.dlna_operation = DLNAOperation.RANGE;
-        
-        // TODO: Some protocolInfo elements speak to the capabilities of the MediaServer/DataSink.
-        // Should these be set by interrogating the HTTPServer? 
-        res.protocol_info.protocol = "http-get";
-        res.protocol_info.dlna_flags |= DLNAFlags.DLNA_V15
-                                        | DLNAFlags.STREAMING_TRANSFER_MODE
-                                        | DLNAFlags.BACKGROUND_TRANSFER_MODE
-                                        | DLNAFlags.CONNECTION_STALL;
         if (item is AudioItem) {
-            res.duration = (long) statement.column_int64 (DetailColumn.DURATION);
-            res.bitrate = statement.column_int (DetailColumn.BITRATE);
-            res.sample_freq = statement.column_int (DetailColumn.SAMPLE_FREQ);
-            res.bits_per_sample = statement.column_int (DetailColumn.BITS_PER_SAMPLE);
-            res.audio_channels = statement.column_int (DetailColumn.CHANNELS);
-
-            // Find extension from URI in DB.
-            string uri_extension = "";
-            string basename = Path.get_basename (statement.column_text (DetailColumn.URI));
-            int dot_index = -1;
-            if (basename != null)   
-            {
-                dot_index = basename.last_index_of(".");
-                if (dot_index > -1) {
-                    uri_extension = basename.substring (dot_index + 1);
-                }
-            }
-            res.extension = uri_extension;
-
+            var audio_item = item as AudioItem;
+            audio_item.duration = (long) statement.column_int64
+                                        (DetailColumn.DURATION);
+            audio_item.bitrate = statement.column_int (DetailColumn.BITRATE);
+            audio_item.sample_freq = statement.column_int
+                                        (DetailColumn.SAMPLE_FREQ);
+            audio_item.bits_per_sample = statement.column_int
+                                        (DetailColumn.BITS_PER_SAMPLE);
+            audio_item.channels = statement.column_int (DetailColumn.CHANNELS);
             if (item is MusicItem) {
                 var music_item = item as MusicItem;
                 music_item.artist = statement.column_text (DetailColumn.AUTHOR);
@@ -999,12 +979,12 @@ public class Rygel.MediaExport.MediaCache : Object {
         }
 
         if (item is VisualItem) {
-            res.width = statement.column_int (DetailColumn.WIDTH);
-            res.height = statement.column_int (DetailColumn.HEIGHT);
-            res.color_depth = statement.column_int (DetailColumn.COLOR_DEPTH);
+            var visual_item = item as VisualItem;
+            visual_item.width = statement.column_int (DetailColumn.WIDTH);
+            visual_item.height = statement.column_int (DetailColumn.HEIGHT);
+            visual_item.color_depth = statement.column_int
+                                        (DetailColumn.COLOR_DEPTH);
         }
-        // Add the single/primary resource to the item
-        item.media_resources.add(res);
     }
 
     private static string translate_search_expression

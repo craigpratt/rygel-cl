@@ -20,6 +20,14 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+/*
+ * Modifications made by Cable Television Laboratories, Inc.
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
+ * Contact: http://www.cablelabs.com/
+ *
+ * Author: Prasanna Modem <prasanna@ecaspia.com>
+ */
+
 /**
  * Transcoder for 3GP stream containing MPEG4 audio (AAC).
  */
@@ -31,8 +39,9 @@ internal class Rygel.AACTranscoder : Rygel.AudioTranscoder {
     private const string CODEC = "audio/mpeg,mpegversion=4," +
                                  "stream-format=adts,rate=44100,base-profile=lc";
 
+    private const string NAME = "AAC_ADTS_320";
     public AACTranscoder () {
-        base ("audio/vnd.dlna.adts", "AAC_ADTS_320", BITRATE, null, CODEC, "adts");
+        base (NAME, "audio/vnd.dlna.adts", NAME, BITRATE, null, CODEC, "adts");
         this.preset = "Rygel AAC_ADTS_320 preset";
     }
 }

@@ -50,10 +50,7 @@ public abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
     public Cancellable cancellable { get; set; }
 
     public HTTPItemURI uri;
-    // TODO: rename this to "media_resource
     public MediaObject object;
-    // TODO: add: public MediaResource media_resource;
-    // Or - to take this further - maybe only the GetHandler should have item/resource references?
 
     internal ClientHacks hack;
 
@@ -100,10 +97,7 @@ public abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
         var media_object = yield this.root_container.find_object
                                         (this.uri.item_id, null);
 
-        if (media_object == null ||
-            !((media_object is MediaContainer &&
-               this.uri.playlist_format != null) ||
-              (media_object is MediaItem && this.uri.playlist_format == null))) {
+        if (media_object == null) {
             throw new HTTPRequestError.NOT_FOUND
                                         (_("Requested item '%s' not found"),
                                          this.uri.item_id);

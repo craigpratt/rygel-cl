@@ -325,6 +325,19 @@ then
     fi
 fi
 
+dnl Check additional requirements for ODID plugin
+if test "x$enable_odid_plugin" = "xyes";
+then
+    RYGEL_CHECK_PACKAGES([sqlite3 gstreamer-tag-1.0 gstreamer-app-1.0])
+    AC_CHECK_HEADER([unistr.h],
+                    AC_CHECK_LIB([unistring],
+                                 [u8_strcoll],
+                                 [have_unistring=yes],[have_unistring=no]))
+    if test "x$have_unistring" = "xyes"; then
+        AC_DEFINE([HAVE_UNISTRING],[1],[Use libunistring for collation])
+        RYGEL_PLUGIN_ODID_DEPS_LIBS="$RYGEL_PLUGIN_ODID_DEPS_LIBS -lunistring"
+    fi
+fi
 
 RYGEL_ADD_PLUGIN([tracker],[Tracker],[yes])
 AS_IF([test "x$enable_tracker_plugin" = "xyes"],

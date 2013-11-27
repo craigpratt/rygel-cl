@@ -103,8 +103,8 @@ internal class Rygel.ODID.SQLFactory : Object {
          "author, album, bitrate, " +
          "sample_freq, bits_per_sample, channels, " +
          "track, color_depth, duration, object_fk, " +
-         "protocol_info, cleartext_size, genre, disc, external_uri, name, extension) VALUES " +
-         "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+         "protocol_info, cleartext_size, genre, disc, external_uri, name, extension, residx) VALUES " +
+         "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private const string INSERT_OBJECT_STRING =
     "INSERT OR REPLACE INTO Object " +
@@ -193,7 +193,7 @@ internal class Rygel.ODID.SQLFactory : Object {
 
     private const string GET_RESOURCES_BY_OBJECT_STRING = 
     "SELECT " + ALL_RESOURCE_STRING + " FROM Resource r " +
-        "WHERE r.object_fk = ?";
+        "WHERE r.object_fk = ? ORDER BY r.residx";
 
     private const string CHILDREN_COUNT_STRING =
     "SELECT COUNT(upnp_id) FROM Object WHERE Object.parent = ?";
@@ -211,7 +211,7 @@ internal class Rygel.ODID.SQLFactory : Object {
         "WHERE _column IS NOT NULL %s ORDER BY _column COLLATE CASEFOLD " +
     "LIMIT ?,?";
 
-    internal const string SCHEMA_VERSION = "2";
+    internal const string SCHEMA_VERSION = "3";
     internal const string CREATE_RESOURCE_TABLE_STRING =
     "CREATE TABLE resource (size INTEGER, " +
                             "protocol_info TEXT, " +
@@ -232,6 +232,7 @@ internal class Rygel.ODID.SQLFactory : Object {
                             "name TEXT NOT NULL, " +
                             "extension TEXT, " +
                             "color_depth INTEGER, " +
+                            "residx INTEGER NOT NULL, " +
                             "object_fk TEXT CONSTRAINT " +
                                 "object_fk_id REFERENCES Object(upnp_id) " +
                                     "ON DELETE CASCADE,  " +

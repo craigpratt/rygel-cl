@@ -38,7 +38,7 @@ using Gee;
 /**
  * Represents an image item.
  */
-public class Rygel.ImageItem : MediaItem, VisualItem {
+public class Rygel.ImageItem : MediaFileItem, VisualItem {
     public new const string UPNP_CLASS = "object.item.imageItem";
 
     //TODO: This property documentation is not used.
@@ -83,56 +83,25 @@ public class Rygel.ImageItem : MediaItem, VisualItem {
         this.thumbnails = new ArrayList<Thumbnail> ();
     }
 
-    public override bool streamable () {
-        return false;
-    }
-
     public override void add_uri (string uri) {
         base.add_uri (uri);
 
         this.add_thumbnail_for_uri (uri, this.mime_type);
     }
 
-    internal override void add_resources (DIDLLiteItem didl_item,
-                                          bool         allow_internal)
-                                          throws Error {
-        base.add_resources (didl_item, allow_internal);
-
-        this.add_thumbnail_resources (didl_item, allow_internal);
-    }
-
-    internal override DIDLLiteResource add_resource
-                                        (DIDLLiteObject didl_object,
-                                         string?      uri,
-                                         string       protocol,
-                                         MediaResource resource,
-                                         string?      import_uri = null)
-                                         throws Error {
-        var res = base.add_resource (didl_object, uri, protocol, resource, import_uri);
-
-        this.add_visual_props (res);
+    internal override MediaResource get_primary_resource () {
+        var res = base.get_primary_resource ();
+        
+        this.set_visual_resource_properties (res);
+        
+        res.dlna_flags |= DLNAFlags.INTERACTIVE_TRANSFER_MODE;
 
         return res;
     }
 
-    internal override void add_proxy_resources (HTTPServer   server,
-                                                DIDLLiteItem didl_item)
-                                                throws Error {
-        base.add_proxy_resources (server, didl_item);
+    internal override void add_resources (HTTPServer http_server) {
+        base.add_resources (http_server);
 
-        if (!this.place_holder) {
-            // Thumbnails comes in the end
-            this.add_thumbnail_proxy_resources (server, didl_item);
-        }
-    }
-
-    protected override ProtocolInfo get_protocol_info (string? uri,
-                                                       string  protocol,
-                                                       MediaResource resource) {
-        var protocol_info = base.get_protocol_info (uri, protocol, resource);
-
-        protocol_info.dlna_flags |= DLNAFlags.INTERACTIVE_TRANSFER_MODE;
-
-        return protocol_info;
+        this.add_thumbnail_resources (http_server);
     }
 }

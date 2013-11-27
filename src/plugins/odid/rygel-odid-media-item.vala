@@ -1,7 +1,7 @@
 /*
- * Copyright (C) 2012 Jens Georg <mail@jensge.org>.
+ * Copyright (C) 2012 Intel Corporation.
  *
- * Author: Jens Georg <mail@jensge.org>
+ * Author: Jens Georg <jensg@openismus.com>
  *
  * This file is part of Rygel.
  *
@@ -27,21 +27,24 @@
  * Author: Doug Galligan <doug@sentosatech.com>>
  */
 
-/**
- * Own MusicItem class to provide disc number inside music item for sorting
- * and metadata extraction.
- */
-internal class Rygel.ODID.MusicItem : Rygel.MusicItem,
+using GUPnP;
+
+public class Rygel.ODID.MediaItem : Rygel.MediaItem,
                                              Rygel.UpdatableObject,
                                              Rygel.ODID.UpdatableObject,
                                              Rygel.TrackableItem {
-    public int disc;
-
-    public MusicItem (string         id,
+    public MediaItem (string         id,
                       MediaContainer parent,
                       string         title,
-                      string         upnp_class = Rygel.MusicItem.UPNP_CLASS) {
-        base (id, parent, title, upnp_class);
+                      string         upnp_class = Rygel.VideoItem.UPNP_CLASS) {
+        Object (id : id,
+                parent : parent,
+                title : title,
+                upnp_class : upnp_class);
+    }
+
+    public void add_uri (string uri) {
+        this.uris.add (uri);
     }
 
     public async void commit () throws Error {
@@ -54,4 +57,22 @@ internal class Rygel.ODID.MusicItem : Rygel.MusicItem,
         cache.save_item (this, override_guarded);
     }
 
+    internal override DIDLLiteObject? serialize (Serializer serializer,
+                                                 HTTPServer http_server)
+                                                 throws Error {
+        var didl_item = base.serialize (serializer, http_server) as DIDLLiteItem;
+
+        serialize_resource_list (didl_item, http_server);
+
+        return didl_item;
+    }
+
+    public override DataSource? create_stream_source_for_resource (HTTPRequest request,
+                                                                   MediaResource resource) {
+        if (this.uris.size == 0) {
+            return null;
+        }
+
+        return MediaEngine.get_default ().create_data_source_for_resource (this, resource);
+    }
 }

@@ -19,6 +19,15 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
+
+/*
+ * Modifications made by Cable Television Laboratories, Inc.
+ * Copyright (C) 2013  Cable Television Laboratories, Inc.
+ * Contact: http://www.cablelabs.com/
+ *
+ * Author: Prasanna Modem <prasanna@ecaspia.com>
+ */
+
 using Gst;
 using GUPnP;
 
@@ -37,9 +46,11 @@ internal class Rygel.AVCTranscoder : Rygel.VideoTranscoder {
     private const string RESTRICTIONS =
         "video/x-raw,framerate=(fraction)15/1,width=352,height=288";
 
+    private const string NAME = "AVC_MP4_BL_CIF15_AAC_520";
     public AVCTranscoder () {
-        base ("video/mp4",
-              "AVC_MP4_BL_CIF15_AAC_520",
+        base (NAME,
+              "video/mp4",
+              NAME,
               AUDIO_BITRATE,
               VIDEO_BITRATE,
               CONTAINER,
@@ -48,20 +59,5 @@ internal class Rygel.AVCTranscoder : Rygel.VideoTranscoder {
               "mp4",
               RESTRICTIONS);
         this.preset = "Rygel AVC_MP4_BL_CIF15_AAC_520 preset";
-    }
-
-    public override DIDLLiteResource? add_resource (DIDLLiteItem     didl_item,
-                                                    MediaItem        item,
-                                                    TranscodeManager manager)
-                                                    throws Error {
-        var resource = base.add_resource (didl_item, item, manager);
-        if (resource == null) {
-            return null;
-        }
-
-        resource.width = 352;
-        resource.height = 288;
-
-        return resource;
     }
 }

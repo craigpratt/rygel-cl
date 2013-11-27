@@ -79,12 +79,9 @@ public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
         bool positive_rate = (speed == null) || speed.is_positive();
         bool trick_mode = (speed != null) && speed.is_trick_rate();
 
-        if (request.handler is HTTPMediaResourceHandler) {
-            MediaResource resource = (request.handler as HTTPMediaResourceHandler)
-                                                                  .media_resource;
-            this.total_duration = resource.duration * TimeSpan.SECOND;
-        } else {
-            this.total_duration = (request.object as AudioItem).duration * TimeSpan.SECOND;
+        this.total_duration = request.handler.get_resource_duration();
+        if (this.total_duration <= 0) {
+            this.total_duration = UNSPECIFIED;
         }
 
         var range = request.msg.request_headers.get_one (TIMESEEKRANGE_HEADER);
@@ -187,20 +184,7 @@ public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
             force_seek = hack.force_seek ();
         } catch (Error error) { }
 
-        // TODO: This needs to incorporate some delegation or maybe not even exist here.
-        //       (e.g. if there's a "TimeSeekRange supported" query it should be on a
-        //       ContentResource, since it owns the ProtocolInfo which indicates
-        //       time-seek-ability (a-val of ORG_OP or the LOP-time indicator))
-        return force_seek
-               || ( request.object is AudioItem
-                    && ( request.object as AudioItem).duration > 0
-                         && ( request.handler is HTTPTranscodeHandler
-                              || ( request.thumbnail == null
-                                   && request.subtitle == null
-                                   && (request.object as MediaItem).is_live_stream () ) ) )
-               || ( request.handler is HTTPMediaResourceHandler
-                    && (request.handler as HTTPMediaResourceHandler)
-                        .media_resource.supports_arbitrary_time_seek() );
+        return force_seek || request.handler.supports_time_seek();
     }
 
     /**

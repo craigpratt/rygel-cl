@@ -41,13 +41,8 @@ public class Rygel.HTTPGet : HTTPRequest {
     private const string TRANSFER_MODE_HEADER = "transferMode.dlna.org";
     private const string SERVER_NAME = "CVP2-RI-DMS";
 
-    public Thumbnail thumbnail;
-    public Subtitle subtitle;
     public HTTPSeekRequest seek;
     public DLNAPlaySpeedRequest speed_request;
-
-    private int thumbnail_index;
-    private int subtitle_index;
 
     public HTTPGetHandler handler;
 
@@ -55,45 +50,53 @@ public class Rygel.HTTPGet : HTTPRequest {
                     Soup.Server  server,
                     Soup.Message msg) {
         base (http_server, server, msg);
-
-        this.thumbnail_index = -1;
-        this.subtitle_index = -1;
     }
 
     protected override async void handle () throws Error {
-        var header = this.msg.request_headers.get_one
-                                        ("getcontentFeatures.dlna.org");
-
         /* We only entertain 'HEAD' and 'GET' requests */
-        if ((this.msg.method != "HEAD" && this.msg.method != "GET") ||
-            (header != null && header != "1")) {
-            throw new HTTPRequestError.BAD_REQUEST (_("Invalid Request"));
+        if (!(this.msg.method == "HEAD" || this.msg.method == "GET")) {
+            throw new HTTPRequestError.BAD_REQUEST
+                          (_("Invalid Request (only GET and HEAD supported)"));
         }
 
-        if (uri.transcode_target != null) {
-            var transcoder = this.http_server.get_transcoder
-                                        (uri.transcode_target);
-            this.handler = new HTTPTranscodeHandler (transcoder,
-                                                     this.cancellable);
+        { /* Check for proper content feature request */
+            var cf_header = "getcontentFeatures.dlna.org";
+            var cf_val = this.msg.request_headers.get_one (cf_header);
+
+            if (cf_val != null && cf_val != "1") {
+                throw new HTTPRequestError.BAD_REQUEST (_(cf_header + " must be 1"));
+            }
         }
 
-        if (uri.media_resource_name != null) {
-            this.handler = new HTTPMediaResourceHandler (this.object as MediaItem,
-                                                         uri.media_resource_name,
+        if (uri.resource_name != null) {
+            this.handler = new HTTPMediaResourceHandler (this.object,
+                                                         uri.resource_name,
                                                          this.cancellable);
-        }
-
-        if (uri.playlist_format != null &&
-            HTTPPlaylistHandler.is_supported (uri.playlist_format)) {
-            this.handler = new HTTPPlaylistHandler (uri.playlist_format,
+        } else if (uri.thumbnail_index >= 0) {
+            this.handler = new HTTPThumbnailHandler (this.object as MediaFileItem,
+                                                     uri.thumbnail_index,
+                                                     this.cancellable);
+        } else if (uri.subtitle_index >= 0) {
+            this.handler = new HTTPSubtitleHandler (this.object as MediaFileItem,
+                                                    uri.subtitle_index,
                                                     this.cancellable);
+        } else {
+            throw new HTTPRequestError.NOT_FOUND ("No handler found for '%s'",
+                                                  uri.to_string());
         }
 
-        if (this.handler == null) {
-            this.handler = new HTTPIdentityHandler (this.cancellable);
-        }
+        { // Check the transfer mode
+            var transfer_mode = this.msg.request_headers.get_one (TRANSFER_MODE_HEADER);
 
-        this.ensure_correct_mode ();
+            if (transfer_mode == null) {
+                transfer_mode = this.handler.get_default_transfer_mode ();
+            }
+
+            if (! this.handler.supports_transfer_mode (transfer_mode)) {
+                throw new HTTPRequestError.UNACCEPTABLE ("%s transfer mode not supported for '%s'",
+                                                        transfer_mode, uri.to_string());
+            }
+        }
 
         yield this.handle_item_request ();
     }
@@ -101,53 +104,14 @@ public class Rygel.HTTPGet : HTTPRequest {
     protected override async void find_item () throws Error {
         yield base.find_item ();
 
-        // No need to do anything here, will be done in PlaylistHandler
-        if (this.object is MediaContainer) {
-            return;
-        }
-
-        if (unlikely ((this.object as MediaItem).place_holder)) {
-            throw new HTTPRequestError.NOT_FOUND ("Item '%s' is empty",
+        if (unlikely ((this.object is MediaFileItem)
+                      && (this.object as MediaFileItem).place_holder)) {
+            throw new HTTPRequestError.NOT_FOUND ("MediaFileItem '%s' is empty",
                                                   this.object.id);
         }
 
         if (this.hack != null) {
             this.hack.apply (this.object);
-        }
-
-        if (this.uri.thumbnail_index >= 0) {
-            if (this.object is MusicItem) {
-                var music = this.object as MusicItem;
-                this.thumbnail = music.album_art;
-
-                return;
-            } else if (this.object is VisualItem) {
-                var visual = this.object as VisualItem;
-                if (this.uri.thumbnail_index < visual.thumbnails.size) {
-                    this.thumbnail = visual.thumbnails.get
-                                            (this.uri.thumbnail_index);
-
-                    return;
-                }
-            }
-
-            throw new HTTPRequestError.NOT_FOUND
-                                        ("No Thumbnail available for item '%s",
-                                         this.object.id);
-        }
-
-        if (this.uri.subtitle_index >= 0 && this.object is VideoItem) {
-            var video = this.object as VideoItem;
-
-            if (this.uri.subtitle_index < video.subtitles.size) {
-                this.subtitle = video.subtitles.get (this.uri.subtitle_index);
-
-                return;
-            }
-
-            throw new HTTPRequestError.NOT_FOUND
-                                        ("No subtitles available for item '%s",
-                                         this.object.id);
         }
     }
 
@@ -252,8 +216,6 @@ public class Rygel.HTTPGet : HTTPRequest {
         }
 
         // Add headers
-        // TODO: Should we have this after preroll()?
-        // TODO: How much of the logic in this method should be in the base HTTPGetHandler?
         this.handler.add_response_headers (this);
 
         this.msg.response_headers.append ("Server",SERVER_NAME);
@@ -270,29 +232,17 @@ public class Rygel.HTTPGet : HTTPRequest {
             }
         }
         
-        //
-        // All response header generation below here depends upon the seek range/speed response
-        //  fields being set (preroll() will have touched our seek/speed response-related
-        //  parameters)
-
         // Determine the size value
         int64 response_size;
         {
             if (this.seek != null) {
                 // The response element for seeks is responsible for setting the appropriate
                 //  length if/when appropriate. So it should already be set (if it can be set)
-                response_size = this.msg.response_headers.get_content_length();
-            } else if (this.handler is HTTPMediaResourceHandler) {
-                // If a seek isn't included, we'll be returning the entire resource binary
-                response_size = (this.handler as HTTPMediaResourceHandler)
-                                .media_resource.size;
-                this.msg.response_headers.set_content_length (response_size);
-            } else if (this.handler.knows_size (this)) {
-                // Still supporting the concept of MediaItem size (for now)
-                response_size = (this.object as MediaItem).size;
-                this.msg.response_headers.set_content_length (response_size);
+                response_size = this.msg.response_headers.get_content_length ();
             } else {
-                response_size = 0;
+                // If a seek wasn't included, we'll be returning the entire resource binary
+                response_size = this.handler.get_resource_size ();
+                this.msg.response_headers.set_content_length (response_size);
             }
             // size will factor into other logic below...
         }
@@ -310,8 +260,7 @@ public class Rygel.HTTPGet : HTTPRequest {
                 response_body_encoding = Soup.Encoding.CONTENT_LENGTH;
             } else { // Response size is 0
                 if (this.msg.get_http_version() == Soup.HTTPVersion.@1_0) {
-                    // Can't sent the length and can't send chunked (in HTTP 1.0)...
-                    // this.msg.response_headers.append ("Connection", "close");
+                    // Can't send the length and can't send chunked (in HTTP 1.0)...
                     response_body_encoding = Soup.Encoding.EOF;
                 } else {
                     response_body_encoding = Soup.Encoding.CHUNKED;
@@ -346,48 +295,5 @@ public class Rygel.HTTPGet : HTTPRequest {
         yield response.run ();
 
         this.end (Soup.Status.NONE);
-    }
-
-    private void ensure_correct_mode () throws HTTPRequestError {
-        var mode = this.msg.request_headers.get_one (TRANSFER_MODE_HEADER);
-
-        HTTPRequestError transfer_mode_error = new HTTPRequestError.UNACCEPTABLE
-                                                ("%s mode not supported for '%s'",
-                                                 mode,
-                                                 this.object.id);
-
-        // Get the resource to check if the protocolInfo supports
-        // the requested transfer mode.
-        if (this.handler is HTTPMediaResourceHandler) {
-            MediaResource resource = (this.handler as HTTPMediaResourceHandler)
-                                                               .media_resource;
-            if (!resource.supports_transfer_mode (mode))
-              throw transfer_mode_error;
-        }
-
-        var correct = true;
-
-        switch (mode) {
-        case "Streaming":
-            correct = (!(this.handler is HTTPPlaylistHandler)) && (
-                      (this.handler is HTTPTranscodeHandler ||
-                      ((this.object as MediaItem).streamable () &&
-                       this.subtitle == null &&
-                       this.thumbnail == null)));
-
-            break;
-        case "Interactive":
-            correct = (this.handler is HTTPIdentityHandler &&
-                      ((!(this.object as MediaItem).is_live_stream () &&
-                       !(this.object as MediaItem).streamable ()) ||
-                       (this.subtitle != null ||
-                        this.thumbnail != null))) ||
-                      this.handler is HTTPPlaylistHandler;
-
-            break;
-        }
-
-        if (!correct)
-          throw transfer_mode_error;
     }
 }

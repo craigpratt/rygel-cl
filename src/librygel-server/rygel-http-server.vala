@@ -34,25 +34,26 @@
 using GUPnP;
 using Gee;
 
-public class Rygel.HTTPServer : Rygel.TranscodeManager, Rygel.StateMachine {
+public class Rygel.HTTPServer : Rygel.StateMachine, GLib.Object {
     public string path_root { get; private set; }
 
     // Reference to root container of associated ContentDirectory
     public MediaContainer root_container;
     public GUPnP.Context context;
     private ArrayList<HTTPRequest> requests;
+    private bool locally_hosted;
 
     public Cancellable cancellable { get; set; }
 
     public HTTPServer (ContentDirectory content_dir,
                        string           name) {
-        base ();
 
         this.root_container = content_dir.root_container;
         this.context = content_dir.context;
         this.requests = new ArrayList<HTTPRequest> ();
         this.cancellable = content_dir.cancellable;
-
+        this.locally_hosted = this.context.interface == "lo"
+                              || this.context.host_ip == "127.0.0.1";
         this.path_root = "/" + name;
     }
 
@@ -79,37 +80,51 @@ public class Rygel.HTTPServer : Rygel.TranscodeManager, Rygel.StateMachine {
         this.completed ();
     }
 
-    internal override string create_uri_for_item (MediaItem item,
-                                                  int       thumbnail_index,
-                                                  int       subtitle_index,
-                                                  string?   transcode_target,
-                                                  string?   playlist_target,
-                                                  MediaResource ? media_resource) {
-        var uri = new HTTPItemURI (item,
+    public string create_uri_for_item (MediaObject object,
+                                         string extension,
+                                         int       thumbnail_index,
+                                         int       subtitle_index,
+                                         string?   resource_name) {
+        var uri = new HTTPItemURI (object,
                                    this,
+                                   extension,
                                    thumbnail_index,
                                    subtitle_index,
-                                   transcode_target,
-                                   playlist_target,
-                                   media_resource );
+                                   resource_name );
 
         return uri.to_string ();
     }
 
-    internal override string get_protocol () {
+    public bool recognizes_uri (string uri) {
+        if (!uri.has_prefix ("http:")) {
+            return false;
+        }
+        try {
+            new HTTPItemURI.from_string (uri, this);
+            return true;
+        } catch (Error error) {
+            return false;
+        }
+    }
+
+    public string get_protocol () {
         return "http-get";
     }
 
-    internal override ArrayList<ProtocolInfo> get_protocol_info () {
-        var protocol_infos = base.get_protocol_info ();
+    public bool is_local () {
+        return (this.locally_hosted);
+    }
 
-        var protocol_info = new ProtocolInfo ();
-        protocol_info.protocol = this.get_protocol ();
-        protocol_info.mime_type = "*";
-
-        protocol_infos.add (protocol_info);
-
-        return protocol_infos;
+    /**
+     * Set or unset options the server supports/doesn't support
+     *
+     * Resources should be setup assuming server supports all optional delivery modes
+     */
+    public void set_resource_delivery_options (MediaResource res) {
+        res.protocol = get_protocol ();
+        // Set this just to be safe
+        res.dlna_flags |= DLNAFlags.DLNA_V15 | DLNAFlags.CONNECTION_STALL;
+        // This server supports all DLNA delivery modes - so leave those flags alone
     }
 
     private void on_request_completed (StateMachine machine) {

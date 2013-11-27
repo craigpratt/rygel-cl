@@ -25,6 +25,7 @@
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  * Contact: http://www.cablelabs.com/
  *
+ * Author: Prasanna Modem <prasanna@ecaspia.com>
  * Author: Craig Pratt <craig@ecaspia.com>
  */
 
@@ -66,7 +67,7 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
         this.src = element;
     }
 
-    public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
+    public async Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
                                                      DLNAPlaySpeedRequest? playspeed_request)
        throws Error {
         var response_list = new Gee.ArrayList<HTTPResponseElement>();

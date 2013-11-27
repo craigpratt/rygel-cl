@@ -56,7 +56,7 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
         this.stop ();
     }
 
-    public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
+    public async Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
                                                      DLNAPlaySpeedRequest? playspeed_request)
        throws Error {
         var response_list = new Gee.ArrayList<HTTPResponseElement>();
@@ -65,7 +65,6 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
             if (!(seek_request is HTTPByteSeekRequest)) {
                 throw new DataSourceError.SEEK_FAILED
                                         (_("Only byte-based seek supported"));
-
             }
 
             var byte_seek = seek_request as HTTPByteSeekRequest;

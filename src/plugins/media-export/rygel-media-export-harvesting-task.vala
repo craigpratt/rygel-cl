@@ -288,7 +288,7 @@ public class Rygel.MediaExport.HarvestingTask : Rygel.StateMachine,
             this.completed ();
         }
 
-        MediaItem item;
+        MediaFileItem item;
         if (dlna == null) {
             item = ItemFactory.create_simple (this.containers.peek_head (),
                                               file,
