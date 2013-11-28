@@ -145,6 +145,7 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
         }
 
         if (!this.place_holder) {
+            var main_subtitle = null as Subtitle;
             foreach (var subtitle in this.subtitles) {
                 string protocol;
                 try {
@@ -152,10 +153,6 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
                 } catch (Error e) {
                     message("Could not determine protocol for " + subtitle.uri);
                     continue;
-                }
-
-                if (http_server.is_local () || protocol != "internal") {
-                    subtitle.add_didl_node (didl_item);
                 }
 
                 if (http_server.need_proxy (subtitle.uri)) {
@@ -168,9 +165,32 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
                                                                     index,
                                                                     null);
                     subtitle.add_didl_node (didl_item);
+                    subtitle.uri = uri; // Now restore the original URI
 
-                    // Now restore the original URI
-                    subtitle.uri = uri;
+                    if (main_subtitle == null) {
+                        main_subtitle = new Subtitle (subtitle.mime_type,
+                                                      subtitle.caption_type);
+                        main_subtitle.uri = uri;
+                    }
+                } else if (main_subtitle == null) {
+                    main_subtitle = subtitle;
+                }
+
+                if (http_server.is_local () || protocol != "internal") {
+                    subtitle.add_didl_node (didl_item);
+                }
+            }
+            if (main_subtitle != null) {
+                // Add resource-level subtitle metadata to all streamable video resources
+                // Note: All resources have already been serialized by the base
+                var resources = didl_item.get_resources ();
+                foreach (var resource in resources) {
+                    if ( (resource.protocol_info.dlna_flags
+                          & DLNAFlags.STREAMING_TRANSFER_MODE) != 0) {
+                        resource.subtitle_file_type =
+                            main_subtitle.caption_type.up ();
+                        resource.subtitle_file_uri = main_subtitle.uri;
+                    }
                 }
             }
         }

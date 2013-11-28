@@ -37,7 +37,7 @@ VALA_REQUIRED=0.22.0
 VALADOC_REQUIRED=0.2
 GSSDP_REQUIRED=0.13.0
 GUPNP_REQUIRED=0.19.0
-GUPNP_AV_REQUIRED=0.11.4
+GUPNP_AV_REQUIRED=0.12.4
 GUPNP_DLNA_REQUIRED=0.9.4
 GSTREAMER_REQUIRED=1.0
 GSTPBU_REQUIRED=1.0
@@ -198,7 +198,7 @@ AS_IF([test "x$with_media_engine" = "xgstreamer"],
           ])
 
         RYGEL_ADD_STAMP([src/media-engines/gstreamer/librygel_media_engine_gst_la_vala.stamp])
-        RYGEL_ADD_STAMP([src/librygel-renderer-gst/librygel_renderer_gst_2_0_la_vala.stamp])
+        RYGEL_ADD_STAMP([src/librygel-renderer-gst/librygel_renderer_gst_2_2_la_vala.stamp])
       ],
       [
         RYGEL_DISABLE_PLUGIN([playbin])
@@ -213,10 +213,10 @@ AC_ARG_ENABLE([example-plugins],
 AM_CONDITIONAL([BUILD_EXAMPLE_PLUGINS], [test "x$[]enable_example_plugins" = "xyes"])
 
 dnl Explicitly add stamp files for targets that are not plugins
-RYGEL_ADD_STAMP([src/librygel-core/librygel_core_2_0_la_vala.stamp])
-RYGEL_ADD_STAMP([src/librygel-server/librygel_server_2_0_la_vala.stamp])
+RYGEL_ADD_STAMP([src/librygel-core/librygel_core_2_2_la_vala.stamp])
+RYGEL_ADD_STAMP([src/librygel-server/librygel_server_2_2_la_vala.stamp])
 RYGEL_ADD_STAMP([src/librygel-ruih/librygel_ruih_2_0_la_vala.stamp])
-RYGEL_ADD_STAMP([src/librygel-renderer/librygel_renderer_2_0_la_vala.stamp])
+RYGEL_ADD_STAMP([src/librygel-renderer/librygel_renderer_2_2_la_vala.stamp])
 RYGEL_ADD_STAMP([src/rygel/rygel_vala.stamp])
 RYGEL_ADD_STAMP([src/ui/rygel_preferences_vala.stamp])
 RYGEL_ADD_STAMP([src/media-engines/simple/librygel_media_engine_simple_la_vala.stamp])
@@ -363,6 +363,13 @@ AS_IF([test "x$enable_tracker_plugin" = "xyes"],
                               [tracker_api_version="0.16"],
                               [])
           ])
+    AS_IF([test "x$[]tracker_api_version" = "x"],
+          [
+            PKG_CHECK_MODULES(TRACKER_SPARQL,
+                              tracker-sparql-0.18 >=  $TRACKER_SPARQL_REQUIRED_MIN,
+                              [tracker_api_version="0.18"],
+                              [])
+          ])
     AS_IF([test "x$enable_vala" = "xyes"],
           [VALA_CHECK_PACKAGES([tracker-sparql-$tracker_api_version])])
 
@@ -423,9 +430,9 @@ AM_CONDITIONAL(ENABLE_VALADOC, test x$found_valadoc = xyes)
 AC_SUBST([RYGEL_PLUGIN_LINKER_FLAGS],
          ["-module -avoid-version -Wl,-z,defs"])
 AC_SUBST([RYGEL_PLUGIN_DIR],
-         [${libdir}/rygel-2.0/plugins])
+         [${libdir}/rygel-2.2/plugins])
 AC_SUBST([RYGEL_MEDIA_ENGINE_DIR],
-         [${libdir}/rygel-2.0/engines])
+         [${libdir}/rygel-2.2/engines])
 
 AC_CONFIG_FILES([
 Makefile
@@ -466,10 +473,10 @@ doc/reference/librygel-renderer/Makefile
 doc/reference/librygel-server/Makefile
 doc/reference/librygel-renderer-gst/Makefile
 po/Makefile.in
-rygel-core-2.0.pc
-rygel-renderer-2.0.pc
-rygel-server-2.0.pc
-rygel-renderer-gst-2.0.pc
+rygel-core-2.2.pc
+rygel-renderer-2.2.pc
+rygel-server-2.2.pc
+rygel-renderer-gst-2.2.pc
 rygel-ruih-1.0.pc
 tests/Makefile
 examples/Makefile

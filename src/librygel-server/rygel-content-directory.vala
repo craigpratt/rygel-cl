@@ -23,14 +23,6 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
- */
-
 using GUPnP;
 using Gee;
 
@@ -93,8 +85,6 @@ public class Rygel.ContentDirectory: Service {
 
     private string service_reset_token;
 
-    private string search_caps;
-
     public override void constructed () {
         base.constructed ();
 
@@ -125,22 +115,6 @@ public class Rygel.ContentDirectory: Service {
                                         (on_sub_tree_updates_finished);
 
         this.last_change = new LastChange ();
-
-        this.search_caps = RelationalExpression.CAPS;
-
-        bool allow_upload = false;
-        try {
-            var config = MetaConfig.get_default ();
-            allow_upload = config.get_allow_upload ();
-        } catch (GLib.Error error) { }
-
-        if (allow_upload) {
-            this.search_caps += ",upnp:createClass";
-        }
-
-        if (PluginCapabilities.TRACK_CHANGES in plugin.capabilities) {
-            this.search_caps += ",upnp:objectUpdateID,upnp:containerUpdateID";
-        }
 
         this.feature_list =
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
@@ -372,8 +346,10 @@ public class Rygel.ContentDirectory: Service {
             return;
         }
 
+        var plugin = this.root_device.resource_factory as MediaServerPlugin;
+
         /* Set action return arguments */
-        action.set ("SearchCaps", typeof (string), this.search_caps);
+        action.set ("SearchCaps", typeof (string), plugin.search_caps);
 
         action.return ();
     }
@@ -382,9 +358,11 @@ public class Rygel.ContentDirectory: Service {
     private void query_search_capabilities (Service        content_dir,
                                             string         variable,
                                             ref GLib.Value value) {
+        var plugin = this.root_device.resource_factory as MediaServerPlugin;
+
         /* Set action return arguments */
         value.init (typeof (string));
-        value.set_string (this.search_caps);
+        value.set_string (plugin.search_caps);
     }
 
     /* action GetSortCapabilities implementation */
