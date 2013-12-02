@@ -146,7 +146,7 @@ public abstract class Rygel.Tracker.ItemFactory {
             message( "Adding %d resources to item source %s", added_resources.size,
                              item.uris.get (0) );    
             foreach (var resrc in added_resources) {     
-                message ("Media-export item media resource %s", resrc.get_name ());
+                message ("Tracker item media resource %s", resrc.get_name ());
             }
             item.get_resource_list ().add_all (added_resources);
            });
