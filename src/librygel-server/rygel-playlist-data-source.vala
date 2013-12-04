@@ -53,7 +53,7 @@ internal class Rygel.PlaylistDatasource : Rygel.DataSource, Object {
 
     public signal void data_ready ();
 
-    public async Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
+    public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
                                                      DLNAPlaySpeedRequest? playspeed_request)
        throws Error {
         if (seek_request != null) {

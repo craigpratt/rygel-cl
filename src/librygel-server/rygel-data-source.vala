@@ -84,8 +84,8 @@ public interface Rygel.DataSource : GLib.Object {
      *         range is not fulfillable.
      *         Throws PLAYSPEED_FAILED if the rate is not supported or fulfillable.
      */
-    public abstract async Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek,
-                                                                    DLNAPlaySpeedRequest? playspeed)
+    public abstract Gee.List<HTTPResponseElement> ? preroll (HTTPSeekRequest? seek,
+                                                             DLNAPlaySpeedRequest? playspeed)
        throws Error;
     
     /**

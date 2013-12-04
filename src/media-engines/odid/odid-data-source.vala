@@ -67,7 +67,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         debug ("Stopped data source");
     }
 
-    public async Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
+    public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
                                                      DLNAPlaySpeedRequest? playspeed_request)
        throws Error {
         debug("source uri: " + source_uri);

@@ -110,23 +110,7 @@ public class Rygel.HTTPResponse : GLib.Object, Rygel.StateMachine {
     }
 
     public Gee.List<HTTPResponseElement> ? preroll () throws Error {
-        Gee.List<HTTPResponseElement> elements = null;
-
-        Error error = null;
-        // Note: Call async, since it can block for some time
-        this.src.preroll.begin ( this.seek, this.speed, (obj, res) => {
-            try {
-                elements = this.src.preroll.end(res);
-            } catch (Error e) {
-                error = e;
-            }
-        } );
-
-        if (error != null) {
-            throw error;
-        }
-        
-        return elements;
+        return this.src.preroll (this.seek, this.speed);
     }
 
     public async void run () {

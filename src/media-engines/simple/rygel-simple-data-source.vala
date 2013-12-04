@@ -56,8 +56,8 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
         this.stop ();
     }
 
-    public async Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
-                                                     DLNAPlaySpeedRequest? playspeed_request)
+    public Gee.List<HTTPResponseElement> ? preroll (HTTPSeekRequest? seek_request,
+                                                    DLNAPlaySpeedRequest? playspeed_request)
        throws Error {
         var response_list = new Gee.ArrayList<HTTPResponseElement>();
 
