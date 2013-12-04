@@ -49,7 +49,7 @@ public abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
 
     public Cancellable cancellable { get; set; }
 
-    public HTTPItemURI uri;
+    protected HTTPItemURI uri;
     public MediaObject object;
 
     internal ClientHacks hack;

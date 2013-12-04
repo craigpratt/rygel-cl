@@ -29,7 +29,7 @@
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  * Contact: http://www.cablelabs.com/
  *
- * Author: Doug Galligan <doug@sentosatech.com>>
+ * Author: Craig Pratt <craig@ecaspia.com>
  */
 
 using GUPnP;
