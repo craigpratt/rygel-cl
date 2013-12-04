@@ -41,16 +41,16 @@ public class Rygel.MediaResource : GLib.Object {
     public string uri { get; set; }
     public string import_uri { get; set; }
     public string extension { get; set; default = null; }
-    public int64 size { get; set; default = -1; }
-    public int64 cleartext_size { get; set; default = -1; }
-    public long duration { get; set; default = -1; }
-    public int bitrate { get; set; default = -1; }
+    public int64 size { get; set; default = -1; } // In bytes
+    public int64 cleartext_size { get; set; default = -1; } // In bytes
+    public long duration { get; set; default = -1; } // In seconds
+    public int bitrate { get; set; default = -1; } // In bits per second
     public int bits_per_sample { get; set; default = -1; }
-    public int color_depth { get; set; default = -1; }
-    public int width { get; set; default = -1; }
-    public int height { get; set; default = -1; }
+    public int color_depth { get; set; default = -1; } // In bits
+    public int width { get; set; default = -1; } // In pixels
+    public int height { get; set; default = -1; } // In pixels
     public int audio_channels { get; set; default = -1; }
-    public int sample_freq { get; set; default = -1; }
+    public int sample_freq { get; set; default = -1; } // In Hz
 
     // ProtocolInfo fields
     public string protocol { get; set; default = null; }
