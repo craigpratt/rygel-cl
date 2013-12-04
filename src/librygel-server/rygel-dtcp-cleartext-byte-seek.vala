@@ -210,4 +210,9 @@ public class Rygel.DTCPCleartextByteSeekResponse : Rygel.HTTPResponseElement {
             request.msg.response_headers.set_content_length (this.encrypted_length);
         }
     }
+
+    public override string to_string () {
+        return ("DTCPCleartextByteSeekResponse(bytes=%lld-%lld/%lld, enc_len=%lld)"
+                .printf (this.start_byte, this.end_byte, this.total_size, this.encrypted_length));
+    }
 }

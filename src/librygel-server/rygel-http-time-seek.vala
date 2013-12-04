@@ -330,6 +330,21 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
     }
     
     public override void add_response_headers (Rygel.HTTPRequest request) {
+        var response = get_response_string ();
+        if (response != null) {
+            request.msg.response_headers.append (TIMESEEKRANGE_HEADER, response);
+            if (this.start_byte != UNSPECIFIED) {
+                // Note: Don't use set_content_range() here - we don't want a "Content-range" header
+                request.msg.response_headers.set_content_length (this.range_length);
+            }
+        }
+    }
+
+    private string? get_response_string () {
+        if (start_time == UNSPECIFIED) {
+            return null;
+        }
+        
         // The response form of TimeSeekRange:
         //
         // TimeSeekRange.dlna.org: npt=START_TIME-END_TIME/DURATION bytes=START_BYTE-END_BYTE/LENGTH
@@ -344,33 +359,33 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
         //  object is the responsibility of the object owner. To form the response, we just
         //  use what is set.
 
-        if (start_time != UNSPECIFIED) {
-            var response = new StringBuilder();
-            response.append("npt=");
-            response.append_printf("%.3f-", (double) this.start_time / TimeSpan.SECOND);
-            response.append_printf("%.3f/", (double) this.end_time / TimeSpan.SECOND);
-            if (this.total_duration != UNSPECIFIED) {
-                response.append_printf("%.3f", (double) this.total_duration / TimeSpan.SECOND);
+        var response = new StringBuilder();
+        response.append("npt=");
+        response.append_printf("%.3f-", (double) this.start_time / TimeSpan.SECOND);
+        response.append_printf("%.3f/", (double) this.end_time / TimeSpan.SECOND);
+        if (this.total_duration != UNSPECIFIED) {
+            response.append_printf("%.3f", (double) this.total_duration / TimeSpan.SECOND);
+        } else {
+            response.append("*");
+        }
+
+        if (this.start_byte != UNSPECIFIED) {
+            response.append(" bytes=");
+            response.append(this.start_byte.to_string());
+            response.append("-");
+            response.append(this.end_byte.to_string());
+            response.append("/");
+            if (this.total_size != UNSPECIFIED) {
+                response.append(this.total_size.to_string());
             } else {
                 response.append("*");
             }
-
-            if (this.start_byte != UNSPECIFIED) {
-                response.append(" bytes=");
-                response.append(this.start_byte.to_string());
-                response.append("-");
-                response.append(this.end_byte.to_string());
-                response.append("/");
-                if (this.total_size != UNSPECIFIED) {
-                    response.append(this.total_size.to_string());
-                } else {
-                    response.append("*");
-                }
-                // Note: Don't use set_content_range() here - we don't want a "Content-range" header
-                request.msg.response_headers.set_content_length (this.range_length);
-            }
-
-            request.msg.response_headers.append (TIMESEEKRANGE_HEADER, response.str);
         }
+
+        return response.str;
+   }
+
+    public override string to_string () {
+        return ("HTTPTimeSeekResponse(%s)".printf(get_response_string ()));
     }
 }

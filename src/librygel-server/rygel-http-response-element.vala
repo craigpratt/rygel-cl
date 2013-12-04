@@ -40,4 +40,6 @@ public abstract class Rygel.HTTPResponseElement : GLib.Object {
      * Set the type-appropriate headers on the associated HTTP Message 
      */
     public abstract void add_response_headers (Rygel.HTTPRequest request);
+
+    public abstract string to_string ();
 }

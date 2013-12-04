@@ -146,12 +146,16 @@ public class Rygel.DLNAPlaySpeedResponse : Rygel.HTTPResponseElement {
 
     public override void add_response_headers (Rygel.HTTPRequest request) {
         // Format: PlaySpeed.dlna.org: speed=<rate>
-        request.msg.response_headers.append (PLAYSPEED_HEADER, "speed=" + speed.to_string());
+        request.msg.response_headers.append (PLAYSPEED_HEADER, "speed=" + this.speed.to_string());
         if (this.framerate > 0) {
             // Format: FrameRateInTrickMode.dlna.org: rate=<framerate>
             request.msg.response_headers.append ( FRAMERATE_HEADER,
                                                   "rate=" + this.framerate.to_string() );
         }
+    }
+    public override string to_string () {
+        return ("DLNAPlaySpeedResponse(speed=%s, rate=%d)"
+                .printf (this.speed.to_string(), this.framerate));
     }
 }
 
