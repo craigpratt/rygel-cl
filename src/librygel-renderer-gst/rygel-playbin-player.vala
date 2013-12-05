@@ -48,7 +48,6 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
 
     protected static string MIME_TYPE_NAME_PROPERTY   = "name";
     protected static const string DLNA_ORG_PN         = "DLNA.ORG_PN";
-    protected static const string DLNA_ORG_OP         = "DLNA.ORG_OP";
     protected static const string DLNA_ORG_FLAGS      = "DLNA.ORG_FLAGS";
     protected static const string SUPPORT_PROFILE_LIST_PATH = BuildConfig.DATA_DIR + "/xml/profiles.xml";
     private string[] protocols = null;
@@ -74,7 +73,6 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         supported_profs.foreach ((entry) => {
                 debug ("Mime: %s ", entry.mime);
                 debug ("Name: %s ", entry.name);
-                debug ("Operations: %s ", entry.operations);
                 debug ("Flags: %s\n", entry.flags);
             });
     }
@@ -335,7 +333,8 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
     }
 
 
-    private void read_elements(Xml.XPath.Object* res, ref string[] read_elements)    {
+    private void read_elements(Xml.XPath.Object* res,
+                               ref string[] read_elements) {
         assert (res != null);
         assert (res->type == Xml.XPath.ObjectType.NODESET);
         assert (res->nodesetval != null);
@@ -349,33 +348,35 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-    private void get_mime_attributes(Xml.XPath.Object* res, ref string[] mime_types_param, bool media_collection_flag)    {
+    private void get_mime_attributes(Xml.XPath.Object* res,
+                                     ref string[] mime_types_param,
+                                     bool media_collection_flag) {
         int num_of_mimes = res->nodesetval->length ();
         assert (res != null);
         assert (res->type == Xml.XPath.ObjectType.NODESET);
         assert (res->nodesetval != null);
 
-        num_of_mimes = media_collection_flag == true ? res->nodesetval->length () + 1:num_of_mimes;
+        num_of_mimes = media_collection_flag == true
+                                                ? res->nodesetval->length () + 1
+                                                : num_of_mimes;
 
-        if (num_of_mimes > 0)
-        {
+        if (num_of_mimes > 0) {
             int index = 0;
             mime_types_param = new string[num_of_mimes];
-            if (media_collection_flag == true)
-            {
+            if (media_collection_flag == true) {
                 // add elements
                 mime_types_param[0] = "text/xml";
                 _supported_profiles.prepend (new DLNAProfile.extended
                                              ("DIDL_S",
                                               "text/xml",
-                                              "",
                                               ""));
                 index = 1;
             }
 
             for (int i = index; i < num_of_mimes; i++) {
                 Xml.Node* node = null;
-                if ( res->nodesetval != null && res->nodesetval->item(i) != null ) {
+                if (res->nodesetval != null &&
+                    res->nodesetval->item(i) != null) {
                     node = res->nodesetval->item(i);
                     string prop_value = node->get_prop(MIME_TYPE_NAME_PROPERTY);
                     if (prop_value == null)
@@ -384,43 +385,37 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                     mime_types_param[i] = prop_value;
 
                     // Get the children for this node
-                    for (Xml.Node* iter = node->children; iter != null; iter = iter->next) {
+                    for (Xml.Node* iter = node->children; iter != null;
+                                                      iter = iter->next) {
                         // Spaces between tags are also nodes, discard them
                         if (iter->type != ElementType.ELEMENT_NODE) {
                             continue;
                         }
 
                         string dlna_profile = iter->get_content();
-                        if (dlna_profile != null)
-                        {
+                        if (dlna_profile != null) {
                             string[] temp_str = dlna_profile.split (";", 0);
-                            string dlna_org_pn = "", dlna_org_op = "", dlna_org_flags = "";
+                            string dlna_org_pn = "", dlna_org_flags = "";
 
-                            foreach (unowned string str in temp_str)
-                            {
+                            foreach (unowned string str in temp_str) {
                                 string[] key_value = str.split("=", 0);
 
-                                switch (key_value[0])
-                                {
-                                case DLNA_ORG_PN:
-                                    dlna_org_pn = key_value[1];
-                                    break;
-                                case DLNA_ORG_OP:
-                                    dlna_org_op = key_value[1];
-                                    break;
-                                case DLNA_ORG_FLAGS:
-                                    dlna_org_flags = key_value[1];
-                                    break;
+                                switch (key_value[0]) {
+                                    case DLNA_ORG_PN:
+                                        dlna_org_pn = key_value[1];
+                                        break;
+                                    case DLNA_ORG_FLAGS:
+                                        dlna_org_flags = key_value[1];
+                                        break;
                                 }
                             }
 
-                            if (dlna_org_pn != null)
-                            {
-                                _supported_profiles.prepend (new DLNAProfile.extended
-                                                             (dlna_org_pn,
-                                                              prop_value ?? "",
-                                                              dlna_org_op ?? "",
-                                                              dlna_org_flags ?? ""));
+                            if (dlna_org_pn != null) {
+                                _supported_profiles.prepend
+                                                   (new DLNAProfile.extended
+                                                        (dlna_org_pn,
+                                                         prop_value ?? "",
+                                                         dlna_org_flags ?? ""));
                             }
                         }
                     }
@@ -435,12 +430,12 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         // Parse the document from path
         Xml.Doc* doc = Xml.Parser.parse_file (SUPPORT_PROFILE_LIST_PATH);
         if (doc == null) {
-            error ("File %s not found or permissions missing\n", SUPPORT_PROFILE_LIST_PATH);
+            error ("File %s not found or permissions missing\n",
+                                              SUPPORT_PROFILE_LIST_PATH);
         }
 
         Xml.XPath.Context cntx = new Xml.XPath.Context (doc);
-        if (cntx==null)
-        {
+        if (cntx==null) {
             error ("failed to create the xpath context\n");
         }
 
@@ -449,15 +444,16 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
 
         string[] temp_protocols = null;
         read_elements(protocols_node, ref temp_protocols);
-		if (temp_protocols.length == 0)
-		{
-			error("No Protocols specified. Please add the info to the %s xml file\n", SUPPORT_PROFILE_LIST_PATH);
-		}
-	
+        if (temp_protocols.length == 0) {
+            error("No Protocols specified. Please add the info to the"+
+                  " %s xml file\n", SUPPORT_PROFILE_LIST_PATH);
+        }
+
         protocols = temp_protocols[0].split(",", 0);
 
         // Extract media-collection value
-        Xml.XPath.Object* media_collection_node = cntx.eval_expression (media_collection_xpath);
+        Xml.XPath.Object* media_collection_node = cntx.eval_expression 
+                                                       (media_collection_xpath);
         string[] media_collection_flagstr = null;
         bool media_collection_flag = false;
 
@@ -467,13 +463,12 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         Xml.XPath.Object* mime_type_node = cntx.eval_expression (mimetype_xpath);
         string[] temp_mime_types = null;
 
-        if (mime_type_node == null)
-        {
+        if (mime_type_node == null) {
             warning ("failed to evaluate xpath\n");
-        }
-        else
-        {
-            get_mime_attributes(mime_type_node, ref temp_mime_types, media_collection_flag);
+        } else {
+            get_mime_attributes(mime_type_node,
+                                ref temp_mime_types,
+                                media_collection_flag);
             mime_types = temp_mime_types;
         }
 
