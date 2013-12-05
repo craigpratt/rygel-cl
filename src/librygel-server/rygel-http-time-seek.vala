@@ -73,11 +73,11 @@ public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
      * @param request The HTTP GET/HEAD request
      * @param positive_rate Indicates if playback is in the positive or negative direction
      */
-    internal HTTPTimeSeekRequest (HTTPGet request, DLNAPlaySpeed ? speed) throws HTTPSeekRequestError {
+    internal HTTPTimeSeekRequest (HTTPGet request, PlaySpeed ? speed) throws HTTPSeekRequestError {
         base ();
 
         bool positive_rate = (speed == null) || speed.is_positive();
-        bool trick_mode = (speed != null) && speed.is_trick_rate();
+        bool trick_mode = (speed != null) && !speed.is_normal_rate();
 
         this.total_duration = request.handler.get_resource_duration();
         if (this.total_duration <= 0) {

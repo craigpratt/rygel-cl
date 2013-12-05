@@ -50,7 +50,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     private bool frozen = false;
     private bool stop_thread = false;
     private HTTPSeekRequest seek_request;
-    private DLNAPlaySpeedRequest playspeed_request = null;
+    private PlaySpeedRequest playspeed_request = null;
     private MediaResource res;
     private bool content_protected = false;
     private int dtcp_session_handle = -1;
@@ -68,7 +68,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     }
 
     public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
-                                                     DLNAPlaySpeedRequest? playspeed_request)
+                                                     PlaySpeedRequest? playspeed_request)
        throws Error {
         debug("source uri: " + source_uri);
 
@@ -133,21 +133,21 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             int framerate = 0;
             string framerate_for_speed = get_content_property(content_uri, "framerate");
             if (framerate_for_speed == null) {
-                framerate = DLNAPlaySpeedResponse.NO_FRAMERATE;
+                framerate = PlaySpeedResponse.NO_FRAMERATE;
             } else {
                 framerate = int.parse((framerate_for_speed == null) ? "" : framerate_for_speed);
                 if (framerate == 0) {
-                    framerate = DLNAPlaySpeedResponse.NO_FRAMERATE;
+                    framerate = PlaySpeedResponse.NO_FRAMERATE;
                 }
             }
             debug ( "    framerate for speed %s: %s",
                       playspeed_request.speed.to_string(),
-                      ( (framerate == DLNAPlaySpeedResponse.NO_FRAMERATE) ? "None"
+                      ( (framerate == PlaySpeedResponse.NO_FRAMERATE) ? "None"
                         : framerate.to_string() ) );
             var speed_response
-                 = new DLNAPlaySpeedResponse.from_speed( playspeed_request.speed,
-                                                         (framerate > 0) ? framerate
-                                                         : DLNAPlaySpeedResponse.NO_FRAMERATE );
+                 = new PlaySpeedResponse.from_speed( playspeed_request.speed,
+                                                     (framerate > 0) ? framerate
+                                                     : PlaySpeedResponse.NO_FRAMERATE );
             response_list.add(speed_response);
         }
 
@@ -162,7 +162,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             // Time-based seek
             //
             var time_seek = seek_request as HTTPTimeSeekRequest;
-            bool is_reverse = (playspeed_request != null) && (playspeed_request.speed.is_negative());
+            bool is_reverse = (playspeed_request != null)
+                              && (!playspeed_request.speed.is_positive ());
 
             // Calculate the effective range of the time seek using the appropriate index file
             

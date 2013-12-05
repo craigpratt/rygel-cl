@@ -85,7 +85,7 @@ public interface Rygel.DataSource : GLib.Object {
      *         Throws PLAYSPEED_FAILED if the rate is not supported or fulfillable.
      */
     public abstract Gee.List<HTTPResponseElement> ? preroll (HTTPSeekRequest? seek,
-                                                             DLNAPlaySpeedRequest? playspeed)
+                                                             PlaySpeedRequest? playspeed)
        throws Error;
     
     /**

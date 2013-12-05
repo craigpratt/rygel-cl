@@ -303,7 +303,6 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
             MediaItem item = new Rygel.ODID.MediaItem (id, 
                                                        this.containers.peek_head (),
                                                        keyFile.get_string ("item", "title"));
-            // TODO: Determine proper class
 
             if (keyFile.has_key ("item", "date"))    {
                 item.date = keyFile.get_string ("item", "date");

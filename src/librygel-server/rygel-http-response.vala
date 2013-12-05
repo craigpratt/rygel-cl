@@ -40,7 +40,7 @@ public class Rygel.HTTPResponse : GLib.Object, Rygel.StateMachine {
     public Cancellable cancellable { get; set; }
 
     public HTTPSeekRequest seek;
-    public DLNAPlaySpeedRequest speed;
+    public PlaySpeedRequest speed;
 
     private SourceFunc run_continue;
     private int _priority = -1;

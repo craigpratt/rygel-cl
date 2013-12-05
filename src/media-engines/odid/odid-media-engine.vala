@@ -339,7 +339,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
         // Look for scaled files and set fields accordingly if/when found
         {
-            Gee.List<DLNAPlaySpeed> playspeeds;
+            Gee.List<PlaySpeed> playspeeds;
             
             playspeeds = find_playspeeds_for_res(res_dir_uri, basename);
 
@@ -466,7 +466,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
     internal static string? content_filename_for_res_speed( string resource_dir_path,
                                                             string basename,
-                                                            DLNAPlaySpeed? playspeed,
+                                                            PlaySpeed? playspeed,
                                                             out string extension )
             throws Error {
         debug ("content_filename_for_res_speed: %s, %s, %s",
@@ -504,17 +504,17 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     }
 
     /**
-     * Produce a list of DLNAPlaySpeedRequest corresponding to scaled content files for the given
+     * Produce a list of PlaySpeeds corresponding to scaled content files for the given
      * resource directory and basename.
      *
-     * @return A List with one DLNAPlaySpeedRequest per scaled-rate content file
+     * @return A List with one PlaySpeed per scaled-rate content file
      */
-    internal static Gee.List<DLNAPlaySpeed>? find_playspeeds_for_res( string resource_dir_uri,
+    internal static Gee.List<PlaySpeed>? find_playspeeds_for_res( string resource_dir_uri,
                                                                       string basename )
         throws Error {
         debug ("ODIDMediaEngine.find_playspeeds_for_res: %s, %s",
                  resource_dir_uri,basename );
-        var speeds = new Gee.ArrayList<DLNAPlaySpeed>();
+        var speeds = new Gee.ArrayList<PlaySpeed>();
         
         var directory = File.new_for_uri(resource_dir_uri);
         var enumerator = directory.enumerate_children(GLib.FileAttribute.STANDARD_NAME, 0);
@@ -531,7 +531,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                 "Bad  speed found in res filename %s (%s)",
                                 cur_filename, split_name[1]);
                 }
-                var speed = new DLNAPlaySpeed(int.parse(speed_parts[0]),int.parse(speed_parts[1]));
+                var speed = new PlaySpeed(int.parse(speed_parts[0]),int.parse(speed_parts[1]));
                 if (speed.numerator == 1 && speed.denominator == 1) {
                     continue; // Rate "1" is implied and not included in the playspeeds - skip it
                 }

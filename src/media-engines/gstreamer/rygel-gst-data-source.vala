@@ -68,7 +68,7 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
     }
 
     public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
-                                                     DLNAPlaySpeedRequest? playspeed_request)
+                                                     PlaySpeedRequest? playspeed_request)
        throws Error {
         var response_list = new Gee.ArrayList<HTTPResponseElement>();
 
