@@ -196,8 +196,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                             debug("get_resources:     created resource: " + res.to_string());
                         }
                     } catch (Error err) {
-                        error("Error processing item resource %s: %s",
-                              odid_item_path + file_info.get_name(), err.message);
+                        warning ("Error processing item resource %s: %s",
+                                 odid_item_path + file_info.get_name(), err.message);
                         // Continue processing other resources
                     }
                 }
@@ -550,11 +550,18 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         var dis = new DataInputStream(index_file.read());
 
         // We don't need to parse the whole file.
-        // The Last entry will be X bytes from the end of the file...
+        // The last index entry will be INDEXFILE_ROW_SIZE bytes from the end of the file...
 
-        dis.skip((size_t)(index_info.get_size()-INDEXFILE_ROW_SIZE));
+        size_t last_entry_offset = (size_t)(index_info.get_size()-INDEXFILE_ROW_SIZE);
+        dis.skip(last_entry_offset);
         string line = dis.read_line(null);
         
+        if (line.length != ODIDMediaEngine.INDEXFILE_ROW_SIZE-1) {
+            throw new ODIDMediaEngineError.INDEX_FILE_ERROR(
+                          "Bad index file entry size (entry at offset %s of %s is %d bytes - should be %d bytes): '%s'",
+                          last_entry_offset.to_string (), index_file.get_basename (),
+                          line.length, ODIDMediaEngine.INDEXFILE_ROW_SIZE, line);
+        }
         uint time_field_start = INDEXFILE_FIELD_TIME_OFFSET;
         uint time_field_end = INDEXFILE_FIELD_TIME_OFFSET+INDEXFILE_FIELD_TIME_LENGTH;
         string seconds_field = line[time_field_start:time_field_end];
@@ -564,8 +571,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             return (long)(duration_val+0.99); // For rounding
         } else {
             throw new ODIDMediaEngineError.INDEX_FILE_ERROR(
-                        "Ill-formed duration in last index file entry of %s: '%s'",
-                        index_file, line);
+                        "Ill-formed duration field ('%s') in last index file entry of %s: '%s'",
+                        seconds_field, index_file.get_basename (), line);
         }
     }
 

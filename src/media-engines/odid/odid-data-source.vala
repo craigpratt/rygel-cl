@@ -322,8 +322,10 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         string last_data_offset = "0"; // but data offsets always go forward...
         start_offset = int64.MAX;
         end_offset = int64.MAX;
+        int line_count = 0;
         // Read lines until end of file (null) is reached
         while ((line = dis.read_line (null)) != null) {
+            line_count++;
             // Entry Type (V: Video Frame)
             // | Video Frame Type (I,B,P)
             // | | Time Offset (seconds.milliseconds) (fixed decimal places, 8.3)
@@ -332,6 +334,12 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             // | | |            |                   |
             // v v v            v                   v
             // V F 00000000.000 0000000000000000000 0000000000<16 spaces><newline>
+            if (line.length != ODIDMediaEngine.INDEXFILE_ROW_SIZE-1) {
+                throw new ODIDMediaEngineError.INDEX_FILE_ERROR(
+                              "Bad index file entry size (line %lld of %s is %d bytes - should be %d bytes): '%s'",
+                              line_count, index_path, line.length,
+                              ODIDMediaEngine.INDEXFILE_ROW_SIZE, line);
+            }
             var index_fields = line.split(" "); // Could use fixed field positions here...
             if ((index_fields[0][0] == 'V') && (index_fields[1][0] == 'I')) {
                 string time_offset_string = index_fields[2];
