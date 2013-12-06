@@ -85,9 +85,9 @@ public class Rygel.ImageItem : MediaFileItem, VisualItem {
 
     internal override MediaResource get_primary_resource () {
         var res = base.get_primary_resource ();
-        
+
         this.set_visual_resource_properties (res);
-        
+
         res.dlna_flags |= DLNAFlags.INTERACTIVE_TRANSFER_MODE;
 
         return res;

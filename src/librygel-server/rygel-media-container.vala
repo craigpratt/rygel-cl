@@ -359,7 +359,7 @@ public abstract class Rygel.MediaContainer : MediaObject {
     public override DataSource? create_stream_source_for_resource (HTTPRequest request,
                                                                    MediaResource resource) {
         SerializerType playlist_type;
-        
+
         switch (resource.get_name ()) {
             case DIDL_S_PLAYLIST_RESNAME:
                 playlist_type = SerializerType.DIDL_S;

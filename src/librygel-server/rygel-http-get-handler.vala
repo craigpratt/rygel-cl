@@ -35,7 +35,7 @@ public abstract class Rygel.HTTPGetHandler: GLib.Object {
     protected const string TRANSFER_MODE_STREAMING = "Streaming";
     protected const string TRANSFER_MODE_INTERACTIVE = "Interactive";
     protected const string TRANSFER_MODE_BACKGROUND = "Background";
-    
+
     public Cancellable cancellable { get; set; }
 
     /**

@@ -86,7 +86,7 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
         string source_uri = object.uris.get (0);
         return new SimpleDataSource (source_uri);
     }
-    
+
     public override DataSource? create_data_source_for_uri (string uri) {
         if (!uri.has_prefix ("file://")) {
             return null;

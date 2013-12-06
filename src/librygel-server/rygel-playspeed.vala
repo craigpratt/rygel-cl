@@ -36,7 +36,7 @@
 public class Rygel.PlaySpeed {
     public int numerator; // Sign of the speed will be attached to the numerator
     public uint denominator;
-    
+
     public PlaySpeed (int numerator, uint denominator) {
         this.numerator = numerator;
         this.denominator = denominator;

@@ -81,7 +81,7 @@ public interface Rygel.DataSource : GLib.Object {
     public abstract Gee.List<HTTPResponseElement> ? preroll (HTTPSeekRequest? seek,
                                                              PlaySpeedRequest? playspeed)
        throws Error;
-    
+
     /**
      * Start producing the data.
      * 

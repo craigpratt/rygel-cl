@@ -666,7 +666,6 @@ public class Rygel.ODID.MediaCache : Object {
                                     resource.get_name (),
                                     resource.extension,
                                     index++ };
-                                    
             this.db.exec (this.sql.make (SQLString.SAVE_RESOURCE), values);
         }
     }

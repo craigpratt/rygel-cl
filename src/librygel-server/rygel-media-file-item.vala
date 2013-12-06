@@ -45,7 +45,7 @@ public abstract class Rygel.MediaFileItem : MediaItem {
      * A null/empty value means that the mime-type is unknown
      */
     public string mime_type { get; set; }
-    
+
     /**
      * The DLNA profile of the source content (this.uri).
      * A null/empty value means that the DLNA profile is unknown
@@ -150,13 +150,13 @@ public abstract class Rygel.MediaFileItem : MediaItem {
             //  at this point) with any secondary representations or alternate delivery
             //  mechanisms they can provide
             this.add_resources (http_server);
-            
+
             this.serialize_resource_list (didl_item, http_server);
         }
 
         return didl_item;
     }
-    
+
     /**
      * Subclasses override this method to create the type-specific primary MediaResource.
      * 

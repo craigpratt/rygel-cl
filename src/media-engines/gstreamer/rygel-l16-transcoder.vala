@@ -78,7 +78,7 @@ internal class Rygel.L16Transcoder : Rygel.AudioTranscoder {
 
         return distance;
     }
-    
+
     public override MediaResource? get_resource_for_item (MediaFileItem item) {
         var resource = base.get_resource_for_item (item);
         if (resource == null) {

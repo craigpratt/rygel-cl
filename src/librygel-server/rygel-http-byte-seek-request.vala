@@ -48,7 +48,7 @@ public class Rygel.HTTPByteSeekRequest : Rygel.HTTPSeekRequest {
      */
     public int64 total_size { get; set; }
 
-    
+
     public HTTPByteSeekRequest (HTTPGet request) throws HTTPSeekRequestError,
                                                  HTTPRequestError {
         base ();
@@ -85,7 +85,7 @@ public class Rygel.HTTPByteSeekRequest : Rygel.HTTPSeekRequest {
             throw new HTTPSeekRequestError.OUT_OF_RANGE (_("Invalid Range '%s'"),
                                                          range_header_str);
         }
-        
+
         if (stop < start) {
             throw new HTTPSeekRequestError.INVALID_RANGE (_("Invalid Range '%s'"),
                                                           range_header_str);
@@ -95,7 +95,7 @@ public class Rygel.HTTPByteSeekRequest : Rygel.HTTPSeekRequest {
             // Per RFC 2616, the range end can be beyond the total length. And Soup doesn't clamp...
             stop = total_size-1;
         }
-            
+
         this.start_byte = start;
         this.end_byte = stop;
         this.range_length = stop-start+1; // +1, since range is inclusive

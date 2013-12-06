@@ -100,7 +100,7 @@ internal class Rygel.MP2TSTranscoder : Rygel.VideoTranscoder {
 
         return distance;
     }
-    
+
     public override MediaResource? get_resource_for_item (MediaFileItem item) {
         var resource = base.get_resource_for_item(item);
         if (resource == null) {

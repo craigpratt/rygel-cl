@@ -203,7 +203,7 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
 
         return res;
     }
-    
+
     internal override void add_resources (HTTPServer http_server) {
         base.add_resources (http_server);
 

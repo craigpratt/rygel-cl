@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  * Contact: http://www.cablelabs.com/
  *
@@ -6,7 +6,7 @@
  *         Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  *
  * This file is part of Rygel.
- * 
+ *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -39,12 +39,12 @@ public errordomain Rygel.ODIDMediaEngineError {
 }
 
 /**
- * This media engine is intended to be the basis for the CL 
+ * This media engine is intended to be the basis for the CL
  * reference DMS. Long-term, this could be moved outside the Rygel
  * source tree and built stand-alone.
  */
 internal class Rygel.ODIDMediaEngine : MediaEngine {
-    private  GLib.List<DLNAProfile> profiles 
+    private  GLib.List<DLNAProfile> profiles
         = new GLib.List<DLNAProfile> ();
 
     // Entry Type (V: Video Frame)
@@ -55,7 +55,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     // | | |           |                   |
     // v v v           v                   v
     // V F 0000000.000 0000000000000000000 0000000000<15 spaces><newline>
-        
+
     public static const uint INDEXFILE_ROW_SIZE = 62;
     public static const uint INDEXFILE_FIELD_ENTRYTYPE_OFFSET = 0;
     public static const uint INDEXFILE_FIELD_FRAMETYPE_OFFSET = 2;
@@ -131,7 +131,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             }
 
             debug ("OdidMediaEngine: configuring profile entry: " + row);
-            // Note: This profile list won't affect what profiles are included in the 
+            // Note: This profile list won't affect what profiles are included in the
             //       primary res block
             profiles.append (new DLNAProfile (columns[0],columns[1]));
         }
@@ -150,20 +150,20 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             return null;
         }
 
-        var item = object as MediaItem; 
+        var item = object as MediaItem;
 
         // For MediaFileItems, uri 0 is the file URI referring directly to
         //  the content. But for us, we're presuming it refers to the ODID base
         //  directory (this becomes less squishy when OdidMediaItem comes on the scene...)
         string source_uri = item.uris.get (0);
-        
+
         // TODO: Consider our own uri scheme (e.g. "odid:")
         if (!source_uri.has_prefix ("file://")) {
             warning ("Can't process non-file uri " + source_uri);
         }
 
         debug ("OdidMediaEngine:get_resources: " + source_uri);
-        
+
         Gee.List<MediaResource> resources = new Gee.ArrayList<MediaResource> ();
 
         string odid_item_path = null;
@@ -178,7 +178,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             debug ("get_resources: processing item directory: " + odid_item_path);
 
             var directory = File.new_for_uri (odid_item_path);
-            
+
             var enumerator = directory.enumerate_children
                                            (FileAttribute.STANDARD_NAME, 0);
 
@@ -329,14 +329,14 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             res.dlna_operation = DLNAOperation.RANGE;
             // We'll OR in TIMESEEK if we have an index file...
         }
-        
+
         // Look for an index file and set fields accordingly if/when found
         {
             string index_path = res_dir_uri + normal_content_filename + ".index";
             File index_file = File.new_for_uri (index_path);
             if (index_file.query_exists ()) {
                 // We support TimeSeekRange for this content
-                res.dlna_operation |= DLNAOperation.TIMESEEK; 
+                res.dlna_operation |= DLNAOperation.TIMESEEK;
                 // Set the duration according to the last entry in the normal-rate index file
                 res.duration = duration_from_index_file (index_file);
                 debug ( "create_resource_from_resource_dir: duration for "
@@ -351,7 +351,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         // Look for scaled files and set fields accordingly if/when found
         {
             Gee.List<PlaySpeed> playspeeds;
-            
+
             playspeeds = find_playspeeds_for_res (res_dir_uri, basename);
 
             if (playspeeds != null) {
@@ -386,7 +386,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
      */
     void set_resource_field (MediaResource res, string name, string value) throws Error {
         switch (name) {
-            case "profile": 
+            case "profile":
                 res.dlna_profile = value;
                 break;
             case "mime-type":
@@ -536,7 +536,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         debug ("ODIDMediaEngine.find_playspeeds_for_res: %s, %s",
                resource_dir_uri,basename );
         var speeds = new Gee.ArrayList<PlaySpeed> ();
-        
+
         var directory = File.new_for_uri (resource_dir_uri);
         var enumerator = directory.enumerate_children (GLib.FileAttribute.STANDARD_NAME, 0);
 
@@ -566,7 +566,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             throws Error {
         debug ("ODIDDataSource.duration_for_content_file: %s",
                  index_file.get_basename () );
-        
+
         FileInfo index_info = index_file.query_info
                                              (GLib.FileAttribute.STANDARD_SIZE, 0);
         var dis = new DataInputStream (index_file.read ());
@@ -577,7 +577,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         size_t last_entry_offset = (size_t)(index_info.get_size ()-INDEXFILE_ROW_SIZE);
         dis.skip (last_entry_offset);
         string line = dis.read_line (null);
-        
+
         if (line.length != ODIDMediaEngine.INDEXFILE_ROW_SIZE-1) {
             throw new ODIDMediaEngineError.INDEX_FILE_ERROR
                           ("Bad index file entry size (entry at offset %s of %s is %d bytes - should be %d bytes): '%s'",
@@ -618,13 +618,13 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             return null;
         }
 
-        var item = object as MediaItem; 
+        var item = object as MediaItem;
 
         // For MediaItems, uri 0 is the file URI referring directly to the content. But for
         //  us, we're presuming it refers to the ODID base directory (this becomes less squishy
         //  when OdidMediaItem comes on the scene...)
         string source_uri = item.uris.get (0);
-        
+
         debug ("create_data_source_for_resource: source %s, resource %s",
               source_uri, resource.get_name ());
 
@@ -636,10 +636,10 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         }
 
         debug ("create_data_source_for_resource: %s", resource.to_string ());
-        
+
         return new ODIDDataSource (source_uri, resource);
     }
-    
+
     public override DataSource? create_data_source_for_uri (string source_uri) {
         warning ("create_data_source_for_uri not supported");
         return null;

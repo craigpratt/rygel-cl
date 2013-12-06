@@ -96,7 +96,7 @@ public abstract class Rygel.MediaItem : MediaObject {
             return 0;
         }
     }
-    
+
     internal override void apply_didl_lite (DIDLLiteObject didl_object) {
         base.apply_didl_lite (didl_object);
 

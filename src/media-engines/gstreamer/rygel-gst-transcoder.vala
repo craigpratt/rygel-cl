@@ -43,7 +43,7 @@ public abstract class Rygel.GstTranscoder : GLib.Object {
     public string mime_type { get; construct; }
     public string dlna_profile { get; construct; }
     public string extension { get; construct; }
-       
+
     public string preset { get;
                            protected set;
                            default =  DEFAULT_ENCODING_PRESET; }
@@ -81,11 +81,10 @@ public abstract class Rygel.GstTranscoder : GLib.Object {
      */
     public virtual MediaResource? get_resource_for_item (MediaFileItem item) {
         MediaResource res = new MediaResource(this.name);
-               
+
         res.mime_type = this.mime_type;
         res.dlna_profile = this.dlna_profile;
         res.extension = this.extension;
-        
         res.dlna_conversion = DLNAConversion.TRANSCODED;
         res.dlna_flags = DLNAFlags.DLNA_V15
                          | DLNAFlags.STREAMING_TRANSFER_MODE
@@ -98,10 +97,10 @@ public abstract class Rygel.GstTranscoder : GLib.Object {
         if (item is AudioItem) {
             res.duration = (item as AudioItem).duration;
         }
-        
+
         return res;
     }        
-        
+
     /**
      * Gets a numeric value that gives an gives an estimate of how hard
      * it would be for this transcoder to trancode @item to the target profile of 
@@ -114,7 +113,7 @@ public abstract class Rygel.GstTranscoder : GLib.Object {
      *              sense to use this transcoder for @item
      */
     public abstract uint get_distance (MediaFileItem item);
-    
+
     /**
      * Creates a transcoding source.
      *

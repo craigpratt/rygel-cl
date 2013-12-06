@@ -1,10 +1,10 @@
-/* 
+/*
  *  Copyright (C) 2008-2013, Cable Television Laboratories, Inc.
  *
  *  Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  *
  *  This file is part of Rygel.
- * 
+ *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, version 2. This program is distributed
@@ -54,7 +54,7 @@ namespace Dtcpip {
     public static int server_dtcp_close (int session_handle);
     [CCode (cname = "dtcpip_src_close_socket")]
     public static int server_dtcp_close_socket (int session_handle);
-    
+
     //Sink Functions
     [CCode (cname = "dtcpip_snk_init")]
     public static int client_dtcp_init ();
@@ -69,14 +69,14 @@ namespace Dtcpip {
     public static int client_dtcp_close (int session_handle);
 
     // CVP2 functions
-    [CCode (cname = "CVP2_DTCPIP_Init")]    
+    [CCode (cname = "CVP2_DTCPIP_Init")]
     public static int cvp2_dtcp_init(string pCertStorageDir);
-    [CCode (cname = "CVP2_DTCPIP_GetLocalCert")]    
+    [CCode (cname = "CVP2_DTCPIP_GetLocalCert")]
     public static int get_local_cert (uchar *pLocalCert, [CCode (type = "unsigned int")] uint64 *pLocalCertSize);
-    [CCode (cname = "CVP2_DTCPIP_VerifyRemoteCert")]    
+    [CCode (cname = "CVP2_DTCPIP_VerifyRemoteCert")]
     public static int verify_remote_cert(uchar *pRemoteCert, [CCode (type = "unsigned int")] uint64 nRemoteCertSz);
-    [CCode (cname = "CVP2_DTCPIP_SignData")]    
+    [CCode (cname = "CVP2_DTCPIP_SignData")]
     public static int sign_data(uchar *pData,[CCode (type = "unsigned int")] uint64 nDataSz, uchar *pSignature, [CCode (type = "unsigned int")] out uint64 pnSignatureSz);
-    [CCode (cname = "CVP2_DTCPIP_VerifyData")]    
+    [CCode (cname = "CVP2_DTCPIP_VerifyData")]
     public static int verify_data(uchar *pData, [CCode (type = "unsigned int")] uint64 nDataSz, uchar *pSignature, uchar *pRemoteCert);
 }

@@ -39,7 +39,7 @@ internal class Rygel.HTTPThumbnailHandler : Rygel.HTTPGetHandler {
         this.media_item = media_item;
         this.thumbnail_index = thumbnail_index;
         this.cancellable = cancellable;
-        
+
         if (media_item is MusicItem) {
             var music_item = media_item as MusicItem;
             this.thumbnail = music_item.album_art;

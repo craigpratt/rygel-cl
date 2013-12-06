@@ -39,11 +39,11 @@ public static const string PLAYSPEED_HEADER = "PlaySpeed.dlna.org";
  */
 public class Rygel.PlaySpeedRequest : GLib.Object {
     public PlaySpeed speed { get; private set; }
-    
+
     internal static bool requested (HTTPGet request) {
         return request.msg.request_headers.get_one (PLAYSPEED_HEADER) != null;
     }
-    
+
     public PlaySpeedRequest (int numerator, uint denominator) {
         base ();
         this.speed = new PlaySpeed (numerator, denominator);
@@ -63,7 +63,7 @@ public class Rygel.PlaySpeedRequest : GLib.Object {
             throw new PlaySpeedError.SPEED_NOT_PRESENT ("Could not find %s",
                                                         PLAYSPEED_HEADER);
         }
-        
+
         var elements = speed_string.split ("=");
 
         if ((elements.length != 2) || (elements[0] != "speed")) {

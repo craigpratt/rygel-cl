@@ -64,7 +64,7 @@ internal class Rygel.HTTPSubtitleHandler : Rygel.HTTPGetHandler {
         request.msg.response_headers.append ("Content-Type", subtitle.mime_type);
 
         // Add contentFeatures.dlna.org
-        
+
         // This is functionally equivalent to how contentFeatures was formed via the
         //  (deprecated) HTTPIdentityHandler
         MediaResource res = this.media_item.get_resource_list ().get (0);

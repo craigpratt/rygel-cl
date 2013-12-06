@@ -289,7 +289,6 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
         }
 
         KeyFile keyFile = new KeyFile ();
-        
         try {
             keyFile.load_from_file (file.get_path (),
                                    KeyFileFlags.KEEP_COMMENTS |

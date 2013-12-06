@@ -5,12 +5,12 @@ engine_DATA = media-engine-odid.plugin
 
 libdtcpip_la_SOURCES = \
 	dtcpip.h \
-	dtcpip_stub.c 
+	dtcpip_stub.c
 
 librygel_media_engine_odid_la_SOURCES = \
 	odid-media-engine.vala \
 	odid-util.vala \
-	odid-data-source.vala 
+	odid-data-source.vala
 
 librygel_media_engine_odid_la_VALAFLAGS = \
 	$(RYGEL_COMMON_LIBRYGEL_SERVER_VALAFLAGS) \

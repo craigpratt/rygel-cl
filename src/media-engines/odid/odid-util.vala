@@ -5,7 +5,7 @@
  *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
- * 
+ *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -79,7 +79,7 @@ public class Rygel.ODIDUtil : Object {
         //TODO : Handle MPEG_PS content alignment.(DLNA Link Protection 8.9.5.1.1)
         return 0;
     }
-    
+
     /**
      * Returns if the content is protected
      */

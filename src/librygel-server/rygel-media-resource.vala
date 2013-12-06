@@ -156,7 +156,7 @@ public class Rygel.MediaResource : GLib.Object {
             this.dlna_operation = didl_resource.protocol_info.dlna_operation;
         }
     }
-    
+
     public DIDLLiteResource serialize (DIDLLiteResource didl_resource) {
         // Note: For a DIDLLiteResource, a value of -1/null also signals "not set"
         didl_resource.uri = this.uri;
@@ -211,11 +211,11 @@ public class Rygel.MediaResource : GLib.Object {
     public bool supports_arbitrary_time_seek () {
         return is_dlna_operation_mode_set (DLNAOperation.TIMESEEK);
     }
-    
+
     public bool supports_limited_byte_seek () {
         return is_dlna_protocol_flag_set (DLNAFlags.BYTE_BASED_SEEK);
     }
-    
+
     public bool supports_limited_time_seek () {
         return is_dlna_protocol_flag_set (DLNAFlags.TIME_BASED_SEEK);
     }

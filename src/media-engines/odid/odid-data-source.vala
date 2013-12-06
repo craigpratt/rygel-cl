@@ -1,11 +1,11 @@
-/* 
+/*
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  *
  * Author: Craig Pratt <craig@ecaspia.com>
  *         Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  *
  * This file is part of Rygel.
- * 
+ *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -32,7 +32,7 @@
  * Based on Rygel SimpleDataSource
  * Copyright (C) 2012 Intel Corporation.
  */
- 
+
 /**
  * A simple data source for use with the ODID media engine.
  */
@@ -40,7 +40,7 @@ using Dtcpip;
 using GUPnP;
 
 internal class Rygel.ODIDDataSource : DataSource, Object {
-    private string source_uri; 
+    private string source_uri;
     private Thread<void*> thread;
     private string content_uri;
     private Mutex mutex = Mutex ();
@@ -124,8 +124,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         } else {
             debug ("      Content is not protected");
         }
-        
-        // Get the size for the content file 
+
+        // Get the size for the content file
         File content_file = File.new_for_uri (this.content_uri);
         FileInfo content_info = content_file.query_info (GLib.FileAttribute.STANDARD_SIZE, 0);
         int64 total_size = content_info.get_size ();
@@ -171,13 +171,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                               && (!playspeed_request.speed.is_positive ());
 
             // Calculate the effective range of the time seek using the appropriate index file
-            
+
             int64 time_offset_start = time_seek.start_time;
             int64 time_offset_end;
             if (time_seek.end_time == HTTPSeekRequest.UNSPECIFIED) {
                 // For time-seek, the "end" of the time range depends on the direction
                 time_offset_end = is_reverse ? 0 : int64.MAX;
-            } else { 
+            } else {
                 time_offset_end = time_seek.end_time;
             }
 
@@ -189,7 +189,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             debug ("      Total duration is " + total_duration.to_string ());
             debug ("Processing time seek (time %lldns to %lldns)",
                    time_offset_start, time_offset_end);
-            
+
             // Now set the effective time/data range and duration/size for the time range
             offsets_for_time_range (index_path, is_reverse,
                                    ref time_offset_start, ref time_offset_end,
@@ -278,7 +278,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 = new DTCPCleartextByteSeekResponse (this.range_start,
                                                      this.range_end-1,
                                                      total_size);
-            
+
             seek_response.encrypted_length = (int64)
                                              Dtcpip.get_encrypted_length
                                                  (seek_response.range_length,
@@ -316,16 +316,16 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             aligned_end = range_end;
         }
     }
-    
+
     /**
      * Find the time/data offsets that cover the provided time range start_time to end_time.
      *
      * Note: This method will clamp the end time/offset to the duration/total_size if not
      *       present in the index file.
      */
-    internal void offsets_for_time_range (string index_path, bool is_reverse, 
+    internal void offsets_for_time_range (string index_path, bool is_reverse,
                                           ref int64 start_time, ref int64 end_time,
-                                          int64 total_duration, 
+                                          int64 total_duration,
                                           out int64 start_offset, out int64 end_offset,
                                           int64 total_size)
          throws Error {
@@ -457,7 +457,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
         return null;
     }
-    
+
     public void start () throws Error {
         debug ("Starting data source for %s", content_uri);
 
@@ -499,9 +499,9 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         this.mutex.unlock ();
     }
 
-    public void stop () 
+    public void stop ()
     {
-        if (this.stop_thread) 
+        if (this.stop_thread)
         {
             return;
         }
@@ -529,7 +529,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             if (this.range_end == 0) {
                 this.range_end = mapped.get_length ();
             }
-            
+
             debug ("Sending bytes %lld-%lld (%lld bytes) of %s",
                    this.range_start, this.range_end, this.range_end-this.range_start,
                    this.content_uri );

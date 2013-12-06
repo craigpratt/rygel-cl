@@ -225,7 +225,7 @@ public class Rygel.HTTPGet : HTTPRequest {
                 response_elem.add_response_headers (this);
             }
         }
-        
+
         // Determine the size value
         int64 response_size;
         {

@@ -52,13 +52,13 @@ public class Rygel.DTCPCleartextByteSeekRequest : Rygel.HTTPSeekRequest {
      */
     public int64 total_size { get; private set; }
 
-    
+
     public DTCPCleartextByteSeekRequest (HTTPGet request) throws HTTPSeekRequestError,
                                                                  HTTPRequestError {
         base ();
 
         int64 start, end, total_size;
-        
+
         // It's only possible to get the cleartext size from a MediaResource
         //  (and only if it is link protected)
         if (request.handler is HTTPMediaResourceHandler) {
@@ -76,12 +76,12 @@ public class Rygel.DTCPCleartextByteSeekRequest : Rygel.HTTPSeekRequest {
         }
 
         unowned string range = request.msg.request_headers.get_one (DTCP_CLEARTEXT_RANGE_REQUEST_HEADER);
-        
+
         if (range == null) {
             throw new HTTPSeekRequestError.INVALID_RANGE ( "%s request header not present",
                                                            DTCP_CLEARTEXT_RANGE_REQUEST_HEADER );
         }
-        
+
         if (!range.has_prefix ("bytes")) {
             throw new HTTPSeekRequestError.INVALID_RANGE ( "Invalid %s value (missing bytes field): '%s'",
                                                            DTCP_CLEARTEXT_RANGE_REQUEST_HEADER,
@@ -178,7 +178,7 @@ public class Rygel.DTCPCleartextByteSeekResponse : Rygel.HTTPResponseElement {
      * The encrypted length of the response
      */
     public int64 encrypted_length { get; public set;}
-    
+
     public DTCPCleartextByteSeekResponse (int64 start_byte, int64 end_byte, int64 total_size) {
         this.start_byte = start_byte;
         this.end_byte = end_byte;
