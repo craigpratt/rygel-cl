@@ -1,7 +1,9 @@
 /*
  * Copyright (C) 2010 Jens Georg <mail@jensge.org>.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Jens Georg <mail@jensge.org>
+ *         Doug Galligan <doug@sentosatech.com>
  *
  * This file is part of Rygel.
  *
@@ -19,13 +21,6 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Doug Galligan <doug@sentosatech.com>>
- */
 
 using Gee;
 
@@ -37,7 +32,7 @@ using Gee;
  * served again subsequently.
  */
 internal class Rygel.ODID.WritableDbContainer : TrackableDbContainer,
-                                                       Rygel.WritableContainer {
+                                                Rygel.WritableContainer {
     public ArrayList<string> create_classes { get; set; }
 
     public WritableDbContainer (string id, string title) {

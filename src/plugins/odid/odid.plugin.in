@@ -1,7 +1,7 @@
 [Plugin]
 Version = @VERSION@
 Module = odid
-Name = ODID
+Name = ODIDMediaServer
 License = LGPL
 Description = SQLite-based locate file properties sharing
 Copyright = Copyright © Rygel maintainers

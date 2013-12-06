@@ -1,5 +1,9 @@
 /*
  * Copyright (C) 2009 Jens Georg <mail@jensge.org>.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
+ * 
+ * Author: Jens Georg <mail@jensge.org>
+ *         Doug Galligan <doug@sentosatech.com>
  *
  * This file is part of Rygel.
  *
@@ -16,13 +20,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- */
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Doug Galligan <doug@sentosatech.com>>
  */
 
 using GLib;
@@ -291,18 +288,18 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
             this.completed ();
         }
 
-        KeyFile keyFile = new KeyFile();
+        KeyFile keyFile = new KeyFile ();
         
         try {
-            keyFile.load_from_file(file.get_path (),
+            keyFile.load_from_file (file.get_path (),
                                    KeyFileFlags.KEEP_COMMENTS |
                                    KeyFileFlags.KEEP_TRANSLATIONS);
 
             string id = MediaCache.get_id (file.get_uri ());
 
-            MediaItem item = new Rygel.ODID.MediaItem (id, 
-                                                       this.containers.peek_head (),
-                                                       keyFile.get_string ("item", "title"));
+            MediaItem item = new Rygel.ODID.MediaItem
+                                     (id, this.containers.peek_head (),
+                                      keyFile.get_string ("item", "title"));
 
             if (keyFile.has_key ("item", "date"))    {
                 item.date = keyFile.get_string ("item", "date");
@@ -312,7 +309,7 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
                 item.creator = keyFile.get_string ("item", "creator");
             }
 
-            var media_engine = MediaEngine.get_default( );
+            var media_engine = MediaEngine.get_default ( );
 
             // Note: Call async, since it can block for some time
 
@@ -320,10 +317,11 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
 
             media_engine.get_resources_for_item.begin ( item,
                                                         (obj, res) => {
-                var engine_resources = media_engine.get_resources_for_item.end(res);
-                debug( "Received %s resources for %s", ( (engine_resources == null) ? "NO"
-                                                         : engine_resources.size.to_string() ),
-                                                       file.get_uri().to_string() );
+                var engine_resources = media_engine.get_resources_for_item.end (res);
+                debug ( "Received %s resources for %s",
+                        ((engine_resources == null)
+                         ? "NO" : engine_resources.size.to_string () ),
+                        file.get_uri ().to_string () );
                 item.get_resource_list ().add_all (engine_resources);
 
                 if (item != null) {
@@ -341,7 +339,8 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
                 this.do_update ();
             }); 
         } catch (Error error) {
-            warning ("Unable to read item file %s, Message: %s", file.get_path (), error.message);
+            warning ("Unable to read item file %s, Message: %s",
+                     file.get_path (), error.message);
         }
     }
 

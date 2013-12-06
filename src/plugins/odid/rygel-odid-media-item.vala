@@ -1,7 +1,9 @@
 /*
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Jens Georg <jensg@openismus.com>
+ *         Doug Galligan <doug@sentosatech.com>
  *
  * This file is part of Rygel.
  *
@@ -19,20 +21,13 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Doug Galligan <doug@sentosatech.com>>
- */
 
 using GUPnP;
 
 public class Rygel.ODID.MediaItem : Rygel.MediaItem,
-                                             Rygel.UpdatableObject,
-                                             Rygel.ODID.UpdatableObject,
-                                             Rygel.TrackableItem {
+                                    Rygel.UpdatableObject,
+                                    Rygel.ODID.UpdatableObject,
+                                    Rygel.TrackableItem {
     public MediaItem (string         id,
                       MediaContainer parent,
                       string         title,
@@ -67,12 +62,13 @@ public class Rygel.ODID.MediaItem : Rygel.MediaItem,
         return didl_item;
     }
 
-    public override DataSource? create_stream_source_for_resource (HTTPRequest request,
-                                                                   MediaResource resource) {
+    public override DataSource? create_stream_source_for_resource
+                                    (HTTPRequest request, MediaResource resource) {
         if (this.uris.size == 0) {
             return null;
         }
 
-        return MediaEngine.get_default ().create_data_source_for_resource (this, resource);
+        return MediaEngine.get_default ().create_data_source_for_resource
+                                              (this, resource);
     }
 }

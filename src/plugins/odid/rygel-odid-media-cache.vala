@@ -1,8 +1,10 @@
 /*
  * Copyright (C) 2009,2010 Jens Georg <mail@jensge.org>.
  * Copyright (C) 2013 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Jens Georg <mail@jensge.org>
+ *         Doug Galligan <doug@sentosatech.com>
  *
  * This file is part of Rygel.
  *
@@ -20,13 +22,6 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */    
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Doug Galligan <doug@sentosatech.com>>
- */
 
 using Gee;
 using GUPnP;
@@ -1080,7 +1075,7 @@ public class Rygel.ODID.MediaCache : Object {
                 break;
             case SearchCriteriaOp.DERIVED_FROM:
                 if (column == "o.class" &&
-                    exp.operand2.has_prefix("object.container")) {
+                    exp.operand2.has_prefix ("object.container")) {
                     operator = new SqlOperator ("=", "o.type_fk");
                     v = (int) ObjectType.CONTAINER;
                 } else {
@@ -1114,7 +1109,7 @@ public class Rygel.ODID.MediaCache : Object {
 
     private static string translate_sort_criteria (string sort_criteria) {
         string? collate;
-        var builder = new StringBuilder("ORDER BY ");
+        var builder = new StringBuilder ("ORDER BY ");
         var fields = sort_criteria.split (",");
         foreach (unowned string field in fields) {
             try {
