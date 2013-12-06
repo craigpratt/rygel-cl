@@ -127,7 +127,6 @@ public class Rygel.MediaRendererPlugin : Rygel.Plugin {
         v1_hacks.apply_on_device (device, description_path);
     }
 
-
     public string get_protocol_info () {
         var player = this.get_player ();
         if (player == null) {
@@ -155,11 +154,8 @@ public class Rygel.MediaRendererPlugin : Rygel.Plugin {
                     this.sink_protocol_info += protocol + ":*:" + profile.mime + ":DLNA.ORG_PN=" + profile.name;
 
                     // Optional param
-                    if (profile.operations != "")
-                        this.sink_protocol_info += ";DLNA.ORG_OP=" + profile.operations;
-
                     if (profile.flags != "")
-                            this.sink_protocol_info += ";DLNA.ORG_FLAGS=" + profile.flags;
+                        this.sink_protocol_info += ";DLNA.ORG_FLAGS=" + profile.flags;
                 }
             }
         }
