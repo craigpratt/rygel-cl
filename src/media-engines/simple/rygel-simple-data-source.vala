@@ -1,7 +1,9 @@
 /*
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Jens Georg <jensg@openismus.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -18,14 +20,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- */
-
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Craig Pratt <craig@ecaspia.com>
  */
 
 /**
@@ -59,7 +53,7 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
     public Gee.List<HTTPResponseElement> ? preroll (HTTPSeekRequest? seek_request,
                                                     PlaySpeedRequest? playspeed_request)
        throws Error {
-        var response_list = new Gee.ArrayList<HTTPResponseElement>();
+        var response_list = new Gee.ArrayList<HTTPResponseElement> ();
 
         if (seek_request != null) {
             if (!(seek_request is HTTPByteSeekRequest)) {
@@ -70,11 +64,11 @@ internal class Rygel.SimpleDataSource : DataSource, Object {
             var byte_seek = seek_request as HTTPByteSeekRequest;
             this.first_byte = (Posix.off_t) byte_seek.start_byte;
             this.last_byte = (Posix.off_t) (byte_seek.end_byte + 1);
-            debug("Processing byte seek request for bytes %lld-%lld of %s",
+            debug ("Processing byte seek request for bytes %lld-%lld of %s",
                     byte_seek.start_byte, byte_seek.end_byte, this.uri);
-            var seek_response = new HTTPByteSeekResponse.from_request(byte_seek);
+            var seek_response = new HTTPByteSeekResponse.from_request (byte_seek);
             // Response will just return what was in the request
-            response_list.add(seek_response);
+            response_list.add (seek_response);
         } else {
             this.first_byte = 0;
             this.last_byte = 0; // Indicates the entire file

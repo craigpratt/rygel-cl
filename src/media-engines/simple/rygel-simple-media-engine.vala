@@ -1,7 +1,9 @@
 /*
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Jens Georg <jensg@openismus.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -18,14 +20,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- */
-
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Craig Pratt <craig@ecaspia.com>
  */
 
 using GUPnP;
@@ -46,7 +40,8 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
         return this.profiles;
     }
 
-    public override async Gee.List<MediaResource> ? get_resources_for_item (MediaObject object) {
+    public override async Gee.List<MediaResource> ? get_resources_for_item
+                                                        (MediaObject object) {
         if (! (object is MediaFileItem)) {
             warning ("Can only process file-based MediaObjects (MediaFileItems)");
             return null;
@@ -57,10 +52,10 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
         // For MediaFileItems, uri 0 is the file URI referring directly to the content
         string source_uri = item.uris.get (0);
         if (!source_uri.has_prefix ("file://")) {
-            warning("Can't process non-file uri " + source_uri);
+            warning ("Can't process non-file uri " + source_uri);
         }
 
-        debug("get_resources_for_item (%s)", source_uri);
+        debug ("get_resources_for_item (%s)", source_uri);
 
         Gee.List<MediaResource> resources = new Gee.ArrayList<MediaResource> ();
 
@@ -96,7 +91,7 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
         if (!uri.has_prefix ("file://")) {
             return null;
         }
-        debug("creating data source for %s", uri);
+        debug ("creating data source for %s", uri);
         return new SimpleDataSource (uri);
     }
 }
