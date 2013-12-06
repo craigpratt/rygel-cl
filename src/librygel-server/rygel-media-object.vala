@@ -1,8 +1,11 @@
 /*
  * Copyright (C) 2008 Zeeshan Ali <zeenix@gmail.com>.
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Zeeshan Ali <zeenix@gmail.com>
+ *         Doug Galligan <doug@sentosatech.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -19,15 +22,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- */
-
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Doug Galligan <doug@sentosatech.com>
- * Author: Craig Pratt <craig@ecaspia.com>
  */
 
 using GUPnP;
@@ -57,7 +51,8 @@ public abstract class Rygel.MediaObject : GLib.Object {
     // and make the uri property single-value.
     public Gee.ArrayList<string> uris;
 
-    private Gee.List<MediaResource> media_resources = new Gee.LinkedList<MediaResource> ();
+    private Gee.List<MediaResource> media_resources
+                                    = new Gee.LinkedList<MediaResource> ();
 
     // You can keep both an unowned and owned ref to parent of this MediaObject.
     // In most cases, one will only need to keep an unowned ref to avoid cyclic
@@ -209,11 +204,13 @@ public abstract class Rygel.MediaObject : GLib.Object {
     public Gee.List<MediaResource> get_resource_list_for_server (HTTPServer http_server) {
         var new_list = new Gee.ArrayList<MediaResource> ();
         foreach (var src_res in get_resource_list ()) {
-            var new_res = new MediaResource.from_resource (src_res.get_name(), src_res);
+            var new_res = new MediaResource.from_resource (src_res.get_name (),
+                                                           src_res);
             if (new_res.uri == null || new_res.uri == "") {
                 // Any resource without a URI will get a HTTP resource-based URI
                 new_res.uri = http_server.create_uri_for_item
-                                              (this,new_res.extension,-1,-1,new_res.get_name());
+                                              (this,new_res.extension,-1,-1,
+                                               new_res.get_name ());
                 http_server.set_resource_delivery_options (new_res);
                 new_list.add (new_res);
             } else { // URI doesn't refer to our HTTP server
@@ -256,7 +253,7 @@ public abstract class Rygel.MediaObject : GLib.Object {
             if (res.uri == null || res.uri == "") {
                 // Any resource without a URI will get a HTTP resource-based URI
                 res.uri = http_server.create_uri_for_item
-                                        (this, res.extension,-1,-1,res.get_name());
+                                        (this, res.extension,-1,-1,res.get_name ());
                 http_server.set_resource_delivery_options (res);
                 DIDLLiteResource didl_resource = didl_object.add_resource ();
                 res.serialize (didl_resource);
@@ -304,8 +301,8 @@ public abstract class Rygel.MediaObject : GLib.Object {
     /**
      * Create a stream source for the given resource
      */
-    public abstract DataSource? create_stream_source_for_resource (HTTPRequest request,
-                                                                   MediaResource resource);
+    public abstract DataSource? create_stream_source_for_resource
+                                 (HTTPRequest request, MediaResource resource);
 
     internal virtual void apply_didl_lite (DIDLLiteObject didl_object) {
         this.title = didl_object.title;

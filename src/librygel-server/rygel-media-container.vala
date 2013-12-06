@@ -3,9 +3,11 @@
  * Copyright (C) 2010 MediaNet Inh.
  * Copyright (C) 2010 Nokia Corporation.
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Authors: Zeeshan Ali <zeenix@gmail.com>
  *          Sunil Mohan Adapa <sunil@medhas.org>
+ *          Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -22,14 +24,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- */
-
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Craig Pratt <craig@ecaspia.com>
  */
 
 using GUPnP;
@@ -217,7 +211,7 @@ public abstract class Rygel.MediaContainer : MediaObject {
         this.create_mode_enabled = false;
         this.container_updated.connect (on_container_updated);
         this.sub_tree_updates_finished.connect (on_sub_tree_updates_finished);
-        add_playlist_resources();
+        add_playlist_resources ();
     }
 
     /**
@@ -366,7 +360,7 @@ public abstract class Rygel.MediaContainer : MediaObject {
                                                                    MediaResource resource) {
         SerializerType playlist_type;
         
-        switch (resource.get_name()) {
+        switch (resource.get_name ()) {
             case DIDL_S_PLAYLIST_RESNAME:
                 playlist_type = SerializerType.DIDL_S;
                 break;
@@ -374,7 +368,7 @@ public abstract class Rygel.MediaContainer : MediaObject {
                 playlist_type = SerializerType.M3UEXT;
                 break;
             default:
-                warning ("Unknown MediaContainer resource: %s", resource.get_name());
+                warning ("Unknown MediaContainer resource: %s", resource.get_name ());
                 return null;
         }
         return new PlaylistDatasource (playlist_type,

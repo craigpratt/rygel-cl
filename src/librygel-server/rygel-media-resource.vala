@@ -1,6 +1,9 @@
 /* 
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
+ *
+ * Author: Craig Pratt <craig@ecaspia.com>
+ *
+ * This file is part of Rygel.
  *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -22,10 +25,6 @@
  * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Craig Pratt <craig@ecaspia.com>
- *
- * This file is part of Rygel.
  */
 
 using GUPnP;
@@ -246,7 +245,7 @@ public class Rygel.MediaResource : GLib.Object {
     }
 
     public bool supports_transfer_mode (string transfer_mode) {
-        if (!this.is_dlna_content()) {
+        if (!this.is_dlna_content ()) {
             return true;
         }
 
@@ -284,11 +283,11 @@ public class Rygel.MediaResource : GLib.Object {
         return ((this.dlna_operation & flags) != 0);
     }
 
-    public string to_string() {
+    public string to_string () {
         var strbuf = new StringBuilder ();
         strbuf.append (name).append_unichar ('(');
         if (this.size >= 0) {
-            strbuf.append ("size ").append (this.size.to_string())
+            strbuf.append ("size ").append (this.size.to_string ())
                   .append_unichar (',');
         }
         if (this.cleartext_size >= 0) {
