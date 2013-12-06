@@ -1,7 +1,11 @@
 /* 
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
  *
+ * Author: Craig Pratt <craig@ecaspia.com>
+ *         Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
+ *
+ * This file is part of Rygel.
+ * 
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -22,15 +26,11 @@
  * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Craig Pratt <craig@ecaspia.com>
- * Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  */
 
 /*
  * Based on Rygel SimpleDataSource
  * Copyright (C) 2012 Intel Corporation.
- *
  */
  
 /**
@@ -55,36 +55,36 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     private bool content_protected = false;
     private int dtcp_session_handle = -1;
 
-    public ODIDDataSource(string source_uri, MediaResource ? res) {
-        debug ("Creating data source for %s resource %s", source_uri, res.get_name());
+    public ODIDDataSource (string source_uri, MediaResource ? res) {
+        debug ("Creating data source for %s resource %s", source_uri, res.get_name ());
         this.source_uri = source_uri;
         this.res = res;
     }
 
-    ~ODIDDataSource() {
+    ~ODIDDataSource () {
         this.stop ();
-        this.clear_dtcp_session();
+        this.clear_dtcp_session ();
         debug ("Stopped data source");
     }
 
     public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
                                                      PlaySpeedRequest? playspeed_request)
        throws Error {
-        debug("source uri: " + source_uri);
+        debug ("source uri: " + source_uri);
 
-        var response_list = new Gee.ArrayList<HTTPResponseElement>();
+        var response_list = new Gee.ArrayList<HTTPResponseElement> ();
 
         this.seek_request = seek_request;
         this.playspeed_request = playspeed_request;
 
         if (res == null) {
-            throw new DataSourceError.GENERAL("null resource");
+            throw new DataSourceError.GENERAL ("null resource");
         }
 
-        debug("Resource " + res.to_string());
+        debug ("Resource " + res.to_string ());
 
-        KeyFile keyFile = new KeyFile();
-        keyFile.load_from_file(File.new_for_uri (source_uri).get_path (),
+        KeyFile keyFile = new KeyFile ();
+        keyFile.load_from_file (File.new_for_uri (source_uri).get_path (),
                                KeyFileFlags.KEEP_COMMENTS |
                                KeyFileFlags.KEEP_TRANSLATIONS);
 
@@ -94,28 +94,31 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         // The resources are published by this engine according to the resource directory name
         //  i.e. the MediaResource "name" field was set to the directory name when
         //  get_resources() was called
-        string resource_dir = res.get_name();
+        string resource_dir = res.get_name ();
         string resource_path = odid_item_path + resource_dir + "/";
         debug ("  resource directory: %s", resource_dir);
 
-        string basename = get_resource_property(resource_path,"basename");
+        string basename = get_resource_property (resource_path,"basename");
 
         string file_extension;
         string content_filename = ODIDMediaEngine.content_filename_for_res_speed (
-                                                            odid_item_path + resource_dir,
-                                                            basename,
-                                                            (playspeed_request==null)
-                                                              ? null : playspeed_request.speed,
-                                                            out file_extension );
+                                                      odid_item_path + resource_dir,
+                                                      basename,
+                                                      (playspeed_request==null)
+                                                       ? null
+                                                       : playspeed_request.speed,
+                                                      out file_extension );
         this.content_uri = resource_path + content_filename;
         debug ("    content file: %s", content_filename);
 
-        this.content_protected = ( res.dlna_flags & DLNAFlags.LINK_PROTECTED_CONTENT ) != 0;
+        this.content_protected = ( res.dlna_flags
+                                   & DLNAFlags.LINK_PROTECTED_CONTENT ) != 0;
         if (this.content_protected) {
             // Sanity check
-            if (!res.dlna_profile.has_prefix("DTCP_")) {
-                throw new DataSourceError.GENERAL("Request to stream protected content in non-protected profile: "
-                                                  + res.dlna_profile );
+            if (!res.dlna_profile.has_prefix ("DTCP_")) {
+                throw new DataSourceError.GENERAL
+                              ("Request to stream protected content in non-protected profile: "
+                               + res.dlna_profile );
             }
             debug ("      Content is protected");
         } else {
@@ -123,32 +126,34 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         }
         
         // Get the size for the content file 
-        File content_file = File.new_for_uri(this.content_uri);
-        FileInfo content_info = content_file.query_info(GLib.FileAttribute.STANDARD_SIZE, 0);
-        int64 total_size = content_info.get_size();
-        debug ("      Total size is " + total_size.to_string());
+        File content_file = File.new_for_uri (this.content_uri);
+        FileInfo content_info = content_file.query_info (GLib.FileAttribute.STANDARD_SIZE, 0);
+        int64 total_size = content_info.get_size ();
+        debug ("      Total size is " + total_size.to_string ());
 
         // Process PlaySpeed
         if (playspeed_request != null) {
             int framerate = 0;
-            string framerate_for_speed = get_content_property(content_uri, "framerate");
+            string framerate_for_speed = get_content_property
+                                             (content_uri, "framerate");
             if (framerate_for_speed == null) {
                 framerate = PlaySpeedResponse.NO_FRAMERATE;
             } else {
-                framerate = int.parse((framerate_for_speed == null) ? "" : framerate_for_speed);
+                framerate = int.parse ((framerate_for_speed == null)
+                                       ? "" : framerate_for_speed);
                 if (framerate == 0) {
                     framerate = PlaySpeedResponse.NO_FRAMERATE;
                 }
             }
             debug ( "    framerate for speed %s: %s",
-                      playspeed_request.speed.to_string(),
-                      ( (framerate == PlaySpeedResponse.NO_FRAMERATE) ? "None"
-                        : framerate.to_string() ) );
+                    playspeed_request.speed.to_string (),
+                    ( (framerate == PlaySpeedResponse.NO_FRAMERATE) ? "None"
+                      : framerate.to_string () ) );
             var speed_response
-                 = new PlaySpeedResponse.from_speed( playspeed_request.speed,
+                 = new PlaySpeedResponse.from_speed ( playspeed_request.speed,
                                                      (framerate > 0) ? framerate
                                                      : PlaySpeedResponse.NO_FRAMERATE );
-            response_list.add(speed_response);
+            response_list.add (speed_response);
         }
 
         bool perform_cleartext_response;
@@ -176,38 +181,44 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 time_offset_end = time_seek.end_time;
             }
 
-            string index_path = resource_path + "/" + content_filename + ".index";
-            int64 total_duration = (time_seek.total_duration != HTTPSeekRequest.UNSPECIFIED)
-                                   ? time_seek.total_duration
-                                   : int64.MAX;
-            debug ("      Total duration is " + total_duration.to_string());
-            debug ("Processing time seek (time %lldns to %lldns)", time_offset_start, time_offset_end);
+            string index_path = resource_path + "/"
+                                + content_filename + ".index";
+            int64 total_duration = (time_seek.total_duration
+                                    != HTTPSeekRequest.UNSPECIFIED)
+                                   ? time_seek.total_duration : int64.MAX;
+            debug ("      Total duration is " + total_duration.to_string ());
+            debug ("Processing time seek (time %lldns to %lldns)",
+                   time_offset_start, time_offset_end);
             
             // Now set the effective time/data range and duration/size for the time range
-            offsets_for_time_range(index_path, is_reverse,
-                                   ref time_offset_start, ref time_offset_end, total_duration,
-                                   out this.range_start, out this.range_end, total_size );
+            offsets_for_time_range (index_path, is_reverse,
+                                   ref time_offset_start, ref time_offset_end,
+                                   total_duration,
+                                   out this.range_start, out this.range_end,
+                                   total_size );
 
             if (this.content_protected) {
                 // We don't currently support Range on link-protected binaries. So leave out
                 //  the byte range from the TimeSeekRange response
                 var seek_response
-                    = new HTTPTimeSeekResponse.time_only( time_offset_start, time_offset_end,
+                    = new HTTPTimeSeekResponse.time_only (time_offset_start,
+                                                          time_offset_end,
                                                           total_duration );
                 debug ("Time range for time seek: %lldms through %lldms",
                          seek_response.start_time, seek_response.end_time);
-                response_list.add(seek_response);
+                response_list.add (seek_response);
                 perform_cleartext_response = true; // We'll packet-align the range below
             } else { // No link protection
-                var seek_response = new HTTPTimeSeekResponse( time_offset_start, time_offset_end,
-                                                              total_duration,
-                                                              this.range_start, this.range_end-1,
-                                                              total_size );
+                var seek_response = new HTTPTimeSeekResponse
+                                            (time_offset_start, time_offset_end,
+                                             total_duration,
+                                             this.range_start, this.range_end-1,
+                                             total_size);
                 debug ("Time range for time seek response: %lldms through %lldms",
-                         seek_response.start_time, seek_response.end_time);
+                       seek_response.start_time, seek_response.end_time);
                 debug ("Byte range for time seek response: bytes %lld through %lld",
-                         seek_response.start_byte, seek_response.end_byte );
-                response_list.add(seek_response);
+                       seek_response.start_byte, seek_response.end_byte );
+                response_list.add (seek_response);
                 perform_cleartext_response = false;
             }
         } else if (seek_request is HTTPByteSeekRequest) {
@@ -215,62 +226,66 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             // Byte-based seek (only for non-protected content currently)
             //
             if (this.content_protected) { // Sanity check
-                throw new DataSourceError.GENERAL("Byte seek not supported on protected content");
+                throw new DataSourceError.GENERAL
+                              ("Byte seek not supported on protected content");
             }
             var byte_seek = seek_request as HTTPByteSeekRequest;
             debug ("Processing byte seek (bytes %lld to %s)", byte_seek.start_byte,
-                     (byte_seek.end_byte == HTTPSeekRequest.UNSPECIFIED)
-                     ? "*" : byte_seek.end_byte.to_string() );
+                   (byte_seek.end_byte == HTTPSeekRequest.UNSPECIFIED)
+                   ? "*" : byte_seek.end_byte.to_string () );
             this.range_start = byte_seek.start_byte;
             if (byte_seek.end_byte == HTTPSeekRequest.UNSPECIFIED) {
                 this.range_end = total_size;
             } else {
-                this.range_end = int64.min(byte_seek.end_byte + 1, total_size);
+                this.range_end = int64.min (byte_seek.end_byte + 1, total_size);
             }
-            var seek_response = new HTTPByteSeekResponse( this.range_start, this.range_end-1,
+            var seek_response = new HTTPByteSeekResponse (this.range_start,
+                                                          this.range_end-1,
                                                           total_size);
             debug ("Byte range for byte seek response: bytes %lld through %lld",
-                     seek_response.start_byte, seek_response.end_byte );
-            response_list.add(seek_response);
+                   seek_response.start_byte, seek_response.end_byte );
+            response_list.add (seek_response);
             perform_cleartext_response = false;
         } else if (seek_request is DTCPCleartextByteSeekRequest) {
             //
             // Cleartext-based seek (only for link-protected content)
             //
             if (!this.content_protected) { // Sanity check
-                throw new DataSourceError.GENERAL("Cleartext seek not supported on unprotected content");
+                throw new DataSourceError.GENERAL ("Cleartext seek not supported on unprotected content");
             }
             var cleartext_seek = seek_request as DTCPCleartextByteSeekRequest;
             debug ( "Processing cleartext byte seek (bytes %lld to %s)",
                       cleartext_seek.start_byte,
                       (cleartext_seek.end_byte == HTTPSeekRequest.UNSPECIFIED)
-                      ? "*" : cleartext_seek.end_byte.to_string() );
+                      ? "*" : cleartext_seek.end_byte.to_string () );
             this.range_start = cleartext_seek.start_byte;
             if (cleartext_seek.end_byte == HTTPSeekRequest.UNSPECIFIED) {
                 this.range_end = total_size;
             } else {
-                this.range_end = int64.min(cleartext_seek.end_byte + 1, total_size);
+                this.range_end = int64.min (cleartext_seek.end_byte + 1, total_size);
             }
             perform_cleartext_response = true; // We'll packet-align the range below
         } else {
-            throw new DataSourceError.SEEK_FAILED("Unsupported seek type");
+            throw new DataSourceError.SEEK_FAILED ("Unsupported seek type");
         }
 
         if (perform_cleartext_response) {
             // The range needs to be packet-aligned, which can affect range returned
-            get_packet_aligned_range( res, this.range_start, this.range_end,
+            get_packet_aligned_range ( res, this.range_start, this.range_end,
                                       total_size,
                                       out this.range_start, out this.range_end );
             var seek_response
-                = new DTCPCleartextByteSeekResponse(this.range_start,this.range_end-1,total_size);
+                = new DTCPCleartextByteSeekResponse (this.range_start,
+                                                     this.range_end-1,
+                                                     total_size);
             
-            seek_response.encrypted_length = 
-                               (int64)Dtcpip.get_encrypted_length( seek_response.range_length,
-                                                                     ODIDMediaEngine.chunk_size);
-            
-            response_list.add(seek_response);
+            seek_response.encrypted_length = (int64)
+                                             Dtcpip.get_encrypted_length
+                                                 (seek_response.range_length,
+                                                  ODIDMediaEngine.chunk_size);
+            response_list.add (seek_response);
             debug ("Byte range for cleartext byte seek response: bytes %lld through %lld",
-                     seek_response.start_byte, seek_response.end_byte );
+                   seek_response.start_byte, seek_response.end_byte );
         }
 
         return response_list;
@@ -280,20 +295,24 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     /**
      * Note: range_end and aligned_end are non-inclusive
      */
-    internal void get_packet_aligned_range ( MediaResource res,
-                                             int64 range_start, int64 range_end, int64 total_size,
-                                             out int64 aligned_start, out int64 aligned_end ) {
+    internal void get_packet_aligned_range (MediaResource res,
+                                            int64 range_start, int64 range_end,
+                                            int64 total_size,
+                                            out int64 aligned_start,
+                                            out int64 aligned_end) {
         //Get the transport stream packet size for the profile
         string profile_name = res.dlna_profile;
         // Align the bytes to transport packet boundaries
-        int64 packet_size = ODIDUtil.get_profile_packet_size(profile_name);
+        int64 packet_size = ODIDUtil.get_profile_packet_size (profile_name);
         aligned_start = range_start;
         if (packet_size > 0) {
             // DLNA Link Protection : 8.9.5.4.2
-            aligned_end = ODIDUtil.get_dtcp_aligned_end(range_start, range_end, packet_size);
-            aligned_end = int64.min(aligned_end, total_size);
+            aligned_end = ODIDUtil.get_dtcp_aligned_end (range_start, range_end,
+                                                         packet_size);
+            aligned_end = int64.min (aligned_end, total_size);
         } else {
-            warning("Attemped to DTCP-align unsupported protocol: " + profile_name);
+            warning ("Attemped to DTCP-align unsupported protocol: "
+                     + profile_name);
             aligned_end = range_end;
         }
     }
@@ -304,17 +323,20 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
      * Note: This method will clamp the end time/offset to the duration/total_size if not
      *       present in the index file.
      */
-    internal void offsets_for_time_range(string index_path, bool is_reverse, 
-                                         ref int64 start_time, ref int64 end_time, int64 total_duration, 
-                                         out int64 start_offset, out int64 end_offset, int64 total_size)
+    internal void offsets_for_time_range (string index_path, bool is_reverse, 
+                                          ref int64 start_time, ref int64 end_time,
+                                          int64 total_duration, 
+                                          out int64 start_offset, out int64 end_offset,
+                                          int64 total_size)
          throws Error {
         debug ("offsets_for_time_range: %s, %lld-%s",
-                 index_path,start_time, ((end_time != int64.MAX) ? end_time.to_string() : "*") );
+               index_path, start_time,
+               ((end_time != int64.MAX) ? end_time.to_string () : "*") );
         bool start_offset_found = false;
         bool end_offset_found = false;
 
-        var file = File.new_for_uri(index_path);
-        var dis = new DataInputStream(file.read());
+        var file = File.new_for_uri (index_path);
+        var dis = new DataInputStream (file.read ());
         string line;
         int64 cur_time_offset = 0;
         string cur_data_offset = null;
@@ -335,17 +357,20 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             // v v v            v                   v
             // V F 00000000.000 0000000000000000000 0000000000<16 spaces><newline>
             if (line.length != ODIDMediaEngine.INDEXFILE_ROW_SIZE-1) {
-                throw new ODIDMediaEngineError.INDEX_FILE_ERROR(
+                throw new ODIDMediaEngineError.INDEX_FILE_ERROR (
                               "Bad index file entry size (line %lld of %s is %d bytes - should be %d bytes): '%s'",
                               line_count, index_path, line.length,
                               ODIDMediaEngine.INDEXFILE_ROW_SIZE, line);
             }
-            var index_fields = line.split(" "); // Could use fixed field positions here...
+            var index_fields = line.split (" "); // Could use fixed field positions here...
             if ((index_fields[0][0] == 'V') && (index_fields[1][0] == 'I')) {
                 string time_offset_string = index_fields[2];
-                string extended_time_string = time_offset_string[0:7]+time_offset_string[8:11]+"000";
+                string extended_time_string = time_offset_string[0:7]
+                                              + time_offset_string[8:11]
+                                              + "000";
                 // Leading "0"s cause parse() to assume the value is octal (see Vala bug 656691)
-                cur_time_offset = int64.parse(strip_leading_zeros(extended_time_string));
+                cur_time_offset = int64.parse (strip_leading_zeros
+                                                   (extended_time_string));
                 cur_data_offset = index_fields[3]; // Convert this only when needed
                 // debug ("offsets_for_time_range: keyframe at %s (%s) has offset %s",
                 //       extended_time_string, cur_time_offset.to_string(), cur_data_offset);
@@ -353,19 +378,23 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                     if ( (is_reverse && (cur_time_offset < start_time))
                          || (!is_reverse && (cur_time_offset > start_time)) ) {
                         start_time = last_time_offset;
-                        start_offset = int64.parse(strip_leading_zeros(last_data_offset));
+                        start_offset = int64.parse (strip_leading_zeros
+                                                        (last_data_offset));
                         start_offset_found = true;
                         debug ("offsets_for_time_range: found start of range (%s): time %lld, offset %lld",
-                                 (is_reverse ? "reverse" : "forward"), start_time, start_offset);
+                               (is_reverse ? "reverse" : "forward"),
+                               start_time, start_offset);
                     }
                 } else {
                     if ( (is_reverse && (cur_time_offset < end_time))
                          || (!is_reverse && (cur_time_offset > end_time)) ) {
                         end_time = cur_time_offset;
-                        end_offset = int64.parse(strip_leading_zeros(cur_data_offset));
+                        end_offset = int64.parse (strip_leading_zeros
+                                                      (cur_data_offset));
                         end_offset_found = true;
                         debug ("offsets_for_time_range: found end of range (%s): time %lld, offset %lld",
-                                 (is_reverse ? "reverse" : "forward"), end_time, end_offset);
+                               (is_reverse ? "reverse" : "forward"),
+                               end_time, end_offset);
                         break;
                     }
                 }
@@ -375,7 +404,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         }
 
         if (!start_offset_found) {
-            throw new DataSourceError.SEEK_FAILED("Start time %lld is out of index file range",
+            throw new DataSourceError.SEEK_FAILED ("Start time %lld is out of index file range",
                                                   start_time);
         }
 
@@ -389,36 +418,39 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 end_time = total_duration;
             }
             debug ("offsets_for_time_range: end of range beyond index range (%s): time %lld, offset %lld",
-                     (is_reverse ? "reverse" : "forward"), end_time, end_offset);
+                   (is_reverse ? "reverse" : "forward"), end_time, end_offset);
         }
     }
 
-    internal static string strip_leading_zeros(string number_string) {
-        return ODIDMediaEngine.strip_leading_zeros(number_string);
+    internal static string strip_leading_zeros (string number_string) {
+        return ODIDMediaEngine.strip_leading_zeros (number_string);
     }
 
-    internal string ? get_resource_property(string odid_resource_uri, string property_name)
+    internal string ? get_resource_property (string odid_resource_uri,
+                                             string property_name)
          throws Error {
-        return get_property_from_file(odid_resource_uri + "resource.info", property_name);
+        return get_property_from_file (odid_resource_uri + "resource.info",
+                                       property_name);
     }
 
-    internal string ? get_content_property(string odid_content_uri, string property_name)
+    internal string ? get_content_property (string odid_content_uri,
+                                            string property_name)
          throws Error {
-        return get_property_from_file(odid_content_uri + ".info", property_name);
+        return get_property_from_file (odid_content_uri + ".info", property_name);
     }
 
-    internal string ? get_property_from_file(string uri, string property_name)
+    internal string ? get_property_from_file (string uri, string property_name)
          throws Error {
-        var file = File.new_for_uri(uri);
-        var dis = new DataInputStream(file.read());
+        var file = File.new_for_uri (uri);
+        var dis = new DataInputStream (file.read ());
         string line;
         // Read lines until end of file (null) is reached
-        while ((line = dis.read_line(null)) != null) {
+        while ((line = dis.read_line (null)) != null) {
             if (line[0] == '#') continue;
-            var equals_pos = line.index_of("=");
-            var name = line[0:equals_pos].strip();
+            var equals_pos = line.index_of ("=");
+            var name = line[0:equals_pos].strip ();
             if (name == property_name) {
-                var value = line[equals_pos+1:line.length].strip();
+                var value = line[equals_pos+1:line.length].strip ();
                 return ((value.length == 0) ? null : value);
             }
         }
@@ -434,7 +466,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
             if (dtcp_session_handle == -1) {
                 warning ("DTCP-IP session not opened");
-                throw new DataSourceError.GENERAL("Error starting DTCP session");
+                throw new DataSourceError.GENERAL ("Error starting DTCP session");
             } else {
                 debug ("Entering DTCP-IP streaming mode (session handle 0x%X)",
                          dtcp_session_handle);
@@ -442,7 +474,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         }
 
         // TODO: Change this to use a persistent thread or thread pool...
-        this.thread = new Thread<void*>("ODIDDataSource Serving thread",
+        this.thread = new Thread<void*> ("ODIDDataSource Serving thread",
                                          this.thread_func);
     }
 
@@ -451,56 +483,56 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             return;
         }
 
-        this.mutex.lock();
+        this.mutex.lock ();
         this.frozen = true;
         this.mutex.unlock ();
     }
 
-    public void thaw() {
+    public void thaw () {
         if (!this.frozen) {
             return;
         }
 
-        this.mutex.lock();
+        this.mutex.lock ();
         this.frozen = false;
-        this.cond.broadcast();
-        this.mutex.unlock();
+        this.cond.broadcast ();
+        this.mutex.unlock ();
     }
 
-    public void stop() 
+    public void stop () 
     {
         if (this.stop_thread) 
         {
             return;
         }
 
-        this.mutex.lock();
+        this.mutex.lock ();
         this.frozen = false;
         this.stop_thread = true;
-        this.cond.broadcast();
-        this.mutex.unlock();
+        this.cond.broadcast ();
+        this.mutex.unlock ();
     }
 
-    public void clear_dtcp_session() {
+    public void clear_dtcp_session () {
         if (dtcp_session_handle != -1) {
             int ret_close = Dtcpip.server_dtcp_close (dtcp_session_handle);
             debug ("Dtcp session closed : %d",ret_close);
             dtcp_session_handle = -1;
         }
     }
-    private void* thread_func() {
+    private void* thread_func () {
         var file = File.new_for_uri (this.content_uri);
         debug ("Spawned new thread for streaming %s", this.content_uri);
         try {
-            var mapped = new MappedFile(file.get_path (), false);
+            var mapped = new MappedFile (file.get_path (), false);
 
             if (this.range_end == 0) {
-                this.range_end = mapped.get_length();
+                this.range_end = mapped.get_length ();
             }
             
-            debug ( "Sending bytes %lld-%lld (%lld bytes) of %s",
-                      this.range_start, this.range_end, this.range_end-this.range_start,
-                      this.content_uri );
+            debug ("Sending bytes %lld-%lld (%lld bytes) of %s",
+                   this.range_start, this.range_end, this.range_end-this.range_start,
+                   this.content_uri );
 
             while (true) {
                 bool exit;
@@ -547,11 +579,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                     uchar cci = 0x3; // TODO: Put the CCI bits in resource.info
 
                     // Encrypt the data
-                    int return_value = Dtcpip.server_dtcp_encrypt ( dtcp_session_handle, cci,
-                                                                    slice, out encrypted_data );
+                    int return_value = Dtcpip.server_dtcp_encrypt
+                                           ( dtcp_session_handle, cci,
+                                             slice, out encrypted_data );
                     debug ("Encryption returned: %d and the encryption size : %s",
                            return_value,
-                           (encrypted_data == null) ? "NULL" : encrypted_data.length.to_string() );
+                           (encrypted_data == null)
+                            ? "NULL" : encrypted_data.length.to_string ());
                     // There's a potential race condition here.
                     Idle.add ( () => {
                         if (!this.stop_thread) {

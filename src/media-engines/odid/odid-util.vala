@@ -1,7 +1,11 @@
 /*
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
  *
+ * Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
+ *         Craig Pratt <craig@ecaspia.com>
+ *
+ * This file is part of Rygel.
+ * 
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -22,10 +26,7 @@
  * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  */
-
 
 public class Rygel.ODIDUtil : Object {
     private static ODIDUtil util = null;
@@ -34,13 +35,12 @@ public class Rygel.ODIDUtil : Object {
 
     public const int64 KILOBYTES_TO_BYTES = 1024;
 
-    private ODIDUtil() {
-
+    private ODIDUtil () {
     }
 
-    public static ODIDUtil get_default() {
+    public static ODIDUtil get_default () {
         if (util == null) {
-            util = new ODIDUtil();
+            util = new ODIDUtil ();
         }
 
         return util;
