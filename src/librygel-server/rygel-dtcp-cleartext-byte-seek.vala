@@ -1,6 +1,9 @@
 /* 
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
+ *
+ * Author: Craig Pratt <craig@ecaspia.com>
+ *
+ * This file is part of Rygel.
  *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -22,10 +25,6 @@
  * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Craig Pratt <craig@ecaspia.com>
- *
- * This file is part of Rygel.
  */
 
 using GUPnP;
@@ -96,7 +95,7 @@ public class Rygel.DTCPCleartextByteSeekRequest : Rygel.HTTPSeekRequest {
                                                            range );
         }
 
-        if (!int64.try_parse(range_tokens[0], out start) || (start < 0)) {
+        if (!int64.try_parse (range_tokens[0], out start) || (start < 0)) {
             throw new HTTPSeekRequestError.INVALID_RANGE ( "Invalid %s range start: '%s'",
                                                            DTCP_CLEARTEXT_RANGE_REQUEST_HEADER,
                                                            range );
@@ -107,7 +106,7 @@ public class Rygel.DTCPCleartextByteSeekRequest : Rygel.HTTPSeekRequest {
         if (range_tokens[1].length == 0) {
             end = UNSPECIFIED;
         } else {
-            if (!int64.try_parse(range_tokens[1], out end) || (end <= 0)) {
+            if (!int64.try_parse (range_tokens[1], out end) || (end <= 0)) {
                 throw new HTTPSeekRequestError.INVALID_RANGE ( "Invalid %s range end: '%s'",
                                                                DTCP_CLEARTEXT_RANGE_REQUEST_HEADER,
                                                                range );
@@ -144,7 +143,7 @@ public class Rygel.DTCPCleartextByteSeekRequest : Rygel.HTTPSeekRequest {
     public static bool supported (HTTPGet request) {
         return (request.handler is HTTPMediaResourceHandler)
                && (request.handler as HTTPMediaResourceHandler)
-                  .media_resource.is_cleartext_range_support_enabled();
+                  .media_resource.is_cleartext_range_support_enabled ();
     }
 
     public static bool requested (HTTPGet request) {
@@ -180,7 +179,7 @@ public class Rygel.DTCPCleartextByteSeekResponse : Rygel.HTTPResponseElement {
      */
     public int64 encrypted_length { get; public set;}
     
-    public DTCPCleartextByteSeekResponse(int64 start_byte, int64 end_byte, int64 total_size) {
+    public DTCPCleartextByteSeekResponse (int64 start_byte, int64 end_byte, int64 total_size) {
         this.start_byte = start_byte;
         this.end_byte = end_byte;
         this.range_length = end_byte - start_byte + 1; // +1, since range is inclusive
@@ -188,7 +187,7 @@ public class Rygel.DTCPCleartextByteSeekResponse : Rygel.HTTPResponseElement {
         this.encrypted_length = UNSPECIFIED;
     }
 
-    public DTCPCleartextByteSeekResponse.from_request(DTCPCleartextByteSeekRequest request) {
+    public DTCPCleartextByteSeekResponse.from_request (DTCPCleartextByteSeekRequest request) {
         this.start_byte = request.start_byte;
         this.end_byte = request.end_byte;
         this.range_length = request.range_length;
@@ -199,10 +198,10 @@ public class Rygel.DTCPCleartextByteSeekResponse : Rygel.HTTPResponseElement {
     public override void add_response_headers (Rygel.HTTPRequest request) {
         // Content-Range.dtcp.com: bytes START_BYTE-END_BYTE/TOTAL_LENGTH (or "*")
         if (this.start_byte != UNSPECIFIED) {
-            string response = "bytes " + this.start_byte.to_string()
-                              + "-" + this.end_byte.to_string() + "/"
+            string response = "bytes " + this.start_byte.to_string ()
+                              + "-" + this.end_byte.to_string () + "/"
                               + ( (this.total_size == UNSPECIFIED) ? "*"
-                                  : this.total_size.to_string() );
+                                  : this.total_size.to_string () );
 
             request.msg.response_headers.append (DTCP_CLEARTEXT_RANGE_RESPONSE_HEADER, response);
         }

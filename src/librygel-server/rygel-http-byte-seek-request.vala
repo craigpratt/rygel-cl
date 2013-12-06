@@ -110,7 +110,7 @@ public class Rygel.HTTPByteSeekRequest : Rygel.HTTPSeekRequest {
             force_seek = hack.force_seek ();
         } catch (Error error) { }
 
-        return force_seek || request.handler.supports_byte_seek();
+        return force_seek || request.handler.supports_byte_seek ();
     }
 
     public static bool requested (HTTPGet request) {

@@ -1,6 +1,5 @@
 /* 
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
  *
  * Author: Craig Pratt <craig@ecaspia.com>
  *
@@ -61,7 +60,8 @@ public class Rygel.PlaySpeedRequest : GLib.Object {
         string speed_string = request.msg.request_headers.get_one (PLAYSPEED_HEADER);
 
         if (speed_string == null) {
-            throw new PlaySpeedError.SPEED_NOT_PRESENT ("Could not find " + PLAYSPEED_HEADER);
+            throw new PlaySpeedError.SPEED_NOT_PRESENT ("Could not find %s",
+                                                        PLAYSPEED_HEADER);
         }
         
         var elements = speed_string.split ("=");
@@ -91,7 +91,8 @@ public class Rygel.PlaySpeedRequest : GLib.Object {
                 }
                 if (!found_speed) {
                     throw new PlaySpeedError
-                              .SPEED_NOT_PRESENT ("Unknown playspeed requested (%s)", speed_string );
+                              .SPEED_NOT_PRESENT ("Unknown playspeed requested (%s)",
+                                                  speed_string);
                 }
             }
         }

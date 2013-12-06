@@ -2,11 +2,14 @@
  * Copyright (C) 2008-2010 Nokia Corporation.
  * Copyright (C) 2006, 2007, 2008 OpenedHand Ltd.
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jorn Baayen <jorn.baayen@gmail.com>
  *         Jens Georg <jensg@openismus.com>
+ *         Craig Pratt <craig@ecaspia.com>
+ *         Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  *
  * This file is part of Rygel.
  *
@@ -23,15 +26,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- */
-
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Craig Pratt <craig@ecaspia.com>
- * Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  */
 
 /**
@@ -82,7 +76,7 @@ public class Rygel.HTTPGet : HTTPRequest {
                                                     this.cancellable);
         } else {
             throw new HTTPRequestError.NOT_FOUND ("No handler found for '%s'",
-                                                  uri.to_string());
+                                                  uri.to_string ());
         }
 
         { // Check the transfer mode
@@ -94,7 +88,7 @@ public class Rygel.HTTPGet : HTTPRequest {
 
             if (! this.handler.supports_transfer_mode (transfer_mode)) {
                 throw new HTTPRequestError.UNACCEPTABLE ("%s transfer mode not supported for '%s'",
-                                                        transfer_mode, uri.to_string());
+                                                        transfer_mode, uri.to_string ());
             }
         }
 
@@ -127,22 +121,22 @@ public class Rygel.HTTPGet : HTTPRequest {
         if (requested_cleartext_seek) {
             if (!supports_cleartext_seek) {
                 throw new HTTPRequestError.UNACCEPTABLE ( "Cleartext seek not supported for "
-                                                          + this.uri.to_string() );
+                                                          + this.uri.to_string () );
             }
             if (requested_byte_seek) {
                     // Per DLNA Link Protection 7.6.4.3.3.9
                     throw new HTTPRequestError.UNACCEPTABLE ( "Both Cleartext and Range seek requested "
-                                                              + this.uri.to_string());
+                                                              + this.uri.to_string ());
             }
         } else if (requested_byte_seek) {
             if (!supports_byte_seek) {
                 throw new HTTPRequestError.UNACCEPTABLE ( "Byte seek not supported for "
-                                                          + this.uri.to_string() );
+                                                          + this.uri.to_string () );
             }
         } else if (requested_time_seek) {
             if (!supports_time_seek) {
                 throw new HTTPRequestError.UNACCEPTABLE ( "Time seek not supported for "
-                                                          + this.uri.to_string() );
+                                                          + this.uri.to_string () );
             }
         }
 
@@ -153,10 +147,10 @@ public class Rygel.HTTPGet : HTTPRequest {
         //       the time-seek request
         try {
             if ( !(requested_byte_seek || requested_cleartext_seek)
-                 && PlaySpeedRequest.requested(this) ) {
-                this.speed_request = new PlaySpeedRequest.from_request(this);
-                debug("Processing playspeed %s", speed_request.speed.to_string());
-                if (this.speed_request.speed.is_normal_rate()) {
+                 && PlaySpeedRequest.requested (this) ) {
+                this.speed_request = new PlaySpeedRequest.from_request (this);
+                debug ("Processing playspeed %s", speed_request.speed.to_string ());
+                if (this.speed_request.speed.is_normal_rate ()) {
                     // This is not a scaled-rate request. Treat it as if it wasn't even there
                     this.speed_request = null;
                 }
@@ -174,7 +168,7 @@ public class Rygel.HTTPGet : HTTPRequest {
             } else {
                 throw error;
             }
-            debug("Error processing PlaySpeed: %s", error.message);
+            debug ("Error processing PlaySpeed: %s", error.message);
             return;
         }
 
@@ -201,7 +195,7 @@ public class Rygel.HTTPGet : HTTPRequest {
                 this.seek = null;
             }
         } catch (HTTPSeekRequestError error) {
-            warning("Caught HTTPSeekRequestError: " + error.message);
+            warning ("Caught HTTPSeekRequestError: " + error.message);
             this.server.unpause_message (this.msg);
 
             if (error is HTTPSeekRequestError.INVALID_RANGE) {
@@ -223,12 +217,12 @@ public class Rygel.HTTPGet : HTTPRequest {
         HTTPResponse response = this.handler.render_body (this);
 
         // Have the response process the seek/speed request
-        var responses = response.preroll();
+        var responses = response.preroll ();
 
         // Incorporate the prerolled responses
         if (responses != null) {
             foreach (var response_elem in responses) {
-                response_elem.add_response_headers(this);
+                response_elem.add_response_headers (this);
             }
         }
         
@@ -251,7 +245,8 @@ public class Rygel.HTTPGet : HTTPRequest {
         {
             Soup.Encoding response_body_encoding;
             // See DLNA 7.5.4.3.2.15 for requirements
-            if ( (this.speed_request != null) && (this.msg.get_http_version() != Soup.HTTPVersion.@1_0) ) {
+            if ((this.speed_request != null)
+                && (this.msg.get_http_version () != Soup.HTTPVersion.@1_0) ) {
                 // We'll want the option to insert PlaySpeed position information
                 //  whether or not we know the length (see DLNA 7.5.4.3.3.17)
                 response_body_encoding = Soup.Encoding.CHUNKED;
@@ -259,7 +254,7 @@ public class Rygel.HTTPGet : HTTPRequest {
                 // TODO: Incorporate ChunkEncodingMode.dlna.org request into this block
                 response_body_encoding = Soup.Encoding.CONTENT_LENGTH;
             } else { // Response size is 0
-                if (this.msg.get_http_version() == Soup.HTTPVersion.@1_0) {
+                if (this.msg.get_http_version () == Soup.HTTPVersion.@1_0) {
                     // Can't send the length and can't send chunked (in HTTP 1.0)...
                     response_body_encoding = Soup.Encoding.EOF;
                 } else {

@@ -1,6 +1,9 @@
 /* 
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
+ *
+ * Author: Craig Pratt <craig@ecaspia.com>
+ *
+ * This file is part of Rygel.
  *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -22,10 +25,6 @@
  * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Craig Pratt <craig@ecaspia.com>
- *
- * This file is part of Rygel.
  */
 
 using GUPnP;
@@ -46,13 +45,15 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
         this.cancellable = cancellable;
         this.media_resource_name = media_resource_name;
         foreach (var resource in media_object.get_resource_list ()) {
-            if (resource.get_name() == media_resource_name) {
-                this.media_resource = new MediaResource.from_resource (resource.get_name (),
-                                                                       resource);
+            if (resource.get_name () == media_resource_name) {
+                this.media_resource
+                    = new MediaResource.from_resource (resource.get_name (),
+                                                       resource);
             }
         }
         if (this.media_resource == null) {
-            throw new HTTPRequestError.NOT_FOUND ("MediaResource %s not found", media_resource_name);
+            throw new HTTPRequestError.NOT_FOUND ("MediaResource %s not found",
+                                                  media_resource_name);
         }
     }
 
@@ -60,7 +61,8 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
                                                throws HTTPRequestError {
         request.http_server.set_resource_delivery_options (media_resource);
 
-        request.msg.response_headers.append ("Content-Type", this.media_resource.mime_type);
+        request.msg.response_headers.append ("Content-Type",
+                                             this.media_resource.mime_type);
         // Determine cache control
         if (media_resource.is_link_protection_enabled ()) {
             if (request.msg.get_http_version () == Soup.HTTPVersion.@1_1) {
@@ -74,7 +76,8 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
         if (protocol_info != null) {
             var pi_fields = protocol_info.to_string ().split (":", 4);
             if (pi_fields[3] != null) {
-                request.msg.response_headers.append ("contentFeatures.dlna.org", pi_fields[3]);
+                request.msg.response_headers.append ("contentFeatures.dlna.org",
+                                                     pi_fields[3]);
             }
         }
 
@@ -95,14 +98,13 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
     public override HTTPResponse render_body (HTTPGet request)
                                               throws HTTPRequestError {
         try {
-            DataSource src;
-
-            src = request.object.create_stream_source_for_resource (request, this.media_resource);
+            var src = request.object.create_stream_source_for_resource
+                                    (request, this.media_resource);
             if (src == null) {
-                throw new HTTPRequestError.NOT_FOUND (_("Couldn't create data source for %s"),
-                                                        this.media_resource.get_name());
+                throw new HTTPRequestError.NOT_FOUND
+                              (_("Couldn't create data source for %s"),
+                               this.media_resource.get_name ());
             }
-
             return new HTTPResponse (request, this, src);
         } catch (Error err) {
             throw new HTTPRequestError.NOT_FOUND (err.message);

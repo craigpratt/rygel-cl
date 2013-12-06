@@ -65,7 +65,8 @@ public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
      * @param request The HTTP GET/HEAD request
      * @param positive_rate Indicates if playback is in the positive or negative direction
      */
-    internal HTTPTimeSeekRequest (HTTPGet request, PlaySpeed ? speed) throws HTTPSeekRequestError {
+    internal HTTPTimeSeekRequest (HTTPGet request, PlaySpeed ? speed)
+            throws HTTPSeekRequestError {
         base ();
 
         bool positive_rate = (speed == null) || speed.is_positive ();
@@ -79,26 +80,30 @@ public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
         var range = request.msg.request_headers.get_one (TIMESEEKRANGE_HEADER);
 
         if (range == null) {
-            throw new HTTPSeekRequestError.INVALID_RANGE ("%s not present", TIMESEEKRANGE_HEADER);
+            throw new HTTPSeekRequestError.INVALID_RANGE ("%s not present",
+                                                          TIMESEEKRANGE_HEADER);
         }
 
         if (!range.has_prefix ("npt=")) {
-            throw new HTTPSeekRequestError.INVALID_RANGE ("Invalid %s value (missing npt field): '%s'",
-                                                   TIMESEEKRANGE_HEADER, range);
+            throw new HTTPSeekRequestError.INVALID_RANGE
+                          ("Invalid %s value (missing npt field): '%s'",
+                          TIMESEEKRANGE_HEADER, range);
         }
 
         var parsed_range = range.substring (4);
         if (!parsed_range.contains ("-")) {
-            throw new HTTPSeekRequestError.INVALID_RANGE ("Invalid %s request with no '-': '%s'",
-                                                  TIMESEEKRANGE_HEADER, range);
+            throw new HTTPSeekRequestError.INVALID_RANGE
+                          ("Invalid %s request with no '-': '%s'",
+                          TIMESEEKRANGE_HEADER, range);
         }
 
         var range_tokens = parsed_range.split ("-", 2);
 
         int64 start = UNSPECIFIED;
         if (!parse_npt_time (range_tokens[0], ref start)) {
-            throw new HTTPSeekRequestError.INVALID_RANGE ("Invalid %s value (no start): '%s'",
-                                                  TIMESEEKRANGE_HEADER, range);
+            throw new HTTPSeekRequestError.INVALID_RANGE
+                          ("Invalid %s value (no start): '%s'",
+                          TIMESEEKRANGE_HEADER, range);
         }
 
         // Check for out-of-bounds range start and clamp it in if in trick/scan mode
@@ -106,10 +111,9 @@ public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
             if (trick_mode && !positive_rate) { // Per DLNA 7.5.4.3.2.24.4
                 this.start_time = this.total_duration;
             } else { // See DLNA 7.5.4.3.2.24.8
-                throw new HTTPSeekRequestError.OUT_OF_RANGE (
-                              "Invalid %s start time %lldns is beyond the content duration of %lldns",
-                              TIMESEEKRANGE_HEADER, start,
-                              this.total_duration );
+                throw new HTTPSeekRequestError.OUT_OF_RANGE
+                              ("Invalid %s start time %lldns is beyond the content duration of %lldns",
+                               TIMESEEKRANGE_HEADER, start, this.total_duration);
             }
         } else { // Nothing to check it against - just store it
             this.start_time = start;
@@ -126,10 +130,9 @@ public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
                     if (trick_mode) { // Per DLNA 7.5.4.3.2.24.4
                         this.end_time = this.total_duration;
                     } else { // Per DLNA 7.5.4.3.2.24.8
-                        throw new HTTPSeekRequestError.OUT_OF_RANGE (
-                                      "Invalid %s end time %lldns is beyond the content duration of %lldns",
-                                      TIMESEEKRANGE_HEADER, end,
-                                      this.total_duration );
+                        throw new HTTPSeekRequestError.OUT_OF_RANGE
+                                      ("Invalid %s end time %lldns is beyond the content duration of %lldns",
+                                       TIMESEEKRANGE_HEADER, end,this.total_duration);
                     }
                 } else {
                     this.end_time = end;
@@ -138,9 +141,9 @@ public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
                 this.range_duration =  this.end_time - this.start_time;
                 // At positive rate, start < end
                 if (this.range_duration <= 0) { // See DLNA 7.5.4.3.2.24.12
-                    throw new HTTPSeekRequestError.INVALID_RANGE (
-                        "Invalid %s value (start time after end time - forward scan): '%s'",
-                        TIMESEEKRANGE_HEADER, range );
+                    throw new HTTPSeekRequestError.INVALID_RANGE
+                                  ("Invalid %s value (start time after end time - forward scan): '%s'",
+                                   TIMESEEKRANGE_HEADER, range);
                 }
             } else { // Negative rate
                 // Note: start_time has already been checked/clamped
@@ -148,9 +151,9 @@ public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
                 this.range_duration = this.start_time - this.end_time;
                 // At negative rate, start > end
                 if (this.range_duration <= 0) { // See DLNA 7.5.4.3.2.24.12
-                    throw new HTTPSeekRequestError.INVALID_RANGE (
-                                 "Invalid %s value (start time before end time - reverse scan): '%s'",
-                                 TIMESEEKRANGE_HEADER, range );
+                    throw new HTTPSeekRequestError.INVALID_RANGE
+                                 ("Invalid %s value (start time before end time - reverse scan): '%s'",
+                                  TIMESEEKRANGE_HEADER, range);
                 }
             }
         } else { // End time not specified in the npt field ("start-")

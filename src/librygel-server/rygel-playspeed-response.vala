@@ -1,6 +1,9 @@
 /* 
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
+ *
+ * Author: Craig Pratt <craig@ecaspia.com>
+ *
+ * This file is part of Rygel.
  *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -22,10 +25,6 @@
  * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Craig Pratt <craig@ecaspia.com>
- *
- * This file is part of Rygel.
  */
 
 public static const string FRAMERATE_HEADER = "FrameRateInTrickMode.dlna.org";

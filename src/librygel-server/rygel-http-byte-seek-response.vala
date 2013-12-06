@@ -48,14 +48,14 @@ public class Rygel.HTTPByteSeekResponse : Rygel.HTTPResponseElement {
      */
     public int64 total_size { get; set; }
 
-    public HTTPByteSeekResponse(int64 start_byte, int64 end_byte, int64 total_size) {
+    public HTTPByteSeekResponse (int64 start_byte, int64 end_byte, int64 total_size) {
         this.start_byte = start_byte;
         this.end_byte = end_byte;
         this.range_length = end_byte-start_byte+1; // +1, since range is inclusive
         this.total_size = total_size;
     }
 
-    public HTTPByteSeekResponse.from_request(HTTPByteSeekRequest request) {
+    public HTTPByteSeekResponse.from_request (HTTPByteSeekRequest request) {
         this.start_byte = request.start_byte;
         this.end_byte = request.end_byte;
         this.range_length = request.range_length;

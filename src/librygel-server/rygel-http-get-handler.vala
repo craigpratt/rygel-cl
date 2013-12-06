@@ -1,9 +1,11 @@
 /*
  * Copyright (C) 2008-2010 Nokia Corporation.
  * Copyright (C) 2010 Andreas Henriksson <andreas@fatal.se>
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -20,14 +22,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- */
-
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Craig Pratt <craig@ecaspia.com>
  */
 
 using GUPnP;
@@ -66,7 +60,7 @@ public abstract class Rygel.HTTPGetHandler: GLib.Object {
             && (request.object as VideoItem).subtitles.size > 0) {
                 var caption_uri = request.http_server.create_uri_for_item
                                         (request.object,
-                                         (request.object as VideoItem).get_extension(),
+                                         (request.object as VideoItem).get_extension (),
                                          -1,
                                          0, // FIXME: offer first subtitle only?
                                          null);
