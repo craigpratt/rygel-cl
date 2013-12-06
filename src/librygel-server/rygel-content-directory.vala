@@ -2,9 +2,11 @@
  * Copyright (C) 2008 Zeeshan Ali <zeenix@gmail.com>.
  * Copyright (C) 2007 OpenedHand Ltd.
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Zeeshan Ali <zeenix@gmail.com>
  *         Jorn Baayen <jorn@openedhand.com>
+ *         Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  *
  * This file is part of Rygel.
  *
@@ -455,12 +457,15 @@ public class Rygel.ContentDirectory: Service {
 
         try {
             debug ("Updating SourceProtocolInfo using CDS list.");
-            media_objects = yield s_container.search (null , 0 , -1, out total_matches,
-                                             s_container.sort_criteria,
-                                             this.cancellable);
-            ConnectionManagerProtocolInfo cms_info = ConnectionManagerProtocolInfo.get_default();
-            cms_info.update_source_protocol_info ((Rygel.RootDevice)this.root_device,
-                                                  media_objects, http_server);
+            media_objects = yield s_container.search
+                                      (null, 0, -1, out total_matches,
+                                       s_container.sort_criteria,
+                                       this.cancellable);
+            ConnectionManagerProtocolInfo cms_info
+                = ConnectionManagerProtocolInfo.get_default ();
+            cms_info.update_source_protocol_info
+                         ((Rygel.RootDevice)this.root_device,
+                          media_objects, http_server);
         } catch (Error err) {
             warning ("Updating SourceProtocolInfo using CDS list failed.");
         }

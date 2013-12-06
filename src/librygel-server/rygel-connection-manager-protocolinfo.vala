@@ -1,6 +1,9 @@
 /*
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
+ *
+ * Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
+ *
+ * This file is part of Rygel.
  *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -22,14 +25,6 @@
  * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- */
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  */
 
 using Gee;
@@ -46,14 +41,17 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
         public string[] ps_flag;
         public GUPnP.DLNAFlags flags;
 
-        public CMSProtocolInfo(string name, GUPnP.DLNAOperation op_param, string[] ps_flag, GUPnP.DLNAFlags flags) {
+        public CMSProtocolInfo (string name, GUPnP.DLNAOperation op_param,
+                                string[] ps_flag, GUPnP.DLNAFlags flags) {
             this.name = name;
             this.op_param = op_param;
             this.ps_flag = ps_flag;
             this.flags = flags;
         }
 
-        public void combine_fourth_field_values (GUPnP.DLNAOperation op_param, string[] ps_flag, GUPnP.DLNAFlags flags) {
+        public void combine_fourth_field_values (GUPnP.DLNAOperation op_param,
+                                                 string[] ps_flag,
+                                                 GUPnP.DLNAFlags flags) {
             this.op_param |= op_param;
             this.flags |= flags;
 
@@ -61,7 +59,7 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
         }
 
         private void add_missing_speeds (string[] old_ps, string[] new_ps) {
-            Gee.List<string> combined_speed = new Gee.ArrayList<string>();
+            Gee.List<string> combined_speed = new Gee.ArrayList<string> ();
 
             foreach (var old_ps_str in old_ps) {
                 combined_speed.add (old_ps_str);
@@ -72,31 +70,35 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
                     combined_speed.add (new_ps_str);
                 }
             }
-            this.ps_flag = combined_speed.to_array();
+            this.ps_flag = combined_speed.to_array ();
         }
 
         private string append_reserved_zeros (string flag_str) {
             return flag_str + "00000000" + "00000000" + "00000000";
         }
 
-        public string to_string() {
+        public string to_string () {
               return this.name +
-                     (this.op_param == DLNAOperation.NONE ? "" : "DLNA.ORG_OP=" + "%0.2x".printf (this.op_param) + ";")+
-                     (ps_flag != null ? "DLNA.ORG_PS=" + string.joinv("\\,", this.ps_flag) + ";" : "") +
-                     (this.flags == DLNAFlags.NONE ? "" :  append_reserved_zeros ("DLNA.ORG_FLAGS=" + "%0.8x".printf (this.flags)));
+                     (this.op_param == DLNAOperation.NONE ? ""
+                      : "DLNA.ORG_OP=" + "%0.2x".printf (this.op_param) + ";")
+                     + (ps_flag != null
+                        ? "DLNA.ORG_PS=" + string.joinv ("\\,", this.ps_flag) + ";" : "")
+                     + (this.flags == DLNAFlags.NONE ? ""
+                        :  append_reserved_zeros ("DLNA.ORG_FLAGS="
+                                                  + "%0.8x".printf (this.flags)));
         }
     }
 
     private HashMap<string,CMSProtocolInfo> union_protocol_string
-                        = new HashMap< string,CMSProtocolInfo >();
+                        = new HashMap< string,CMSProtocolInfo > ();
 
-    private ConnectionManagerProtocolInfo() {
+    private ConnectionManagerProtocolInfo () {
 
     }
 
-    public static ConnectionManagerProtocolInfo get_default() {
+    public static ConnectionManagerProtocolInfo get_default () {
         if (cm_protocol_info == null) {
-            cm_protocol_info = new ConnectionManagerProtocolInfo();
+            cm_protocol_info = new ConnectionManagerProtocolInfo ();
         }
         return cm_protocol_info;
     }
@@ -105,7 +107,7 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
                                              MediaObjects media_objects,
                                              HTTPServer http_server) {
 
-        union_protocol_string.clear();
+        union_protocol_string.clear ();
         // Iterate through all media objects and extract protocolinfo
         foreach (var media_object in media_objects) {
             var res_list = media_object.get_resource_list_for_server (http_server);
@@ -157,12 +159,13 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
     }
 
     private void publish_protocol_info (Rygel.RootDevice root_device) {
-        var new_protocol_string = new StringBuilder();
+        var new_protocol_string = new StringBuilder ();
         int index = 0;
-        int protocolinfo_length = (this.union_protocol_string != null) ? this.union_protocol_string.size : 0;
+        int protocolinfo_length = (this.union_protocol_string != null)
+                                  ? this.union_protocol_string.size : 0;
 
         foreach (var str_protocol_info in this.union_protocol_string.entries) {
-            string temp_str = str_protocol_info.value.to_string();
+            string temp_str = str_protocol_info.value.to_string ();
             message ("ProtocolInfo String added : %s ",temp_str);
             new_protocol_string.append (temp_str);
             if (++index < protocolinfo_length)
@@ -172,9 +175,9 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
         debug ("New SourceProtocolinfo : %s",new_protocol_string.str);
         // Find the ConnectionManager Service and update SourceProtocolInfo variable
         foreach (var service in root_device.services) {
-            if (service.get_type().is_a (typeof (Rygel.ConnectionManager))) {
+            if (service.get_type ().is_a (typeof (Rygel.ConnectionManager))) {
                 var connection_manager = (Rygel.ConnectionManager) service;
-                connection_manager.set_source_protocol_info(new_protocol_string.str);
+                connection_manager.set_source_protocol_info (new_protocol_string.str);
             }
         }
     }
