@@ -296,7 +296,7 @@ namespace Rygel.MediaExport.ItemFactory {
         return item;
     }
 
-    private static void fill_media_item (MediaFileItem          item,
+    private static void fill_media_item (MediaFileItem      item,
                                          File               file,
                                          DiscovererInfo     info,
                                          GUPnPDLNA.Profile? profile,

@@ -1,7 +1,9 @@
 /*
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Krzesimir Nowak <krnowak@openismus.com>
+ *         Doug Galligan <doug@sentosatech.com>
  *
  * This file is part of Rygel.
  *
@@ -18,14 +20,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- */
-
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Doug Galligan <doug@sentosatech.com>>
  */
 
 using GUPnP;
@@ -110,10 +104,12 @@ internal class Rygel.ItemUpdater: GLib.Object, Rygel.StateMachine {
 
     // Remove any leading or trailing spaces for the corresponding text node.
     private static string formatTagValues (string tag_values){
-        if(tag_values.length > 0 && tag_values.get_char(0) == '<'){
-            var init_split = tag_values.split("</");
-            var tag_name = init_split[1].substring(0, init_split[1].length - 1)._strip();
-            var tag_value = init_split[0].split(">")[1]._strip();
+        if(tag_values.length > 0 && tag_values.get_char (0) == '<'){
+            var init_split = tag_values.split ("</");
+            var tag_name = init_split[1].substring
+                                            (0, init_split[1].length - 1)
+                                            ._strip ();
+            var tag_value = init_split[0].split (">")[1]._strip ();
             debug ("Tag Name formatted :%s",tag_name);
             debug ("Tag Value formatted :%s",tag_value);
             return "<%s>%s</%s>".printf (tag_name, tag_value, tag_name);
@@ -130,9 +126,9 @@ internal class Rygel.ItemUpdater: GLib.Object, Rygel.StateMachine {
         // check the validity of the new tag in the same index
         foreach (unowned string cur_str in current_tag) {
             date_index++;
-            if (cur_str.index_of(QN_UPNP_DATE) != -1) {
-                var date_val = new_tag[date_index].split("</")[0]
-                                                  .split(">")[1]._strip();
+            if (cur_str.index_of (QN_UPNP_DATE) != -1) {
+                var date_val = new_tag[date_index].split ("</")[0]
+                                                  .split (">")[1]._strip ();
                 check_date (date_val);
                 break;
             }
@@ -142,9 +138,9 @@ internal class Rygel.ItemUpdater: GLib.Object, Rygel.StateMachine {
         // If the current tag does not then search new Tag for dc:date
         foreach (unowned string new_str in new_tag) {
             date_index++;
-            if (new_str.index_of(QN_UPNP_DATE) != -1) {
-                var date_val = new_tag[date_index].split("</")[0]
-                                                  .split(">")[1]._strip();
+            if (new_str.index_of (QN_UPNP_DATE) != -1) {
+                var date_val = new_tag[date_index].split ("</")[0]
+                                                  .split (">")[1]._strip ();
                 check_date (date_val);
                 break;
             }
@@ -222,7 +218,9 @@ internal class Rygel.ItemUpdater: GLib.Object, Rygel.StateMachine {
             }
         }
 
-        list.add (formatTagValues(ItemUpdater.unescape (tag_values.substring (token_start)._strip())));
+        list.add (formatTagValues
+                      (ItemUpdater.unescape
+                                       (tag_values.substring (token_start)._strip ())));
 
         return list;
     }
@@ -234,7 +232,7 @@ internal class Rygel.ItemUpdater: GLib.Object, Rygel.StateMachine {
 
         // If the size is not equal it will be handled downstream and different error will be thrown
         if (current_list.size == new_list.size){
-            check_date_tag (current_list.to_array(), new_list.to_array());
+            check_date_tag (current_list.to_array (), new_list.to_array ());
         }
 
         var result = yield media_object.apply_fragments

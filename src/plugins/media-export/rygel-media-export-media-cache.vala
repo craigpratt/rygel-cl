@@ -1,8 +1,11 @@
 /*
  * Copyright (C) 2009,2010 Jens Georg <mail@jensge.org>.
  * Copyright (C) 2013 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Jens Georg <mail@jensge.org>
+ *         Doug Galligan <doug@sentosatech.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -19,15 +22,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- */
-
-/*
- * Modifications made by Cable Television Laboratories, Inc.
- * Copyright (C) 2013  Cable Television Laboratories, Inc.
- * Contact: http://www.cablelabs.com/
- *
- * Author: Doug Galligan <doug@sentosatech.com>
- * Author: Craig Pratt <craig@ecaspia.com>
  */
 
 using Gee;
@@ -922,11 +916,13 @@ public class Rygel.MediaExport.MediaCache : Object {
                 var media_engine = MediaEngine.get_default ( );
                 media_engine.get_resources_for_item.begin ( item,
                                                             (obj, res) => {
-                    var added_resources = media_engine.get_resources_for_item.end (res);
-                    message( "Adding %d resources to item source %s", added_resources.size,
-                             item.uris.get (0) );    
+                    var added_resources = media_engine
+                                          .get_resources_for_item.end (res);
+                    debug ("Adding %d resources to item source %s",
+                           added_resources.size, item.uris.get (0) );    
                     foreach (var resrc in added_resources) {     
-                       message ("Media-export item media resource %s", resrc.get_name ());
+                       debug ("Media-export item media resource %s",
+                              resrc.get_name ());
                     }
                     item.get_resource_list ().add_all (added_resources);
                   });
