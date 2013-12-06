@@ -1,8 +1,10 @@
 /*
  * Copyright (C) 2012 Intel Corporation.
- *
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
+ * 
  * Author: Jens Georg <jensg@openismus.com>
- *
+ *         Ramesh Nallur <rnallur@gmail.com>
+ * 
  * This file is part of Rygel.
  *
  * Rygel is free software; you can redistribute it and/or modify

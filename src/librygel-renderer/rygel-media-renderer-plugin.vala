@@ -1,9 +1,12 @@
 /*
  * Copyright (C) 2008,2010 Nokia Corporation.
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
+ *         Ramesh Nallur <rnallur@gmail.com>
+ *         Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  *
  * This file is part of Rygel.
  *
