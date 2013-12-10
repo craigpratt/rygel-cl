@@ -168,12 +168,22 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
         string odid_item_path = null;
         try {
+            File odidItem = File.new_for_uri (source_uri);
             KeyFile keyFile = new KeyFile ();
-            keyFile.load_from_file (File.new_for_uri (source_uri).get_path (),
+            keyFile.load_from_file (odidItem.get_path (),
                                     KeyFileFlags.KEEP_COMMENTS |
                                     KeyFileFlags.KEEP_TRANSLATIONS);
 
-            odid_item_path = keyFile.get_string ("item", "odid_uri");
+            if (keyFile.has_key ("item", "odid_uri"))    {
+                odid_item_path = keyFile.get_string ("item", "odid_uri");
+            } else {
+                if (odidItem.get_parent () != null) {
+                    odid_item_path = odidItem.get_parent ().get_uri () + "/";
+                } else {
+                    warning ("ODID MediaObject does not have top level directory");
+                    return null;
+                }
+            }
 
             debug ("get_resources: processing item directory: " + odid_item_path);
 

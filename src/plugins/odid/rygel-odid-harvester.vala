@@ -72,13 +72,7 @@ internal class Rygel.ODID.Harvester : GLib.Object {
      * @return true if file should be extracted, false otherwise
      */
     public static bool is_eligible (FileInfo info) {
-        return info.get_content_type ().has_prefix ("image/") ||
-               info.get_content_type ().has_prefix ("video/") ||
-               info.get_content_type ().has_prefix ("audio/") ||
-               info.get_content_type () == "application/ogg" ||
-               info.get_content_type () == "application/xml" ||
-               info.get_content_type () == "text/xml" ||
-               info.get_content_type () == "text/plain";
+        return info.get_name ().has_suffix (".item");
     }
 
     /**

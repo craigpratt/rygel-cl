@@ -40,7 +40,6 @@ internal class FileQueueEntry {
 public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
                                                 GLib.Object {
     public File origin;
-    private MetadataExtractor extractor;
     private MediaCache cache;
     private GLib.Queue<MediaContainer> containers;
     private Gee.Queue<FileQueueEntry> files;
@@ -61,13 +60,9 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
     public HarvestingTask (RecursiveFileMonitor monitor,
                            File                 file,
                            MediaContainer       parent) {
-        this.extractor = new MetadataExtractor ();
         this.origin = file;
         this.parent = parent;
         this.cache = MediaCache.get_default ();
-
-        this.extractor.extraction_done.connect (on_extracted_cb);
-        this.extractor.error.connect (on_extractor_error_cb);
 
         this.files = new LinkedList<FileQueueEntry> ();
         this.containers = new GLib.Queue<MediaContainer> ();
@@ -213,9 +208,12 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
 
         foreach (var info in list) {
             var file = container.file.get_child (info.get_name ());
-
-            this.process_file (file, info, container);
-            container.seen (file);
+            // Skip processing ODID resource directories.
+            if (!(info.get_file_type () == FileType.DIRECTORY &&
+                    file.get_basename ().has_prefix ("resource."))) {
+                this.process_file (file, info, container);
+                container.seen (file);
+            }
         }
 
         return true;
@@ -271,8 +269,11 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
         if (!this.files.is_empty) {
             debug ("Scheduling file %s for meta-data extraction…",
                    this.files.peek ().file.get_uri ());
-            this.extractor.extract (this.files.peek ().file,
-                                    this.files.peek ().content_type);
+
+			if (this.files.peek ().file.get_basename ().has_suffix (".item")) {
+				this.read_odid (this.files.peek ().file);
+			}
+			
         } else if (!this.containers.is_empty ()) {
             this.enumerate_directory.begin ();
         } else {
@@ -283,7 +284,7 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
         return false;
     }
 
-    private void on_extracted_cb (File file) {
+    private void read_odid (File file) {
         if (this.cancellable.is_cancelled ()) {
             this.completed ();
         }
@@ -341,19 +342,6 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
             warning ("Unable to read item file %s, Message: %s",
                      file.get_path (), error.message);
         }
-    }
-
-    private void on_extractor_error_cb (File file, Error error) {
-        // error is only emitted if even the basic information extraction
-        // failed; there's not much to do here, just print the information and
-        // go to the next file
-
-        debug ("Skipping %s; extraction completely failed: %s",
-               file.get_uri (),
-               error.message);
-
-        this.files.poll ();
-        this.do_update ();
     }
 
     /**

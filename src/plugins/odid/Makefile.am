@@ -14,7 +14,6 @@ librygel_odid_la_SOURCES = \
 	rygel-odid-sql-operator.vala \
 	rygel-odid-sql-function.vala \
 	rygel-odid-media-cache-upgrader.vala \
-	rygel-odid-metadata-extractor.vala \
 	rygel-odid-null-container.vala \
 	rygel-odid-dummy-container.vala \
 	rygel-odid-root-container.vala \

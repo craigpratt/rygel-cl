@@ -82,13 +82,26 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         }
 
         debug ("Resource " + res.to_string ());
+        File odidItem = File.new_for_uri (source_uri);
 
         KeyFile keyFile = new KeyFile ();
-        keyFile.load_from_file (File.new_for_uri (source_uri).get_path (),
+        keyFile.load_from_file (odidItem.get_path (),
                                KeyFileFlags.KEEP_COMMENTS |
                                KeyFileFlags.KEEP_TRANSLATIONS);
 
-        string odid_item_path = keyFile.get_string ("item", "odid_uri");
+        string odid_item_path = null;
+        if (keyFile.has_key ("item", "odid_uri"))    {
+            odid_item_path = keyFile.get_string ("item", "odid_uri");
+        } else {
+            // If the odid_uri property is not available, assume this file exists in
+            // the correct directory.
+            if (odidItem.get_parent () != null) {
+                odid_item_path = odidItem.get_parent ().get_uri () + "/";
+            } else {
+                throw new DataSourceError.GENERAL ("Root level odid items not supported");
+            }
+        }
+
         debug ("Source item path: %s", odid_item_path);
 
         // The resources are published by this engine according to the resource directory name
