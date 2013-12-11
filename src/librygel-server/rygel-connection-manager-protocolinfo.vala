@@ -126,9 +126,13 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
                 }
 
                 // Fourth field must start with DLNA.ORG_PN
-                if ((key[3] != null) && (key[3].index_of ("DLNA.ORG_PN=",0) != -1)) {
+                if ((key[3] != null) &&
+                    (key[3].index_of ("DLNA.ORG_PN=",0) != -1)) {
                     string hash_key = protocolInfo.protocol + ":" +
-                                 protocolInfo.network + ":" +
+                                 (protocolInfo.network == null ?
+                                                           "*" :
+                                                           protocolInfo.network) +
+                                                           ":" +
                                  protocolInfo.mime_type + ":" +
                                  "DLNA.ORG_PN=" + protocolInfo.dlna_profile+";";
 
