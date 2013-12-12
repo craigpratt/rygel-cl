@@ -199,7 +199,7 @@ public class Rygel.ODID.RootContainer : TrackableDbContainer {
         var config = MetaConfig.get_default ();
 
         try {
-            uris = config.get_string_list ("ODID", "uris");
+            uris = config.get_string_list (ODID.Plugin.NAME, "uris");
         } catch (Error error) {
             uris = new ArrayList<string> ();
         }

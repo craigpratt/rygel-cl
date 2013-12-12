@@ -64,7 +64,7 @@ public class Rygel.ODID.MediaCache : Object {
         var db_name = "odid";
         try {
             var config = MetaConfig.get_default ();
-            if (config.get_bool ("ODID", "use-temp-db")) {
+            if (config.get_bool (ODID.Plugin.NAME, "use-temp-db")) {
                 db_name = ":memory:";
             }
         } catch (Error error) { }

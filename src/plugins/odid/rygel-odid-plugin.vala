@@ -96,7 +96,7 @@ private void shutdown_media_export () {
              TRACKER_PLUGIN);
     try {
         var config = MetaConfig.get_default ();
-        var enabled = config.get_bool ("ODID", "enabled");
+        var enabled = config.get_bool (ODID.Plugin.NAME, "enabled");
         if (enabled) {
             var root = Rygel.ODID.RootContainer.get_instance ();
 
@@ -106,7 +106,7 @@ private void shutdown_media_export () {
 }
 
 public class Rygel.ODID.Plugin : Rygel.MediaServerPlugin {
-    public const string NAME = "ODID";
+    public const string NAME = "ODIDMediaServer";
 
     /**
      * Instantiate the plugin.
