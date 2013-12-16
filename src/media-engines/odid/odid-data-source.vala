@@ -371,7 +371,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             // V F 00000000.000 0000000000000000000 0000000000<16 spaces><newline>
             if (line.length != ODIDMediaEngine.INDEXFILE_ROW_SIZE-1) {
                 throw new ODIDMediaEngineError.INDEX_FILE_ERROR (
-                              "Bad index file entry size (line %lld of %s is %d bytes - should be %d bytes): '%s'",
+                              "Bad index file entry size (line %d of %s is %d bytes - should be %d bytes): '%s'",
                               line_count, index_path, line.length,
                               ODIDMediaEngine.INDEXFILE_ROW_SIZE, line);
             }
