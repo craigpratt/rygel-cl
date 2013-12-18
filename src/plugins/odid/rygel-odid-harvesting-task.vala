@@ -204,13 +204,22 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
             return false;
         }
 
+        int count = 0;
+        // Discover if this is an ODID directory, single .item file.
+        foreach (var info in list) {
+            if (info.get_name ().has_suffix (".item")) {
+                count++;
+            }
+        }
+
+        bool isOdidDirectory = count == 1 ? true : false;
+
         var container = this.containers.peek_head () as DummyContainer;
 
         foreach (var info in list) {
             var file = container.file.get_child (info.get_name ());
             // Skip processing ODID resource directories.
-            if (!(info.get_file_type () == FileType.DIRECTORY &&
-                    file.get_basename ().has_prefix ("resource."))) {
+            if (!(isOdidDirectory && info.get_file_type () == FileType.DIRECTORY)   ) {
                 this.process_file (file, info, container);
                 container.seen (file);
             }
