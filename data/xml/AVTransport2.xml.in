@@ -429,6 +429,17 @@
       <stateVariable sendEvents="no">
          <name>CurrentTransportActions</name>
          <dataType>string</dataType>
+         <allowedValueList>
+            <allowedValue>PLAY</allowedValue>
+            <allowedValue>STOP</allowedValue>
+            <allowedValue>PAUSE</allowedValue>
+            <allowedValue>SEEK</allowedValue>
+            <allowedValue>NEXT</allowedValue>
+            <allowedValue>PREVIOUS</allowedValue>
+            <allowedValue>X_DLNA_SeekTime</allowedValue>
+            <allowedValue>X_DLNA_SeekByte</allowedValue>
+            <allowedValue>X_DLNA_PS=1/16\,1/8\,1/4\,1/2\,2\,4\,8\,16\,32\,64</allowedValue>
+         </allowedValueList>
       </stateVariable>
 
       <stateVariable sendEvents="no">
