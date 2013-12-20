@@ -643,18 +643,12 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
 
                 if (percent < 100) {
                     this.buffering = true;
-                    this.playbin.set_state (State.PAUSED);
-                } else {
-                    this.playbin.set_state (State.PLAYING);
                 }
             }
             break;
         case MessageType.CLOCK_LOST:
             // Assume the original application takes care of this.
-            if (!this.foreign) {
-                this.playbin.set_state (State.PAUSED);
-                this.playbin.set_state (State.PLAYING);
-            }
+	     warning("Received MessageType.CLOCK_LOST\n");
             break;
         case MessageType.EOS:
             if (!this.is_rendering_image ()) {
