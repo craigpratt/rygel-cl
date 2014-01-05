@@ -173,7 +173,11 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         set {
             this._uri = value;
             this.playbin.set_state (State.READY);
-            this.playbin.uri = value;
+	    /*Prefix "dlna+" so that GstDlnaSrc plugin source will be used if available.
+             *gst-plugins-bad should have this "dlna+" virtual protocol change, otherwise
+             *play() will not work. 
+             */ 
+            this.playbin.uri = "dlna+" + value;
             if (value != "") {
                 switch (this._playback_state) {
                     case "NO_MEDIA_PRESENT":
