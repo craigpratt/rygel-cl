@@ -134,6 +134,8 @@ internal class Rygel.AVTransport : Service {
 
         action_invoked["SetAVTransportURI"].connect
                                         (this.set_av_transport_uri_cb);
+        action_invoked["SetNextAVTransportURI"].connect
+                                        (this.set_next_av_transport_uri_cb);
         action_invoked["GetMediaInfo"].connect (this.get_media_info_cb);
         action_invoked["GetMediaInfo_Ext"].connect (this.get_media_info_ex_cb);
         action_invoked["GetTransportInfo"].connect (this.get_transport_info_cb);
@@ -158,10 +160,12 @@ internal class Rygel.AVTransport : Service {
         this.controller.notify["track"].connect (this.notify_track_cb);
         this.controller.notify["uri"].connect (this.notify_uri_cb);
         this.controller.notify["metadata"].connect (this.notify_meta_data_cb);
+        this.controller.notify["track-uri"].connect (this.notify_track_uri_cb);
+        this.controller.notify["track-metadata"].connect (this.notify_track_meta_data_cb);
+        this.controller.notify["next-uri"].connect (this.notify_next_uri_cb);
+        this.controller.notify["next-metadata"].connect (this.notify_next_meta_data_cb);
 
         this.player.notify["duration"].connect (this.notify_duration_cb);
-        this.player.notify["uri"].connect (this.notify_track_uri_cb);
-        this.player.notify["metadata"].connect (this.notify_track_meta_data_cb);
 
         var proxy = Environment.get_variable ("http_proxy");
         if (proxy != null) {
@@ -189,7 +193,7 @@ internal class Rygel.AVTransport : Service {
         // Send current state
         ChangeLog log = new ChangeLog (null, LAST_CHANGE_NS);
 
-        log.log ("TransportState",               this.player.playback_state);
+        log.log ("TransportState",               this.controller.playback_state);
         log.log ("CurrentTransportActions",
                  this.controller.current_transport_actions);
         log.log ("TransportStatus",              this.status);
@@ -206,14 +210,15 @@ internal class Rygel.AVTransport : Service {
         log.log ("CurrentTrack",                 this.controller.track.to_string ());
         log.log ("CurrentTrackDuration",         this.player.duration_as_str);
         log.log ("CurrentMediaDuration",         this.player.duration_as_str);
-        log.log ("CurrentTrackMetaData",
-                 Markup.escape_text (this.track_metadata));
+        log.log ("AVTransportURI",               this.controller.uri);
         log.log ("AVTransportURIMetaData",
                  Markup.escape_text (this.controller.metadata));
-        log.log ("CurrentTrackURI",              this.track_uri);
-        log.log ("AVTransportURI",               this.controller.uri);
-        log.log ("NextAVTransportURI",           "NOT_IMPLEMENTED");
-        log.log ("NextAVTransportURIMetaData",   "NOT_IMPLEMENTED");
+        log.log ("CurrentTrackURI",              this.controller.track_uri);
+        log.log ("CurrentTrackMetaData",
+                 Markup.escape_text (this.controller.track_metadata));
+        log.log ("NextAVTransportURI",           this.controller.next_uri);
+        log.log ("NextAVTransportURIMetaData",
+                 Markup.escape_text (this.controller.next_metadata));
 
         value.init (typeof (string));
         value.set_string (log.finish ());
@@ -256,92 +261,25 @@ internal class Rygel.AVTransport : Service {
                         typeof (string),
                         out _metadata);
 
-        // remove current playlist handler
-        this.controller.set_playlist (null);
-        if (_uri.has_prefix ("http://") || _uri.has_prefix ("https://")) {
-            var message = new Message ("HEAD", _uri);
-            message.request_headers.append ("getContentFeatures.dlna.org",
-                                            "1");
-            message.finished.connect ((msg) => {
-                if ((msg.status_code == Status.MALFORMED ||
-                     msg.status_code == Status.BAD_REQUEST ||
-                     msg.status_code == Status.METHOD_NOT_ALLOWED ||
-                     msg.status_code == Status.NOT_IMPLEMENTED) &&
-                    msg.method == "HEAD") {
-                    debug ("Peer does not support HEAD, trying GET");
-                    msg.method = "GET";
-                    msg.got_headers.connect ((msg) => {
-                        this.session.cancel_message (msg, msg.status_code);
-                    });
+        this.handle_new_transport_uri (action, _uri, _metadata);
+    }
 
-                    this.session.queue_message (msg, null);
-
-                    return;
-                }
-
-                if (msg.status_code != Status.OK) {
-                    warning ("Failed to access %s: %s",
-                             _uri,
-                             msg.reason_phrase);
-
-                    action.return_error (716, _("Resource not found"));
-
-                    return;
-                } else {
-                    var mime = msg.response_headers.get_one ("Content-Type");
-                    var features = msg.response_headers.get_one
-                                        ("contentFeatures.dlna.org");
-
-                    if (!this.is_valid_mime_type (mime) &&
-                        !this.is_playlist (mime, features)) {
-                        action.return_error (714, _("Illegal MIME-type"));
-
-                        return;
-                    }
-
-                    this.controller.metadata = _metadata;
-                    this.controller.uri = _uri;
-
-                    if (this.is_playlist (mime, features)) {
-                        // Delay returning the action until we got some
-                        this.handle_playlist.begin (action);
-                    } else {
-                        // some other track
-                        this.player.mime_type = mime;
-                        if (features != null) {
-                            this.player.content_features = features;
-                        } else {
-                            this.player.content_features = "*";
-                        }
-
-                        // Track == Media
-                        this.track_metadata = _metadata;
-                        this.track_uri = _uri;
-                        this.controller.n_tracks = 1;
-                        this.controller.track = 1;
-
-                        action.return ();
-                    }
-                }
-            });
-            this.session.queue_message (message, null);
-        } else {
-            this.controller.metadata = _metadata;
-            this.controller.uri = _uri;
-
-            this.track_metadata = _metadata;
-            this.track_uri = _uri;
-
-            if (_uri == "") {
-                this.controller.n_tracks = 0;
-                this.controller.track = 0;
-            } else {
-                this.controller.n_tracks = 1;
-                this.controller.track = 1;
-            }
-
-            action.return ();
+    private void set_next_av_transport_uri_cb (Service       service,
+                                               ServiceAction action) {
+        if (!this.check_instance_id (action)) {
+            return;
         }
+
+        string _uri, _metadata;
+
+        action.get ("NextURI",
+                        typeof (string),
+                        out _uri,
+                    "NextURIMetaData",
+                        typeof (string),
+                        out _metadata);
+
+        this.handle_new_transport_uri (action, _uri, _metadata);
     }
 
     private bool is_valid_mime_type (string? mime) {
@@ -466,7 +404,7 @@ internal class Rygel.AVTransport : Service {
 
         action.set ("CurrentTransportState",
                         typeof (string),
-                        this.player.playback_state,
+                        this.controller.playback_state,
                     "CurrentTransportStatus",
                         typeof (string),
                         this.status,
@@ -504,10 +442,10 @@ internal class Rygel.AVTransport : Service {
                         this.player.duration_as_str,
                     "TrackMetaData",
                         typeof (string),
-                        this.track_metadata,
+                        this.controller.track_metadata,
                     "TrackURI",
                         typeof (string),
-                        this.track_uri,
+                        this.controller.track_uri,
                     "RelTime",
                         typeof (string),
                         this.player.position_as_str,
@@ -564,7 +502,7 @@ internal class Rygel.AVTransport : Service {
             return;
         }
 
-        this.player.playback_state = "STOPPED";
+        this.controller.playback_state = "STOPPED";
 
         action.return ();
     }
@@ -585,7 +523,7 @@ internal class Rygel.AVTransport : Service {
 
         // Speed change will take effect when playback state is changed
         this.player.playback_speed = speed;
-        this.player.playback_state = "PLAYING";
+        this.controller.playback_state = "PLAYING";
 
         action.return ();
     }
@@ -595,13 +533,13 @@ internal class Rygel.AVTransport : Service {
             return;
         }
 
-        if (this.player.playback_state != "PLAYING") {
+        if (this.controller.playback_state != "PLAYING") {
             action.return_error (701, _("Transition not available"));
 
             return;
         }
 
-        this.player.playback_state = "PAUSED_PLAYBACK";
+        this.controller.playback_state = "PAUSED_PLAYBACK";
 
         action.return ();
     }
@@ -623,9 +561,6 @@ internal class Rygel.AVTransport : Service {
         case "ABS_TIME":
         case "REL_TIME":
             var seek_target = TimeUtils.time_from_string (target);
-            if (unit != "ABS_TIME") {
-                seek_target += this.player.position;
-            }
             debug ("Seeking to %lld sec", seek_target / TimeSpan.SECOND);
 
             if (!this.player.can_seek) {
@@ -738,19 +673,19 @@ internal class Rygel.AVTransport : Service {
         action.return ();
     }
 
-    private void notify_state_cb (Object player, ParamSpec p) {
-        var state = this.player.playback_state;
+    private void notify_state_cb (Object controller, ParamSpec p) {
+        var state = this.controller.playback_state;
         this.changelog.log ("TransportState", state);
         this.changelog.log ("CurrentTransportActions",
                             this.controller.current_transport_actions);
     }
 
-    private void notify_n_tracks_cb (Object player, ParamSpec p) {
+    private void notify_n_tracks_cb (Object controller, ParamSpec p) {
         this.changelog.log ("NumberOfTracks",
                             this.controller.n_tracks.to_string ());
     }
 
-    private void notify_track_cb (Object player, ParamSpec p) {
+    private void notify_track_cb (Object controller, ParamSpec p) {
         this.changelog.log ("CurrentTrack",
                             this.controller.track.to_string ());
     }
@@ -762,17 +697,8 @@ internal class Rygel.AVTransport : Service {
                             this.player.duration_as_str);
     }
 
-    private void notify_track_uri_cb (Object player, ParamSpec p) {
-        this.changelog.log ("CurrentTrackURI", this.track_uri);
-    }
-
-    private void notify_uri_cb (Object player, ParamSpec p) {
+    private void notify_uri_cb (Object controller, ParamSpec p) {
         this.changelog.log ("AVTransportURI", this.controller.uri);
-    }
-
-    private void notify_track_meta_data_cb (Object player, ParamSpec p) {
-        this.changelog.log ("CurrentTrackMetaData",
-                            Markup.escape_text (this.track_metadata));
     }
 
     private void notify_meta_data_cb (Object player, ParamSpec p) {
@@ -780,7 +706,29 @@ internal class Rygel.AVTransport : Service {
                             Markup.escape_text (this.controller.metadata));
     }
 
-    private async void handle_playlist (ServiceAction action) {
+    private void notify_track_uri_cb (Object player, ParamSpec p) {
+        this.changelog.log ("CurrentTrackURI", this.controller.track_uri);
+    }
+
+    private void notify_track_meta_data_cb (Object player, ParamSpec p) {
+        this.changelog.log ("CurrentTrackMetaData",
+                            Markup.escape_text (this.controller.track_metadata));
+    }
+
+    private void notify_next_uri_cb (Object controller, ParamSpec p) {
+        this.changelog.log ("NextAVTransportURI", this.controller.next_uri);
+    }
+
+    private void notify_next_meta_data_cb (Object player, ParamSpec p) {
+        this.changelog.log ("NextAVTransportURIMetaData",
+                            Markup.escape_text (this.controller.next_metadata));
+    }
+
+    private async void handle_playlist (ServiceAction action,
+                                        string uri,
+                                        string metadata,
+                                        string mime,
+                                        string features) {
         var message = new Message ("GET", this.controller.uri);
         this.session.queue_message (message, () => {
             handle_playlist.callback ();
@@ -803,9 +751,120 @@ internal class Rygel.AVTransport : Service {
             return;
         }
 
-        this.controller.set_playlist (collection);
+        switch (action.get_name ()) {
+        case "SetAVTransportURI":
+            this.controller.set_playlist_uri (uri, metadata, collection);
+            break;
+        case "SetNextAVTransportURI":
+            this.controller.set_next_playlist_uri (uri, metadata, collection);
+            break;
+        default:
+            assert_not_reached ();
+        }
 
         action.return ();
+    }
+
+    private bool is_playlist (string? mime, string? features) {
+        return mime == "text/xml" && features != null &&
+               features.has_prefix ("DLNA.ORG_PN=DIDL_S");
+    }
+
+    private void check_resource (Soup.Message msg,
+                                 string       _uri,
+                                 string       _metadata,
+                                 ServiceAction action) {
+        // Error codes gotten by experience from several web services or web
+        // radio stations that don't support HEAD but return a variety of
+        // errors.
+        if ((msg.status_code == Status.MALFORMED ||
+             msg.status_code == Status.BAD_REQUEST ||
+             msg.status_code == Status.METHOD_NOT_ALLOWED ||
+             msg.status_code == Status.NOT_IMPLEMENTED) &&
+            msg.method == "HEAD") {
+            debug ("Peer does not support HEAD, trying GET");
+            msg.method = "GET";
+
+            // Fake HEAD request by cancelling the message after the headers
+            // were received, then restart the message
+            msg.got_headers.connect ((msg) => {
+                this.session.cancel_message (msg, msg.status_code);
+            });
+
+            this.session.queue_message (msg, null);
+
+            return;
+        }
+
+        if (msg.status_code != Status.OK) {
+            // TRANSLATORS: first %s is a URI, the second an explanaition of
+            // the error
+            warning (_("Failed to access resource at %s: %s"),
+                     _uri,
+                     msg.reason_phrase);
+
+            action.return_error (716, _("Resource not found"));
+
+            return;
+        }
+
+        var mime = msg.response_headers.get_one ("Content-Type");
+        var features = msg.response_headers.get_one
+                            ("contentFeatures.dlna.org");
+
+        if (!this.is_valid_mime_type (mime) &&
+            !this.is_playlist (mime, features)) {
+            action.return_error (714, _("Illegal MIME-type"));
+
+            return;
+        }
+
+        if (this.is_playlist (mime, features)) {
+            // Delay returning the action
+            this.handle_playlist.begin (action,
+                                        _uri,
+                                        _metadata,
+                                        mime,
+                                        features);
+        } else {
+            this.set_single_play_uri (action, _uri, _metadata, mime, features);
+        }
+    }
+
+    private void handle_new_transport_uri (ServiceAction action,
+                                           string        uri,
+                                           string        metadata) {
+        if (uri.has_prefix ("http://") || uri.has_prefix ("https://")) {
+            var message = new Message ("HEAD", uri);
+            message.request_headers.append ("getContentFeatures.dlna.org",
+                                            "1");
+            message.finished.connect ((msg) => {
+                this.check_resource (msg, uri, metadata, action);
+            });
+
+            this.session.queue_message (message, null);
+        } else {
+            this.set_single_play_uri (action, uri, metadata, null, null);
+        }
+    }
+
+    private void set_single_play_uri (ServiceAction    action,
+                                      string           uri,
+                                      string           metadata,
+                                      string?          mime,
+                                      string?          features) {
+            switch (action.get_name ()) {
+            case "SetAVTransportURI":
+                this.controller.set_single_play_uri (uri, metadata, mime, features);
+                break;
+            case "SetNextAVTransportURI":
+                this.controller.set_next_single_play_uri (uri, metadata, mime, features);
+                break;
+            default:
+                assert_not_reached ();
+            }
+
+            action.return ();
     }
 
     private string unescape (string input) {
@@ -816,10 +875,5 @@ internal class Rygel.AVTransport : Service {
         result = result.replace ("&amp;", "&");
 
         return result;
-    }
-
-    private bool is_playlist (string? mime, string? features) {
-        return mime == "text/xml" && features != null &&
-               features.has_prefix ("DLNA.ORG_PN=DIDL_S");
     }
 }
