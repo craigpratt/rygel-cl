@@ -37,13 +37,16 @@ public class Rygel.HTTPGet : HTTPRequest {
 
     public HTTPSeekRequest seek;
     public PlaySpeedRequest speed_request;
+	public Soup.ClientContext client_context;
 
     public HTTPGetHandler handler;
 
     internal HTTPGet (HTTPServer   http_server,
                     Soup.Server  server,
+                    Soup.ClientContext client_context,
                     Soup.Message msg) {
         base (http_server, server, msg);
+		this.client_context = client_context;
     }
 
     protected override async void handle () throws Error {

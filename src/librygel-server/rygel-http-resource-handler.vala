@@ -33,6 +33,16 @@ using GUPnP;
  * The HTTP handler for HTTP ContentResource requests.
  */
 internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
+
+	private static int STREAMING_TRANSFER_MODE_DSCP = 0x28;
+	private static int INTERACTIVE_TRANSFER_MODE_DSCP = 0x0;
+	private static int BACKGROUND_TRANSFER_MODE_DSCP = 0x8;
+
+	private static int SOL_IP = 0;
+	private static int IP_TOS = 1;
+	private static int SOL_SOCKET = 1;
+	private static int SO_PRIORITY = 12;
+
     private MediaObject media_object;
     private string media_resource_name;
     public MediaResource media_resource;
@@ -105,7 +115,34 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
                               (_("Couldn't create data source for %s"),
                                this.media_resource.get_name ());
             }
-            return new HTTPResponse (request, this, src);
+			// set QoS based on transfer mode header
+			string transfer_mode_header = request.msg.response_headers.get_one (TRANSFER_MODE_HEADER);
+
+			// default to 0
+			int mode_value = 0x0;
+
+			if (transfer_mode_header == TRANSFER_MODE_STREAMING) {
+				mode_value = STREAMING_TRANSFER_MODE_DSCP;
+			}
+
+			if (transfer_mode_header == TRANSFER_MODE_INTERACTIVE) {
+				mode_value = INTERACTIVE_TRANSFER_MODE_DSCP;
+			}
+
+			if (transfer_mode_header == TRANSFER_MODE_BACKGROUND) {
+				mode_value = BACKGROUND_TRANSFER_MODE_DSCP;
+			}
+
+			int tos_value = (mode_value << 2);
+			int priority_value = (mode_value >> 3);
+
+			int file_descriptor = request.client_context.get_socket ().get_fd ();
+			Posix.socklen_t sockopt_length = (int)sizeof (Posix.socklen_t);
+
+			Posix.setsockopt(file_descriptor, SOL_IP, IP_TOS, &tos_value, sockopt_length);
+			Posix.setsockopt(file_descriptor, SOL_SOCKET, SO_PRIORITY, &priority_value, sockopt_length);
+
+			return new HTTPResponse (request, this, src);
         } catch (Error err) {
             throw new HTTPRequestError.NOT_FOUND (err.message);
         }

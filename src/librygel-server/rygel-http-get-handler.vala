@@ -30,7 +30,7 @@ using GUPnP;
  * HTTP GET request handler interface.
  */
 public abstract class Rygel.HTTPGetHandler: GLib.Object {
-    private const string TRANSFER_MODE_HEADER = "transferMode.dlna.org";
+    protected const string TRANSFER_MODE_HEADER = "transferMode.dlna.org";
 
     protected const string TRANSFER_MODE_STREAMING = "Streaming";
     protected const string TRANSFER_MODE_INTERACTIVE = "Interactive";
