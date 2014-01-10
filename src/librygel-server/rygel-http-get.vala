@@ -114,8 +114,8 @@ public class Rygel.HTTPGet : HTTPRequest {
         var requested_time_seek = HTTPTimeSeekRequest.requested (this);
         var supports_byte_seek = HTTPByteSeekRequest.supported (this);
         var requested_byte_seek = HTTPByteSeekRequest.requested (this);
-        var supports_cleartext_seek = DTCPCleartextByteSeekRequest.supported (this);
-        var requested_cleartext_seek = DTCPCleartextByteSeekRequest.requested (this);
+        var supports_cleartext_seek = DTCPCleartextRequest.supported (this);
+        var requested_cleartext_seek = DTCPCleartextRequest.requested (this);
 
         // Order is significant here when the request has more than one seek header
         if (requested_cleartext_seek) {
@@ -175,7 +175,7 @@ public class Rygel.HTTPGet : HTTPRequest {
         try {
             // Order is intentional here
             if (supports_cleartext_seek && requested_cleartext_seek) {
-                var cleartext_seek = new DTCPCleartextByteSeekRequest (this);
+                var cleartext_seek = new DTCPCleartextRequest (this);
                 debug ("Processing DTCP cleartext byte range request (bytes %lld to %lld)",
                          cleartext_seek.start_byte, cleartext_seek.end_byte);
                 this.seek = cleartext_seek;
