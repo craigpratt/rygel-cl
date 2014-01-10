@@ -31,7 +31,7 @@ using GUPnP;
 
 public static const string DTCP_CLEARTEXT_RANGE_REQUEST_HEADER = "Range.dtcp.com";
 
-public class Rygel.DTCPCleartextByteSeekRequest : Rygel.HTTPSeekRequest {
+public class Rygel.DTCPCleartextRequest : Rygel.HTTPSeekRequest {
     /**
      * The start of the cleartext range in bytes 
      */
@@ -52,9 +52,8 @@ public class Rygel.DTCPCleartextByteSeekRequest : Rygel.HTTPSeekRequest {
      */
     public int64 total_size { get; private set; }
 
-
-    public DTCPCleartextByteSeekRequest (HTTPGet request) throws HTTPSeekRequestError,
-                                                                 HTTPRequestError {
+    public DTCPCleartextRequest (HTTPGet request) throws HTTPSeekRequestError,
+                                                         HTTPRequestError {
         base ();
 
         int64 start, end, total_size;
@@ -148,70 +147,5 @@ public class Rygel.DTCPCleartextByteSeekRequest : Rygel.HTTPSeekRequest {
 
     public static bool requested (HTTPGet request) {
         return (request.msg.request_headers.get_one (DTCP_CLEARTEXT_RANGE_REQUEST_HEADER) != null);
-    }
-}
-
-public static const string DTCP_CLEARTEXT_RANGE_RESPONSE_HEADER = "Content-Range.dtcp.com";
-
-public class Rygel.DTCPCleartextByteSeekResponse : Rygel.HTTPResponseElement {
-    /**
-     * The start of the response range in bytes 
-     */
-    public int64 start_byte { get; private set; }
-
-    /**
-     * The end of the range in bytes (inclusive)
-     */
-    public int64 end_byte { get; private set; }
-
-    /**
-     * The length of the range in bytes
-     */
-    public int64 range_length { get; private set; }
-
-    /**
-     * The length of the resource in bytes. May be HTTPSeekRequest.UNSPECIFIED
-     */
-    public int64 total_size { get; private set; }
-
-    /**
-     * The encrypted length of the response
-     */
-    public int64 encrypted_length { get; public set;}
-
-    public DTCPCleartextByteSeekResponse (int64 start_byte, int64 end_byte, int64 total_size) {
-        this.start_byte = start_byte;
-        this.end_byte = end_byte;
-        this.range_length = end_byte - start_byte + 1; // +1, since range is inclusive
-        this.total_size = total_size;
-        this.encrypted_length = UNSPECIFIED;
-    }
-
-    public DTCPCleartextByteSeekResponse.from_request (DTCPCleartextByteSeekRequest request) {
-        this.start_byte = request.start_byte;
-        this.end_byte = request.end_byte;
-        this.range_length = request.range_length;
-        this.total_size = request.total_size;
-        this.encrypted_length = UNSPECIFIED;
-    }
-
-    public override void add_response_headers (Rygel.HTTPRequest request) {
-        // Content-Range.dtcp.com: bytes START_BYTE-END_BYTE/TOTAL_LENGTH (or "*")
-        if (this.start_byte != UNSPECIFIED) {
-            string response = "bytes " + this.start_byte.to_string ()
-                              + "-" + this.end_byte.to_string () + "/"
-                              + ( (this.total_size == UNSPECIFIED) ? "*"
-                                  : this.total_size.to_string () );
-
-            request.msg.response_headers.append (DTCP_CLEARTEXT_RANGE_RESPONSE_HEADER, response);
-        }
-        if (this.encrypted_length != UNSPECIFIED) {
-            request.msg.response_headers.set_content_length (this.encrypted_length);
-        }
-    }
-
-    public override string to_string () {
-        return ("DTCPCleartextByteSeekResponse(bytes=%lld-%lld/%lld, enc_len=%lld)"
-                .printf (this.start_byte, this.end_byte, this.total_size, this.encrypted_length));
     }
 }

@@ -259,15 +259,15 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                    seek_response.start_byte, seek_response.end_byte );
             response_list.add (seek_response);
             perform_cleartext_response = false;
-        } else if (seek_request is DTCPCleartextByteSeekRequest) {
+        } else if (seek_request is DTCPCleartextRequest) {
             //
             // Cleartext-based seek (only for link-protected content)
             //
             if (!this.content_protected) { // Sanity check
                 throw new DataSourceError.GENERAL ("Cleartext seek not supported on unprotected content");
             }
-            var cleartext_seek = seek_request as DTCPCleartextByteSeekRequest;
-            debug ( "Processing cleartext byte seek (bytes %lld to %s)",
+            var cleartext_seek = seek_request as DTCPCleartextRequest;
+            debug ( "Processing cleartext byte request (bytes %lld to %s)",
                       cleartext_seek.start_byte,
                       (cleartext_seek.end_byte == HTTPSeekRequest.UNSPECIFIED)
                       ? "*" : cleartext_seek.end_byte.to_string () );
@@ -288,9 +288,9 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                       total_size,
                                       out this.range_start, out this.range_end );
             var seek_response
-                = new DTCPCleartextByteSeekResponse (this.range_start,
-                                                     this.range_end-1,
-                                                     total_size);
+                = new DTCPCleartextResponse (this.range_start,
+                                             this.range_end-1,
+                                             total_size);
 
             seek_response.encrypted_length = (int64)
                                              Dtcpip.get_encrypted_length
