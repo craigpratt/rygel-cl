@@ -149,7 +149,7 @@ public class Rygel.HTTPServer : Rygel.StateMachine, GLib.Object {
                 debug ("%s : %s", name, value);
         });
 
-        this.queue_request (new HTTPGet (this, server, msg));
+        this.queue_request (new HTTPGet (this, server, soup_client, msg));
     }
 
     private void on_request_aborted (Soup.Server        server,
