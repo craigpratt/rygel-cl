@@ -46,7 +46,6 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     private Mutex mutex = Mutex ();
     private Cond cond = Cond ();
     private int64 range_start = 0;
-    private int64 range_end = 0; // non-inclusive
     private bool frozen = false;
     private bool stop_thread = false;
     private HTTPSeekRequest seek_request;
@@ -54,9 +53,9 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     private MediaResource res;
     private bool content_protected = false;
     private int dtcp_session_handle = -1;
-
+    private Gee.ArrayList<int64?> range_length_list = new Gee.ArrayList<int64?> (); 
+      
     public ODIDDataSource (string source_uri, MediaResource ? res) {
-        debug ("Creating data source for %s resource %s", source_uri, res.get_name ());
         this.source_uri = source_uri;
         this.res = res;
     }
@@ -80,7 +79,6 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         if (res == null) {
             throw new DataSourceError.GENERAL ("null resource");
         }
-
         debug ("Resource " + res.to_string ());
         File odidItem = File.new_for_uri (source_uri);
 
@@ -174,6 +172,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         // Process HTTPSeekRequest
         if (seek_request == null) {
             debug ("No seek request received");
+            // Set range end to 0
+            this.range_length_list.add (0);
             perform_cleartext_response = false;
         } else if (seek_request is HTTPTimeSeekRequest) {
             //
@@ -207,9 +207,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             offsets_for_time_range (index_path, is_reverse,
                                    ref time_offset_start, ref time_offset_end,
                                    total_duration,
-                                   out this.range_start, out this.range_end,
+                                   out this.range_start, this.range_length_list,
                                    total_size );
-
             if (this.content_protected) {
                 // We don't currently support Range on link-protected binaries. So leave out
                 //  the byte range from the TimeSeekRange response
@@ -222,10 +221,11 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 response_list.add (seek_response);
                 perform_cleartext_response = true; // We'll packet-align the range below
             } else { // No link protection
+                int64 range_end = this.range_length_list[0];
                 var seek_response = new HTTPTimeSeekResponse
                                             (time_offset_start, time_offset_end,
                                              total_duration,
-                                             this.range_start, this.range_end-1,
+                                             this.range_start, range_end-1,
                                              total_size);
                 debug ("Time range for time seek response: %lldms through %lldms",
                        seek_response.start_time, seek_response.end_time);
@@ -242,18 +242,21 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 throw new DataSourceError.GENERAL
                               ("Byte seek not supported on protected content");
             }
+
             var byte_seek = seek_request as HTTPByteSeekRequest;
             debug ("Processing byte seek (bytes %lld to %s)", byte_seek.start_byte,
                    (byte_seek.end_byte == HTTPSeekRequest.UNSPECIFIED)
                    ? "*" : byte_seek.end_byte.to_string () );
             this.range_start = byte_seek.start_byte;
             if (byte_seek.end_byte == HTTPSeekRequest.UNSPECIFIED) {
-                this.range_end = total_size;
+                this.range_length_list.add (total_size);
             } else {
-                this.range_end = int64.min (byte_seek.end_byte + 1, total_size);
+                int64 end = int64.min (byte_seek.end_byte + 1, total_size);
+                this.range_length_list.add (end);
             }
+            
             var seek_response = new HTTPByteSeekResponse (this.range_start,
-                                                          this.range_end-1,
+                                                          this.range_length_list[0]-1,
                                                           total_size);
             debug ("Byte range for byte seek response: bytes %lld through %lld",
                    seek_response.start_byte, seek_response.end_byte );
@@ -273,34 +276,44 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                       ? "*" : cleartext_seek.end_byte.to_string () );
             this.range_start = cleartext_seek.start_byte;
             if (cleartext_seek.end_byte == HTTPSeekRequest.UNSPECIFIED) {
-                this.range_end = total_size;
+                this.range_length_list.add (total_size);
             } else {
-                this.range_end = int64.min (cleartext_seek.end_byte + 1, total_size);
+                int64 end = int64.min (cleartext_seek.end_byte + 1, total_size);
+                this.range_length_list.add (end);
             }
             perform_cleartext_response = true; // We'll packet-align the range below
         } else {
             throw new DataSourceError.SEEK_FAILED ("Unsupported seek type");
         }
 
-        if (perform_cleartext_response) {
+        string index_file = resource_path + "/" + content_filename + ".index";
+        if (this.content_protected) {
             // The range needs to be packet-aligned, which can affect range returned
-            get_packet_aligned_range ( res, this.range_start, this.range_end,
+            get_packet_aligned_range( res, index_file, 
+                                      this.range_start, this.range_length_list[0],
                                       total_size,
-                                      out this.range_start, out this.range_end );
-            var seek_response
-                = new DTCPCleartextResponse (this.range_start,
-                                             this.range_end-1,
-                                             total_size);
+                                      out this.range_start, this.range_length_list );
+        }
+        if (perform_cleartext_response) {
+            int64 range_end = 0;
+            int64 encrypted_length = 0;
+            int64 byte_range = 0;
+            foreach (int64 range_val in this.range_length_list) {
+                byte_range = range_val  - this.range_start;
+                range_end += range_val;
+                //debug ("range_end: %lld", range_end);
+                encrypted_length += (int64) Dtcpip.get_encrypted_length (byte_range, ODIDMediaEngine.chunk_size);
+            }
+            debug ("encrypted_length: %lld", encrypted_length);
+            // 
+            var seek_response = new DTCPCleartextResponse (this.range_start,
+                                             this.range_length_list[0]-1,
+                                             total_size, encrypted_length);
 
-            seek_response.encrypted_length = (int64)
-                                             Dtcpip.get_encrypted_length
-                                                 (seek_response.range_length,
-                                                  ODIDMediaEngine.chunk_size);
             response_list.add (seek_response);
             debug ("Byte range for cleartext byte seek response: bytes %lld through %lld",
                    seek_response.start_byte, seek_response.end_byte );
         }
-
         return response_list;
         // Wait for a start() before sending anything
     }
@@ -308,28 +321,47 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     /**
      * Note: range_end and aligned_end are non-inclusive
      */
-    internal void get_packet_aligned_range (MediaResource res,
-                                            int64 range_start, int64 range_end,
+    internal void get_packet_aligned_range (MediaResource res, string index_file,
+                                            int64 range_start, int64 req_end_val,
                                             int64 total_size,
                                             out int64 aligned_start,
-                                            out int64 aligned_end) {
+                                            Gee.ArrayList<int64?> aligned_range_list) 
+       throws Error {
         //Get the transport stream packet size for the profile
-        string profile_name = res.dlna_profile;
-        // Align the bytes to transport packet boundaries
-        int64 packet_size = ODIDUtil.get_profile_packet_size (profile_name);
+        string profile = res.dlna_profile;
         aligned_start = range_start;
-        if (packet_size > 0) {
-            // DLNA Link Protection : 8.9.5.4.2
-            aligned_end = ODIDUtil.get_dtcp_aligned_end (range_start, range_end,
-                                                         packet_size);
-            aligned_end = int64.min (aligned_end, total_size);
-        } else {
+        // Transport streams
+        if ((profile.has_prefix ("DTCP_MPEG_TS") ||
+             profile.has_prefix ("DTCP_AVC_TS")) ) {
+            // Align the bytes to transport packet boundaries
+            int64 packet_size = ODIDUtil.get_profile_packet_size (profile);
+            // TODO: Align beginning of the packet also??
+            if (packet_size > 0) {
+                // DLNA Link Protection : 8.9.5.4.2
+                int64 aligned_end = ODIDUtil.get_dtcp_aligned_end (range_start, req_end_val,
+                                                                   packet_size);
+                aligned_end = int64.min (aligned_end, total_size);
+                aligned_range_list[0] = aligned_end;
+            }
+            else {
+                aligned_range_list[0] = req_end_val;
+            }
+        } 
+        // Program streams
+        else if ((profile.has_prefix ("DTCP_MPEG_PS"))) {
+            // Align the 'end' to VOBU boundary
+            // This can be a list of vobu offsets
+            ODIDUtil.vobu_aligned_offsets_for_range (index_file,
+                           range_start, req_end_val,
+                           out aligned_start, aligned_range_list,
+                           total_size );
+        } 
+        else {
             warning ("Attemped to DTCP-align unsupported protocol: "
-                     + profile_name);
-            aligned_end = range_end;
+                     + profile);
         }
     }
-
+    
     /**
      * Find the time/data offsets that cover the provided time range start_time to end_time.
      *
@@ -339,7 +371,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     internal void offsets_for_time_range (string index_path, bool is_reverse,
                                           ref int64 start_time, ref int64 end_time,
                                           int64 total_duration,
-                                          out int64 start_offset, out int64 end_offset,
+                                          out int64 start_offset, Gee.ArrayList<int64?> end_offset_list,
                                           int64 total_size)
          throws Error {
         debug ("offsets_for_time_range: %s, %lld-%s",
@@ -356,8 +388,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         int64 last_time_offset = is_reverse ? total_duration : 0; // Time can go backward
         string last_data_offset = "0"; // but data offsets always go forward...
         start_offset = int64.MAX;
-        end_offset = int64.MAX;
         int line_count = 0;
+        end_offset_list.clear();
         // Read lines until end of file (null) is reached
         while ((line = dis.read_line (null)) != null) {
             line_count++;
@@ -401,9 +433,9 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 } else {
                     if ( (is_reverse && (cur_time_offset < end_time))
                          || (!is_reverse && (cur_time_offset > end_time)) ) {
+                        int64 end_offset = int64.parse (strip_leading_zeros (cur_data_offset));
                         end_time = cur_time_offset;
-                        end_offset = int64.parse (strip_leading_zeros
-                                                      (cur_data_offset));
+                        end_offset_list.add (end_offset);
                         end_offset_found = true;
                         debug ("offsets_for_time_range: found end of range (%s): time %lld, offset %lld",
                                (is_reverse ? "reverse" : "forward"),
@@ -424,12 +456,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         if (!end_offset_found) {
             // Modify the end byte value to align to start/end of the file, if necessary
             //  (see DLNA 7.5.4.3.2.24.4)
-            end_offset = total_size;
+            int64 end_offset = total_size;
             if (is_reverse) {
                 end_time = 0;
             } else {
                 end_time = total_duration;
             }
+            end_offset_list.add (end_offset);
             debug ("offsets_for_time_range: end of range beyond index range (%s): time %lld, offset %lld",
                    (is_reverse ? "reverse" : "forward"), end_time, end_offset);
         }
@@ -535,83 +568,90 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     }
     private void* thread_func () {
         var file = File.new_for_uri (this.content_uri);
+        int64 range_end;
         debug ("Spawned new thread for streaming %s", this.content_uri);
         try {
             var mapped = new MappedFile (file.get_path (), false);
-
-            if (this.range_end == 0) {
-                this.range_end = mapped.get_length ();
+            if (this.range_length_list.size != 0) {
+                if (this.range_length_list[0] == 0) {
+                    this.range_length_list[0] = mapped.get_length ();
+                }
             }
 
-            debug ("Sending bytes %lld-%lld (%lld bytes) of %s",
-                   this.range_start, this.range_end, this.range_end-this.range_start,
-                   this.content_uri );
+            // For link protected program streams the requested range is translated 
+            // to one or more VOB units and each VOBU forms a single PCP. The list of 
+            // VOBU offsets is  contained in member 'end_offsets'. There needs to be 
+            // an outer loop here that will walk thru all VOBUs and trasmit each as a 
+            // single PCP. The chunk size (set in rygel.conf) is also taken into consideration
+            // inside the inner loop.
+            foreach (int64 end_offset in this.range_length_list) {
+                range_end = end_offset;    
+                while (true) {
+                    bool exit;
+                    this.mutex.lock ();
+                    while (this.frozen) {
+                       this.cond.wait (this.mutex);
+                    }
 
-            while (true) {
-                bool exit;
-                this.mutex.lock ();
-                while (this.frozen) {
-                    this.cond.wait (this.mutex);
-                }
+                    exit = this.stop_thread;
+                    this.mutex.unlock ();
 
-                exit = this.stop_thread;
-                this.mutex.unlock ();
+                    if (exit || this.range_start >= range_end) {
+                       debug ("Done streaming!");
+                       break;
+                    }
 
-                if (exit || this.range_start >= this.range_end) {
-                    debug ("Done streaming!");
-                    break;
-                }
+                    var start = this.range_start;
+                    var stop = start + ODIDMediaEngine.chunk_size;
+                    var end = range_end;
+                    if (stop > end) {
+                        stop = end;
+                    }
 
-                var start = this.range_start;
-                var stop = start + ODIDMediaEngine.chunk_size;
-                if (stop > this.range_end) {
-                    stop = this.range_end;
-                }
+                    debug ( "Sending range %lld-%lld (%lld bytes)",
+                           start, stop, stop-start );
 
-                // debug ( "Sending range %lld-%lld (%lld bytes)",
-                //           start, stop, stop-start );
+                    unowned uint8[] data = (uint8[]) mapped.get_contents ();
+                    data.length = (int) mapped.get_length ();
+                    uint8[] slice = data[start:stop];
+                    this.range_start = stop; // Move forward
 
-                unowned uint8[] data = (uint8[]) mapped.get_contents ();
-                data.length = (int) mapped.get_length ();
-                uint8[] slice = data[start:stop];
-                this.range_start = stop; // Move forward
+                    if (this.dtcp_session_handle == -1) {
+                        // There's a potential race condition here.
+                        Idle.add ( () => {
+                            if (!this.stop_thread) {
+                                this.data_available (slice);
+                            }
+                            return false;
+                         });
+                     } else {
+                         // Encrypted data has to be unowned as the reference will be passed
+                         // to DTCP libraries to perform the cleanup, else vala will be
+                         //performing the cleanup by default.
+                         unowned uint8[] encrypted_data = null;
+                         uchar cci = 0x3; // TODO: Put the CCI bits in resource.info
 
-                if (this.dtcp_session_handle == -1) {
-                    // There's a potential race condition here.
-                    Idle.add ( () => {
-                        if (!this.stop_thread) {
-                            this.data_available (slice);
-                        }
-                        return false;
-                    });
-                } else {
-                    // Encrypted data has to be unowned as the reference will be passed
-                    // to DTCP libraries to perform the cleanup, else vala will be
-                    //performing the cleanup by default.
-                    unowned uint8[] encrypted_data = null;
-                    uchar cci = 0x3; // TODO: Put the CCI bits in resource.info
-
-                    // Encrypt the data
-                    int return_value = Dtcpip.server_dtcp_encrypt
+                         // Encrypt the data
+                         int return_value = Dtcpip.server_dtcp_encrypt
                                            ( dtcp_session_handle, cci,
                                              slice, out encrypted_data );
-                    debug ("Encryption returned: %d and the encryption size : %s",
+                         debug ("Encryption returned: %d and the encryption size : %s",
                            return_value,
                            (encrypted_data == null)
                             ? "NULL" : encrypted_data.length.to_string ());
-                    // There's a potential race condition here.
-                    Idle.add ( () => {
-                        if (!this.stop_thread) {
+                         // There's a potential race condition here.
+                         Idle.add ( () => {
+                         if (!this.stop_thread) {
                             this.data_available (encrypted_data);
-                        }
+                         }
+                          int ret_free = Dtcpip.server_dtcp_free (encrypted_data);
+                          debug ("DTCP-IP data reference freed : %d", ret_free);
 
-                        int ret_free = Dtcpip.server_dtcp_free (encrypted_data);
-                        debug ("DTCP-IP data reference freed : %d", ret_free);
-
-                        return false;
-                    });
+                          return false;
+                         });
+                     }
                 }
-            }
+            } // END for
         } catch (Error error) {
             warning ("Failed to stream: %s", error.message);
         }

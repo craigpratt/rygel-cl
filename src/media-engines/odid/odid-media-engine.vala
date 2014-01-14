@@ -332,9 +332,34 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             res.dlna_operation = DLNAOperation.NONE;
             // We'll OR in TIMESEEK if we have an index file...
             res.cleartext_size = res.size;
-            res.size = (int64)Dtcpip.get_encrypted_length (res.cleartext_size,
-                                                           chunk_size);
-            debug ("Encrypted size from DTCP library: %lld",res.size);
+            
+            string profile = res.dlna_profile;
+            if ((profile.has_prefix ("DTCP_MPEG_PS"))) {
+                // Align the 'end' to VOBU boundary
+                // This can be a list of vobu offsets
+                int64 start_offset = 0;
+                Gee.ArrayList<int64?> range_length_list = new Gee.ArrayList<int64?> (); 
+                string index_path = res_dir_uri + normal_content_filename + ".index";
+                ODIDUtil.vobu_aligned_offsets_for_range (index_path, start_offset, res.size,
+                               out start_offset, range_length_list,
+                               res.size);   
+                {
+                    int64 range_end = 0;
+                    int64 encrypted_length = 0;
+                    int64 byte_range = 0;
+                    foreach (int64 range_val in range_length_list) {
+                        byte_range = range_val - start_offset;
+                        range_end += range_val;
+                        encrypted_length += (int64) Dtcpip.get_encrypted_length (byte_range, ODIDMediaEngine.chunk_size);
+                    }
+                    res.size = encrypted_length;
+                    debug ("res.size: %lld", res.size);
+                }
+            }
+            else {
+                res.size = (int64) Dtcpip.get_encrypted_length (res.cleartext_size, chunk_size);
+            }
+            debug ("Encrypted size from DTCP library: %lld", res.size);
         } else {
             res.dlna_operation = DLNAOperation.RANGE;
             // We'll OR in TIMESEEK if we have an index file...

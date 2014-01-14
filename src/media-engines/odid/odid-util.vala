@@ -32,7 +32,6 @@ public class Rygel.ODIDUtil : Object {
     private static ODIDUtil util = null;
     public const int64 PACKET_SIZE_188 = 188;
     public const int64 PACKET_SIZE_192 = 192;
-
     public const int64 KILOBYTES_TO_BYTES = 1024;
 
     private ODIDUtil () {
@@ -44,6 +43,97 @@ public class Rygel.ODIDUtil : Object {
         }
 
         return util;
+    }
+
+    /**
+     * Find the vobu data offsets that cover the provided time range start_time to end_time.
+     *
+     */
+    public static void vobu_aligned_offsets_for_range (string index_path, 
+                                          int64 start, int64 end,
+                                          out int64 start_offset, Gee.ArrayList<int64?> aligned_range_list,
+                                          int64 total_size)
+         throws Error {
+        debug ("vobu_offsets_for_range: %s\n", index_path );
+        bool start_offset_found = false;
+        bool end_offset_found = false;
+
+        var file = File.new_for_uri (index_path);
+        var dis = new DataInputStream (file.read ());
+        string line;
+        int64  aligned_offset;
+        int64  end_offset;
+        start_offset = int64.MAX;
+        int line_count = 0;
+        // Clear the list
+        aligned_range_list.clear ();
+        // Read lines until end of file (null) is reached
+        while ((line = dis.read_line (null)) != null) {
+            line_count++;
+            // Entry Type (S: System)
+            // | Type (S: System header (identifies vobu (video object unit) boundaries in program streams))
+            // | | Time Offset (seconds.milliseconds) (fixed decimal places, 8.3)
+            // | | |            File Byte Offset (fixed decimal places, 19)
+            // | | |            |                   Vobu size (fixed decimal places, 10)
+            // | | |            |                   |
+            // v v v            v                   v
+            // S S 00000000.000 0000000000000000000 0000000000<16 spaces><newline>
+            if (line.length != ODIDMediaEngine.INDEXFILE_ROW_SIZE-1) {
+                throw new ODIDMediaEngineError.INDEX_FILE_ERROR (
+                              "Bad index file entry size (line %lld of %s is %d bytes - should be %d bytes): '%s'",
+                              line_count, index_path, line.length,
+                              ODIDMediaEngine.INDEXFILE_ROW_SIZE, line);
+            }
+            var index_fields = line.split (" "); // Could use fixed field positions here...
+            if ((index_fields[0][0] == 'S') && (index_fields[1][0] == 'S')) {
+                aligned_offset = int64.parse (strip_leading_zeros (index_fields[3]));
+                if (!start_offset_found) {
+                    if( aligned_offset <= start ) {
+                        debug ("vobu_offsets_for_range: found start of range req_start %lld, aligned_start %lld",
+                               start, aligned_offset);
+                                
+                        start_offset = aligned_offset;
+                        start_offset_found = true;
+                        continue;
+                    }
+                }     
+                // If a byte range spans multiple vobus, each vobu boundary
+                // needs to be added to a list so that the vobus can be
+                // streamed one at a time.
+                // From DLNA_Link_Protection_Part_3_2011-12-01.pdf
+                // 8.9.5.3.2 (For content using MPEG-2 Program Stream (PS) transferred with the HTTP
+                // transport protocol, the size of each PCP shall be one VOBU)
+                if (!end_offset_found) {
+                    if (aligned_offset >= end && end != 0) {
+                         debug ("vobu_offsets_for_range: found end of range req_end %lld, aligned_end %lld",
+                                   end, aligned_offset);
+                         end_offset = aligned_offset;
+                         aligned_range_list.add (aligned_offset);
+                         end_offset_found = true;
+                     }
+                     else {
+                         aligned_range_list.add (aligned_offset);
+                     } 
+                 }
+             }
+        }
+
+        if (!start_offset_found) {
+            throw new DataSourceError.SEEK_FAILED ("Start offset %lld is out of index file range",
+                                                  start);
+        }
+
+        if (!end_offset_found) {
+            // Modify the end byte value to align to start/end of the file, if necessary
+            //  (see DLNA 7.5.4.3.2.24.4)
+            //end_offset = total_size;
+            aligned_range_list.add (total_size);
+            debug ("vobu_offsets_for_range: end of range beyond index range offset %lld", total_size);
+        }
+    }
+
+    internal static string strip_leading_zeros (string number_string) {
+        return ODIDMediaEngine.strip_leading_zeros (number_string);
     }
 
     // DTCP content has to be aligned to a packet boundary.  188 or 192
@@ -76,7 +166,11 @@ public class Rygel.ODIDUtil : Object {
              !profile.has_suffix ("_ISO")){
             return PACKET_SIZE_192;
         }
-        //TODO : Handle MPEG_PS content alignment.(DLNA Link Protection 8.9.5.1.1)
+        // For MPEG_PS content alignment.(DLNA Link Protection 8.9.5.2.2)
+        // The Decoder Friendly Alignment Position for bitstreams using MPEG-2 
+        // Program Stream (PS) to these profiles shall be the VOBU boundary.
+        // It is handled in odid data source by reading VOBU boundaries
+        // from the index file.  
         return 0;
     }
 
