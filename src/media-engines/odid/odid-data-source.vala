@@ -298,16 +298,19 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             int64 range_end = 0;
             int64 encrypted_length = 0;
             int64 byte_range = 0;
+            int64 start = this.range_start;
             foreach (int64 range_val in this.range_length_list) {
-                byte_range = range_val  - this.range_start;
-                range_end += range_val;
-                //debug ("range_end: %lld", range_end);
+                byte_range = range_val  - start;
+                range_end += byte_range;
                 encrypted_length += (int64) Dtcpip.get_encrypted_length (byte_range, ODIDMediaEngine.chunk_size);
+                start = range_val;
             }
+            // Final element in the list becomes range_end 
+            range_end = start;
             debug ("encrypted_length: %lld", encrypted_length);
             // 
             var seek_response = new DTCPCleartextResponse (this.range_start,
-                                             this.range_length_list[0]-1,
+                                             range_end-1,
                                              total_size, encrypted_length);
 
             response_list.add (seek_response);

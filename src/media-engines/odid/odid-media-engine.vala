@@ -332,7 +332,6 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             res.dlna_operation = DLNAOperation.NONE;
             // We'll OR in TIMESEEK if we have an index file...
             res.cleartext_size = res.size;
-            
             string profile = res.dlna_profile;
             if ((profile.has_prefix ("DTCP_MPEG_PS"))) {
                 // Align the 'end' to VOBU boundary
@@ -347,10 +346,12 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                     int64 range_end = 0;
                     int64 encrypted_length = 0;
                     int64 byte_range = 0;
+                    int64 start = start_offset;
                     foreach (int64 range_val in range_length_list) {
-                        byte_range = range_val - start_offset;
-                        range_end += range_val;
+                        byte_range = range_val - start;
+                        range_end += byte_range;
                         encrypted_length += (int64) Dtcpip.get_encrypted_length (byte_range, ODIDMediaEngine.chunk_size);
+                        start = range_val;
                     }
                     res.size = encrypted_length;
                     debug ("res.size: %lld", res.size);
