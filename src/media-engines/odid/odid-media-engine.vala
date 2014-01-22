@@ -511,9 +511,9 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 }
                 break;
             default:
-                throw new ODIDMediaEngineError.CONFIG_ERROR
-                              ("Unknown odid configuration entry: " + name);
-
+                message ("Unrecognized odid configuration entry for resource %s: %s=%s",
+                         res.get_name (), name, value);
+                break;
         } // END switch (name)
     }
 
