@@ -485,7 +485,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     internal string ? get_content_property (string odid_content_uri,
                                             string property_name)
          throws Error {
-        return get_property_from_file (odid_content_uri + ".info", property_name);
+        string content_info_filename = odid_content_uri + ".info";
+        try {
+            return get_property_from_file (content_info_filename, property_name);
+        } catch (Error error) {
+            debug ("Content info file %s not found (non-fatal)", content_info_filename);
+            return null;
+        }
     }
 
     internal string ? get_property_from_file (string uri, string property_name)
