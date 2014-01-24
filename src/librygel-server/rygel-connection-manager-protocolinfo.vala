@@ -78,11 +78,22 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
         }
 
         public string to_string () {
-              return this.name +
+            // Work around due to core resulting from string.joinv call.
+            StringBuilder sb = new StringBuilder();
+            if (this.ps_flag != null) {
+                sb.append("DLNA.ORG_PS=");
+                foreach (var flag in this.ps_flag) {
+                    sb.append(flag);
+                    sb.append("\\,");
+                }
+                sb.truncate(sb.len - 2); // remove last comma
+                sb.append(";");
+            }
+            
+            return this.name +
                      (this.op_param == DLNAOperation.NONE ? ""
                       : "DLNA.ORG_OP=" + "%0.2x".printf (this.op_param) + ";")
-                     + (ps_flag != null
-                        ? "DLNA.ORG_PS=" + string.joinv ("\\,", this.ps_flag) + ";" : "")
+                     + sb.str
                      + (this.flags == DLNAFlags.NONE ? ""
                         :  append_reserved_zeros ("DLNA.ORG_FLAGS="
                                                   + "%0.8x".printf (this.flags)));
