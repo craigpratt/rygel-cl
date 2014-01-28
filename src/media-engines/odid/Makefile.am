@@ -15,6 +15,7 @@ librygel_media_engine_odid_la_SOURCES = \
 librygel_media_engine_odid_la_VALAFLAGS = \
 	$(RYGEL_COMMON_LIBRYGEL_SERVER_VALAFLAGS) \
 	$(RYGEL_COMMON_VALAFLAGS) \
+	--pkg posix \ 
 	--vapidir=./ --pkg dtcpip
 
 librygel_media_engine_odid_la_CFLAGS = \

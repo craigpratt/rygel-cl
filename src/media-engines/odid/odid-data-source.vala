@@ -3,6 +3,7 @@
  *
  * Author: Craig Pratt <craig@ecaspia.com>
  *         Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
+ *         Doug Galligan <doug@sentosatech.com>
  *
  * This file is part of Rygel.
  *
@@ -28,36 +29,61 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- * Based on Rygel SimpleDataSource
- * Copyright (C) 2012 Intel Corporation.
- */
-
 /**
- * A simple data source for use with the ODID media engine.
+ * An async data source for use with the ODID media engine.
  */
 using Dtcpip;
 using GUPnP;
 
 internal class Rygel.ODIDDataSource : DataSource, Object {
-    private string source_uri;
-    private Thread<void*> thread;
-    private string content_uri;
-    private Mutex mutex = Mutex ();
-    private Cond cond = Cond ();
-    private int64 range_start = 0;
-    private bool frozen = false;
-    private bool stop_thread = false;
-    private HTTPSeekRequest seek_request;
-    private PlaySpeedRequest playspeed_request = null;
-    private MediaResource res;
-    private bool content_protected = false;
-    private int dtcp_session_handle = -1;
-    private Gee.ArrayList<int64?> range_length_list = new Gee.ArrayList<int64?> (); 
+    protected string source_uri;
+    protected string content_uri;
+    protected int64 range_start = 0;
+    protected bool frozen = false;
+    protected HTTPSeekRequest seek_request;
+    protected PlaySpeedRequest playspeed_request = null;
+    protected MediaResource res;
+    protected bool content_protected = false;
+    protected int dtcp_session_handle = -1;
+    protected Gee.ArrayList<int64?> range_length_list = new Gee.ArrayList<int64?> ();
+    protected KeyFile keyFile = new KeyFile ();
+    
+    // Keep track as the progress through the byte range.
+    protected int64 total_bytes_read = 0;
+    
+    // Post condition to preroll.
+    protected int64 total_bytes_requested = 0;
+    
+    // Track alignment position in list if required for 
+    // VOBU alignment of PCPs.
+    private int alignment_pos = 0;
+    
+    private IOChannel output;
+    private uint output_watch_id = -1;
+    
+    // Pipe channel support
+    private static const string READ_CMD = "read-cmd";
+    private string read_cmd = null;
+    private Pid child_pid = 0;
+    
+    private GLib.Regex FB_REGEX;
+    private GLib.Regex LB_REGEX;
+    private GLib.Regex NB_REGEX;
+    private GLib.Regex FILE_REGEX;
       
     public ODIDDataSource (string source_uri, MediaResource ? res) {
         this.source_uri = source_uri;
         this.res = res;
+        
+        // Pipe channel initialization.
+        try {
+            FB_REGEX = new GLib.Regex (GLib.Regex.escape_string ("%firstByte"));
+            LB_REGEX = new GLib.Regex (GLib.Regex.escape_string ("%lastByte"));
+            NB_REGEX = new GLib.Regex (GLib.Regex.escape_string ("%numBytes"));
+            FILE_REGEX = new GLib.Regex (GLib.Regex.escape_string ("%file"));
+        } catch (GLib.RegexError e) {
+            warning ("Regex Error");
+        }
     }
 
     ~ODIDDataSource () {
@@ -82,14 +108,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         debug ("Resource " + res.to_string ());
         File odidItem = File.new_for_uri (source_uri);
 
-        KeyFile keyFile = new KeyFile ();
-        keyFile.load_from_file (odidItem.get_path (),
+        this.keyFile.load_from_file (odidItem.get_path (),
                                KeyFileFlags.KEEP_COMMENTS |
                                KeyFileFlags.KEEP_TRANSLATIONS);
 
         string odid_item_path = null;
-        if (keyFile.has_key ("item", "odid_uri"))    {
-            odid_item_path = keyFile.get_string ("item", "odid_uri");
+        if (this.keyFile.has_key ("item", "odid_uri"))    {
+            odid_item_path = this.keyFile.get_string ("item", "odid_uri");
         } else {
             // If the odid_uri property is not available, assume this file exists in
             // the correct directory.
@@ -109,7 +134,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         string resource_path = odid_item_path + resource_dir + "/";
         debug ("  resource directory: %s", resource_dir);
 
-        string basename = get_resource_property (resource_path,"basename");
+        string basename = get_resource_property (resource_path, "basename");
 
         string file_extension;
         string content_filename = ODIDMediaEngine.content_filename_for_res_speed (
@@ -317,6 +342,47 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             debug ("Byte range for cleartext byte seek response: bytes %lld through %lld",
                    seek_response.start_byte, seek_response.end_byte );
         }
+        
+        // Command line to pipe if defined, search content, resource, item, then config.
+        this.read_cmd = get_content_property (this.content_uri, READ_CMD);
+        if (this.read_cmd == null) {
+            this.read_cmd = get_resource_property (resource_path, READ_CMD);
+            if (this.read_cmd == null) {
+                if (this.keyFile.has_key ("item", READ_CMD)) {
+                    this.read_cmd = this.keyFile.get_string ("item", READ_CMD);
+                }
+                if (this.read_cmd == null) {
+                    try {
+                        this.read_cmd = MetaConfig.get_default ().get_string ("OdidMediaEngine", READ_CMD);
+                        if (this.read_cmd != null) {
+                            debug (@"$(READ_CMD) $(this.read_cmd) defined in rygel config.");
+                        }
+                    } catch (Error error) {
+                        // Can ignore errors
+                    }
+                } else {
+                    debug (@"$(READ_CMD) $(this.read_cmd) defined in item property.");
+                }
+            } else {
+                debug (@"$(READ_CMD) $(this.read_cmd) defined in resource property.");
+            }
+        } else {
+            debug (@"$(READ_CMD) $(this.read_cmd) defined in content property.");
+        }
+        
+        if(this.read_cmd == null) {
+            debug (@"No $(READ_CMD) defined for pipe, using direct file access.");
+        }
+        
+        // If requested bytes are not set, go for largest amount of data
+        // possible.  Should get to EOF or client termination.
+        if (this.range_length_list[0] == 0) {
+            this.total_bytes_requested = int64.MAX;
+        } else {
+            this.total_bytes_requested = 
+                this.range_length_list[this.range_length_list.size - 1] - range_start;
+        }
+        
         return response_list;
         // Wait for a start() before sending anything
     }
@@ -392,7 +458,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         string last_data_offset = "0"; // but data offsets always go forward...
         start_offset = int64.MAX;
         int line_count = 0;
-        end_offset_list.clear();
+        end_offset_list.clear ();
         // Read lines until end of file (null) is reached
         while ((line = dis.read_line (null)) != null) {
             line_count++;
@@ -528,44 +594,62 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             }
         }
 
-        // TODO: Change this to use a persistent thread or thread pool...
-        this.thread = new Thread<void*> ("ODIDDataSource Serving thread",
-                                         this.thread_func);
+        var file = File.new_for_uri (this.content_uri);
+            
+        // Create channel for piped command or file on disk.
+        this.output = this.read_cmd == null ? 
+            channel_from_disk (file) : channel_from_pipe (file);
+
+        // If something is wrong throw execption.
+        if (this.output == null) {
+            throw new DataSourceError.GENERAL ("Unable to access data source.");
+        }
+            
+        // Set channel options
+        this.output.set_encoding (null);
+        // Set channel buffer to be required chunk size.  In an effort to not
+        // block when we are called to read.
+        if (this.range_length_list.size > 1) {
+            this.output.set_buffer_size 
+                ((size_t) (this.range_length_list[this.alignment_pos++] - 
+                this.range_start));
+        } else {
+            this.output.set_buffer_size ((size_t) ODIDMediaEngine.chunk_size);
+        }
+
+        // Async event callback when data is available from channel.  We expect
+        // our set buffer worth or data will be available on the channel
+        // without blocking.    
+        this.output_watch_id =          
+            this.output.add_watch 
+                (IOCondition.IN | IOCondition.ERR | IOCondition.HUP, read_data);
     }
 
     public void freeze () {
-        if (this.frozen) {
-            return;
-        }
-
-        this.mutex.lock ();
+        // This will cause the async event callback to remove itself from
+        // the main event loop.
         this.frozen = true;
-        this.mutex.unlock ();
     }
 
     public void thaw () {
-        if (!this.frozen) {
-            return;
+        if (this.frozen) {
+            // We need to add the async event callback into the main event
+            // loop.
+            this.frozen = false;
+            this.output.add_watch
+                (IOCondition.IN | IOCondition.ERR | IOCondition.HUP, read_data);            
         }
-
-        this.mutex.lock ();
-        this.frozen = false;
-        this.cond.broadcast ();
-        this.mutex.unlock ();
     }
 
-    public void stop ()
-    {
-        if (this.stop_thread)
-        {
-            return;
+    public void stop () {
+        // If pipe used, reap child otherwise shut down channel.
+        // Make sure event callback is removed from main loop.
+        if ((int)this.child_pid != 0) {
+            debug (@"Stopping pid: $(this.child_pid)");
+            Posix.kill (this.child_pid, Posix.SIGTERM);
+        } else {
+            GLib.Source.remove (this.output_watch_id);
         }
-
-        this.mutex.lock ();
-        this.frozen = false;
-        this.stop_thread = true;
-        this.cond.broadcast ();
-        this.mutex.unlock ();
     }
 
     public void clear_dtcp_session () {
@@ -575,99 +659,172 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             dtcp_session_handle = -1;
         }
     }
-    private void* thread_func () {
-        var file = File.new_for_uri (this.content_uri);
-        int64 range_end;
-        debug ("Spawned new thread for streaming %s", this.content_uri);
+    
+    // Creates a channel to read data from a command's stdout through a pipe.
+    private IOChannel channel_from_pipe (File file) throws IOChannelError {
+        IOChannel channel = null;
+        
         try {
-            var mapped = new MappedFile (file.get_path (), false);
-            if (this.range_length_list.size != 0) {
-                if (this.range_length_list[0] == 0) {
-                    this.range_length_list[0] = mapped.get_length ();
+            // Fill in any runtime parameters
+            this.read_cmd = FB_REGEX.replace_literal (
+                this.read_cmd, -1, 0, this.range_start.to_string ());
+            this.read_cmd = LB_REGEX.replace_literal (
+                this.read_cmd, -1, 0, (this.range_start +
+                    this.total_bytes_requested).to_string ());
+            this.read_cmd = NB_REGEX.replace_literal (
+                this.read_cmd, -1, 0, this.total_bytes_requested.to_string ());
+            this.read_cmd = FILE_REGEX.replace_literal (
+                this.read_cmd, -1, 0, file.get_path ());
+            
+            string[] spawn_args = this.read_cmd.split (" ");
+            
+            string[] spawn_env = Environ.get ();
+            
+            int standard_output;
+            
+            Process.spawn_async_with_pipes ("/",
+                spawn_args,
+                spawn_env,
+                SpawnFlags.SEARCH_PATH | SpawnFlags.DO_NOT_REAP_CHILD,
+                null,
+                out this.child_pid,
+                null,
+                out standard_output,
+                null);
+                
+            debug (@"Spawned pid: $(child_pid) $(READ_CMD): $(this.read_cmd)");
+            
+            channel = new IOChannel.unix_new (standard_output);
+        
+            ChildWatch.add (this.child_pid, (pid, status) => {
+                debug (@"Closing child pid: $(pid)");
+                done ();
+                Process.close_pid (pid);
+                try {
+                    if (this.output != null) {
+                        this.output.shutdown (true);
+                    }
+                } catch (IOChannelError ioce) {
+                    message (@"Error shutting down IOChannel: $(ioce.message)");
                 }
+                
+                if (this.output_watch_id != -1)
+                {
+                    GLib.Source.remove (this.output_watch_id);
+                }
+            });
+        } catch (SpawnError se) {
+            message (@"Error opening pipe: $(se.message)");
+        } catch (GLib.RegexError re) {
+            message (@"Error in regexp: $(re.message)");
+        }
+            
+        return channel;
+    }
+    
+    // Creates a channel to read data from a file on disk.
+    private IOChannel channel_from_disk (File file) throws IOChannelError {
+        IOChannel channel = null;
+        try {
+            channel = new IOChannel.file (file.get_path (), "r");
+            channel.seek_position (this.range_start, SeekType.CUR);
+        } catch (GLib.FileError e) {
+            message (@"Error opening file: $(e.message)");
+        }
+        
+        return channel;
+    }
+    
+    // Async event callback is called when data is available on a channel, this
+    // method will be called mulitple times till the data source has exhausted
+    // the requested bytes or the channel closes (in the case of a pipe).
+    private bool read_data (IOChannel channel, IOCondition condition) {
+        if (condition == IOCondition.HUP || condition == IOCondition.ERR) {
+            done ();
+            return false;
+        }
+        
+        size_t bytes_read = 0;
+        int64 bytes_left_to_read = this.total_bytes_requested - this.total_bytes_read;
+
+        char[] read_buffer = null;
+        
+        int64 max_bytes = this.output.get_buffer_size ();
+        
+        // Truncate to remaining bytes if needed.
+        max_bytes = max_bytes < bytes_left_to_read ? 
+                max_bytes : bytes_left_to_read;
+        
+        // Create a read buffer of approprate size
+        read_buffer = new char[max_bytes];
+        
+        try {
+            // Read data off of channel
+            IOStatus status = channel.read_chars (read_buffer, out bytes_read);         
+            if (status == IOStatus.EOF) {
+                done ();
+                return false;
             }
+                        
+            this.total_bytes_read += bytes_read;
+            
+            debug (@"buffer=$(max_bytes) read=$(bytes_read) left=$(bytes_left_to_read)");
+                        
+            if (this.dtcp_session_handle == -1) {
+                // No content protection
+                // Call event to send buffer to client
+                data_available ((uint8[])read_buffer[0:bytes_read]);
+            } else {
+                // Encrypted data has to be unowned as the reference will be passed
+                // to DTCP libraries to perform the cleanup, else vala will be
+                //performing the cleanup by default.
+                unowned uint8[] encrypted_data = null;
+                uchar cci = 0x3; // TODO: Put the CCI bits in resource.info
 
-            // For link protected program streams the requested range is translated 
-            // to one or more VOB units and each VOBU forms a single PCP. The list of 
-            // VOBU offsets is  contained in member 'end_offsets'. There needs to be 
-            // an outer loop here that will walk thru all VOBUs and trasmit each as a 
-            // single PCP. The chunk size (set in rygel.conf) is also taken into consideration
-            // inside the inner loop.
-            foreach (int64 end_offset in this.range_length_list) {
-                range_end = end_offset;    
-                while (true) {
-                    bool exit;
-                    this.mutex.lock ();
-                    while (this.frozen) {
-                       this.cond.wait (this.mutex);
-                    }
-
-                    exit = this.stop_thread;
-                    this.mutex.unlock ();
-
-                    if (exit || this.range_start >= range_end) {
-                       debug ("Done streaming!");
-                       break;
-                    }
-
-                    var start = this.range_start;
-                    var stop = start + ODIDMediaEngine.chunk_size;
-                    var end = range_end;
-                    if (stop > end) {
-                        stop = end;
-                    }
-
-                    debug ( "Sending range %lld-%lld (%lld bytes)",
-                           start, stop, stop-start );
-
-                    unowned uint8[] data = (uint8[]) mapped.get_contents ();
-                    data.length = (int) mapped.get_length ();
-                    uint8[] slice = data[start:stop];
-                    this.range_start = stop; // Move forward
-
-                    if (this.dtcp_session_handle == -1) {
-                        // There's a potential race condition here.
-                        Idle.add ( () => {
-                            if (!this.stop_thread) {
-                                this.data_available (slice);
-                            }
-                            return false;
-                         });
-                     } else {
-                         // Encrypted data has to be unowned as the reference will be passed
-                         // to DTCP libraries to perform the cleanup, else vala will be
-                         //performing the cleanup by default.
-                         unowned uint8[] encrypted_data = null;
-                         uchar cci = 0x3; // TODO: Put the CCI bits in resource.info
-
-                         // Encrypt the data
-                         int return_value = Dtcpip.server_dtcp_encrypt
-                                           ( dtcp_session_handle, cci,
-                                             slice, out encrypted_data );
-                         debug ("Encryption returned: %d and the encryption size : %s",
-                           return_value,
-                           (encrypted_data == null)
-                            ? "NULL" : encrypted_data.length.to_string ());
-                         // There's a potential race condition here.
-                         Idle.add ( () => {
-                         if (!this.stop_thread) {
-                            this.data_available (encrypted_data);
-                         }
-                          int ret_free = Dtcpip.server_dtcp_free (encrypted_data);
-                          debug ("DTCP-IP data reference freed : %d", ret_free);
-
-                          return false;
-                         });
-                     }
-                }
-            } // END for
-        } catch (Error error) {
-            warning ("Failed to stream: %s", error.message);
+                // Encrypt the data
+                int return_value = Dtcpip.server_dtcp_encrypt
+                                  ( dtcp_session_handle, cci,
+                                    (uint8[])read_buffer[0:bytes_read], 
+                                    out encrypted_data );
+                
+                debug ("Encryption returned: %d and the encryption size : %s",
+                  return_value,
+                  (encrypted_data == null)
+                   ? "NULL" : encrypted_data.length.to_string ());
+                            
+                // Call event to send buffer to client
+                data_available (encrypted_data);
+                
+                int ret_free = Dtcpip.server_dtcp_free (encrypted_data);
+                debug ("DTCP-IP data reference freed : %d", ret_free);
+            }
+        } catch (IOChannelError e) {
+            message (@"IOChannelError: $(e.message)");
+            done ();
+            return false;
+        } catch (ConvertError e) {
+            message (@"ConvertError: $(e.message)");
+            done ();
+            return false;
+        }
+        
+        debug (@"bytes written $(this.total_bytes_read)");
+        
+        // If we are aligning VOBU per PCP, we need to set the channel buffer to 
+        // the next VOBU buffer size.  This way we won't block when we get called
+        // to read again.
+        int list_size = this.range_length_list.size; // just for short hand
+        if (list_size > 1 && list_size - 1 >= this.alignment_pos) {
+            this.output.set_buffer_size 
+                ((size_t) (this.range_length_list[this.alignment_pos++] 
+                - this.total_bytes_read));
         }
 
-        // Signal that we're done streaming
-        Idle.add ( () => { this.done (); return false; });
+        if (this.total_bytes_read >= this.total_bytes_requested) {
+            done ();
+        }
 
-        return null;
+        // Keep reading from channel if data left and not frozen.
+        return !this.frozen && this.total_bytes_read < this.total_bytes_requested;
     }
 }
