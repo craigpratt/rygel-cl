@@ -191,7 +191,7 @@ internal class Rygel.ODID.SQLFactory : Object {
         "WHERE r.object_fk = ? ORDER BY r.residx";
 
     private const string CHILDREN_COUNT_STRING =
-    "SELECT COUNT(upnp_id) FROM Object WHERE Object.parent = ?";
+    "SELECT COUNT(upnp_id) FROM Object WHERE Object.parent = ? and Object.parent != Object.upnp_id";
 
     private const string OBJECT_EXISTS_STRING =
     "SELECT COUNT(1), timestamp, r.size FROM Object " +
