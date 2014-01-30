@@ -173,11 +173,24 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         set {
             this._uri = value;
             this.playbin.set_state (State.READY);
-	    /*Prefix "dlna+" so that GstDlnaSrc plugin source will be used if available.
-             *gst-plugins-bad should have this "dlna+" virtual protocol change, otherwise
-             *play() will not work. 
-             */ 
-            this.playbin.uri = "dlna+" + value;
+            /* Prefix "dlna+" so that GstDlnaSrc plugin source will be used if
+             * available. gst-plugins-bad should have this "dlna+" virtual
+             * protocol change, otherwise play() will not work.
+             */
+            try {
+                if (Gst.Element.make_from_uri
+                         (Gst.URIType.SRC,"dlna+"+value, "") != null) {
+                    // Add dlna+ protocol since it is supported.
+                    this.playbin.uri = "dlna+" + value;
+                } else {
+                    //Default value if dlna+ protocol is not supported.
+                    this.playbin.uri = value;
+                }
+            } catch (GLib.Error err) {
+                debug ("Setting default URI since dlna+ prefix failed");
+                this.playbin.uri = value;
+            }
+
             if (value != "") {
                 switch (this._playback_state) {
                     case "NO_MEDIA_PRESENT":
