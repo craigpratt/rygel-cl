@@ -68,6 +68,13 @@ internal class Rygel.ReferenceCreator : GLib.Object, Rygel.StateMachine {
                                         (_("No such object"));
             }
 
+            if (!(container is WritableContainer)) {
+                        throw new ContentDirectoryError.RESTRICTED_PARENT
+                                                    (_("Object creation in %s not allowed"),
+                                                     container.id);
+            }
+            // FIXME: Check for @restricted=1 missing?
+
             var new_id = yield container.add_reference (object,
                                                         this.cancellable);
 
@@ -111,13 +118,7 @@ internal class Rygel.ReferenceCreator : GLib.Object, Rygel.StateMachine {
         if (media_object == null || !(media_object is MediaContainer)) {
             throw new ContentDirectoryError.NO_SUCH_CONTAINER
                                         (_("No such object"));
-        } else if (!(media_object is WritableContainer)) {
-            throw new ContentDirectoryError.RESTRICTED_PARENT
-                                        (_("Object creation in %s not allowed"),
-                                         media_object.id);
         }
-
-        // FIXME: Check for @restricted=1 missing?
 
         return media_object as WritableContainer;
     }
