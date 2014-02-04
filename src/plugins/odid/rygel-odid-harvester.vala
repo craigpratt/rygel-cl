@@ -71,8 +71,9 @@ internal class Rygel.ODID.Harvester : GLib.Object {
      * @param info a FileInfo
      * @return true if file should be extracted, false otherwise
      */
-    public static bool is_eligible (FileInfo info) {
-        return info.get_name ().has_suffix (".item");
+    public static bool is_eligible (File file) {
+        return file != null && file.get_uri () != null &&
+            file.get_uri ().has_suffix (".item");
     }
 
     /**
@@ -167,7 +168,7 @@ internal class Rygel.ODID.Harvester : GLib.Object {
                                         FileQueryInfoFlags.NONE,
                                         this.cancellable);
             if (info.get_file_type () == FileType.DIRECTORY ||
-                Harvester.is_eligible (info)) {
+                Harvester.is_eligible (file)) {
                 var id = MediaCache.get_id (file.get_parent ().get_uri ());
                 try {
                     var parent_container = cache.get_object (id)

@@ -191,7 +191,7 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
         } else {
             // Check if the file needs to be harvested at all either because
             // it is denied by filter or it hasn't updated
-            if (Harvester.is_eligible (info)) {
+            if (Harvester.is_eligible (file)) {
                 return this.push_if_changed_or_unknown (file, info);
             }
 
