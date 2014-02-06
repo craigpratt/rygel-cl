@@ -267,6 +267,29 @@ public class Rygel.HTTPGet : HTTPRequest {
             this.msg.response_headers.set_encoding (response_body_encoding);
         }
 
+        // Determine the Vary header
+        {
+            // Per DLNA 7.5.4.3.2.35.4, the Vary header needs to include the timeseek and/or
+            //  playspeed header if both/either are supported for the resource/uri
+            bool supports_playspeed = PlaySpeedRequest.supported (this);
+            if (supports_time_seek || supports_playspeed) {
+                var vary_headers = new StringBuilder (this.msg.response_headers.get_list ("Vary"));
+                if (supports_time_seek) {
+                    if (vary_headers.len > 0) {
+                        vary_headers.append (",");
+                    }
+                    vary_headers.append (HTTPTimeSeekRequest.TIMESEEKRANGE_HEADER);
+                }
+                if (supports_playspeed) {
+                    if (vary_headers.len > 0) {
+                        vary_headers.append (",");
+                    }
+                    vary_headers.append (PlaySpeedRequest.PLAYSPEED_HEADER);
+                }
+                this.msg.response_headers.replace ("Vary", vary_headers.str);
+            }
+        }
+
         // Determine the status code
         {
             int response_code;

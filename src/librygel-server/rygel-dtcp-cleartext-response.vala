@@ -29,9 +29,9 @@
 
 using GUPnP;
 
-public static const string DTCP_CLEARTEXT_RANGE_RESPONSE_HEADER = "Content-Range.dtcp.com";
-
 public class Rygel.DTCPCleartextResponse : Rygel.HTTPResponseElement {
+    public static const string DTCP_CONTENT_RANGE_HEADER = "Content-Range.dtcp.com";
+
     /**
      * The start of the response range in bytes 
      */
@@ -83,7 +83,7 @@ public class Rygel.DTCPCleartextResponse : Rygel.HTTPResponseElement {
                               + ( (this.total_size == UNSPECIFIED) ? "*"
                                   : this.total_size.to_string () );
 
-            request.msg.response_headers.append (DTCP_CLEARTEXT_RANGE_RESPONSE_HEADER, response);
+            request.msg.response_headers.append (DTCP_CONTENT_RANGE_HEADER, response);
         }
         if (this.encrypted_length != UNSPECIFIED) {
             request.msg.response_headers.set_content_length (this.encrypted_length);

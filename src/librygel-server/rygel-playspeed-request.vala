@@ -32,13 +32,22 @@ public errordomain Rygel.PlaySpeedError {
     SPEED_NOT_PRESENT
 }
 
-public static const string PLAYSPEED_HEADER = "PlaySpeed.dlna.org";
-
 /**
  * This class represents a DLNA PlaySpeed request (PlaySpeed.dlna.org)
  */
 public class Rygel.PlaySpeedRequest : GLib.Object {
+    public static const string PLAYSPEED_HEADER = "PlaySpeed.dlna.org";
     public PlaySpeed speed { get; private set; }
+
+    /**
+     * Return true if playspeed is supported
+     *
+     * This method utilizes elements associated with the request to determine if a
+     * PlaySpeed request is supported for the given request/resource.
+     */
+    public static bool supported (HTTPGet request) {
+        return request.handler.supports_playspeed ();
+    }
 
     internal static bool requested (HTTPGet request) {
         return request.msg.request_headers.get_one (PLAYSPEED_HEADER) != null;

@@ -27,12 +27,12 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-public static const string FRAMERATE_HEADER = "FrameRateInTrickMode.dlna.org";
-
 /**
  * This class represents a DLNA PlaySpeed response (PlaySpeed.dlna.org)
  */
 public class Rygel.PlaySpeedResponse : Rygel.HTTPResponseElement {
+    public static const string FRAMERATE_HEADER = "FrameRateInTrickMode.dlna.org";
+
     PlaySpeed speed;
     public static const int NO_FRAMERATE = -1;
 
@@ -68,12 +68,15 @@ public class Rygel.PlaySpeedResponse : Rygel.HTTPResponseElement {
     }
 
     public override void add_response_headers (Rygel.HTTPRequest request) {
-        // Format: PlaySpeed.dlna.org: speed=<rate>
-        request.msg.response_headers.append (PLAYSPEED_HEADER, "speed=" + this.speed.to_string ());
-        if (this.framerate > 0) {
-            // Format: FrameRateInTrickMode.dlna.org: rate=<2-digit framerate>
-            var framerate_val = "rate=%02d".printf(this.framerate);
-            request.msg.response_headers.append (FRAMERATE_HEADER, framerate_val);
+        if (!this.speed.is_normal_rate ()) {
+            // Format: PlaySpeed.dlna.org: speed=<rate>
+            request.msg.response_headers.append (PlaySpeedRequest.PLAYSPEED_HEADER,
+                                                 "speed=" + this.speed.to_string ());
+            if (this.framerate > 0) {
+                // Format: FrameRateInTrickMode.dlna.org: rate=<2-digit framerate>
+                var framerate_val = "rate=%02d".printf(this.framerate);
+                request.msg.response_headers.append (FRAMERATE_HEADER, framerate_val);
+            }
         }
     }
 

@@ -25,8 +25,6 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-public static const string TIMESEEKRANGE_HEADER = "TimeSeekRange.dlna.org";
-
 /**
  * This class represents a DLNA TimeSeekRange request and response.
  *
@@ -38,6 +36,7 @@ public static const string TIMESEEKRANGE_HEADER = "TimeSeekRange.dlna.org";
  * data- and time-based seek are supported. (see DLNA 7.5.4.3.2.24.5)
  */
 public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
+    public static const string TIMESEEKRANGE_HEADER = "TimeSeekRange.dlna.org";
     /**
      * Requested range start time, in microseconds
      */

@@ -110,6 +110,13 @@ public abstract class Rygel.HTTPGetHandler: GLib.Object {
     }
 
     /**
+     * Returns true if the handler supports any play speed requests.
+     */
+    public virtual bool supports_playspeed () {
+        return false;
+    }
+
+    /**
      * Create an HTTPResponse object that will render the body.
      */
     public abstract HTTPResponse render_body (HTTPGet request)

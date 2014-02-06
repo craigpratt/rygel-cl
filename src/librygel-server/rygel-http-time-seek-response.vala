@@ -116,7 +116,8 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
     public override void add_response_headers (Rygel.HTTPRequest request) {
         var response = get_response_string ();
         if (response != null) {
-            request.msg.response_headers.append (TIMESEEKRANGE_HEADER, response);
+            request.msg.response_headers.append (HTTPTimeSeekRequest.TIMESEEKRANGE_HEADER,
+                                                 response);
             if (this.start_byte != UNSPECIFIED) {
                 // Note: Don't use set_content_range () here - we don't want a "Content-range" header
                 request.msg.response_headers.set_content_length (this.range_length);

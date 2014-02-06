@@ -29,9 +29,9 @@
 
 using GUPnP;
 
-public static const string DTCP_CLEARTEXT_RANGE_REQUEST_HEADER = "Range.dtcp.com";
-
 public class Rygel.DTCPCleartextRequest : Rygel.HTTPSeekRequest {
+    public static const string DTCP_RANGE_HEADER = "Range.dtcp.com";
+
     /**
      * The start of the cleartext range in bytes 
      */
@@ -74,30 +74,27 @@ public class Rygel.DTCPCleartextRequest : Rygel.HTTPSeekRequest {
             total_size = UNSPECIFIED;
         }
 
-        unowned string range = request.msg.request_headers.get_one (DTCP_CLEARTEXT_RANGE_REQUEST_HEADER);
+        unowned string range = request.msg.request_headers.get_one (DTCP_RANGE_HEADER);
 
         if (range == null) {
             throw new HTTPSeekRequestError.INVALID_RANGE ( "%s request header not present",
-                                                           DTCP_CLEARTEXT_RANGE_REQUEST_HEADER );
+                                                           DTCP_RANGE_HEADER );
         }
 
         if (!range.has_prefix ("bytes")) {
             throw new HTTPSeekRequestError.INVALID_RANGE ( "Invalid %s value (missing bytes field): '%s'",
-                                                           DTCP_CLEARTEXT_RANGE_REQUEST_HEADER,
-                                                           range );
+                                                           DTCP_RANGE_HEADER, range );
         }
 
         var range_tokens = range.substring (6).split ("-", 2); // skip "bytes="
         if (range_tokens[0].length == 0) {
             throw new HTTPSeekRequestError.INVALID_RANGE ( "No range start specified: '%s'",
-                                                           DTCP_CLEARTEXT_RANGE_REQUEST_HEADER,
-                                                           range );
+                                                           DTCP_RANGE_HEADER, range );
         }
 
         if (!int64.try_parse (range_tokens[0], out start) || (start < 0)) {
             throw new HTTPSeekRequestError.INVALID_RANGE ( "Invalid %s range start: '%s'",
-                                                           DTCP_CLEARTEXT_RANGE_REQUEST_HEADER,
-                                                           range );
+                                                           DTCP_RANGE_HEADER, range );
         }
         // valid range start specified
 
@@ -107,22 +104,19 @@ public class Rygel.DTCPCleartextRequest : Rygel.HTTPSeekRequest {
         } else {
             if (!int64.try_parse (range_tokens[1], out end) || (end <= 0)) {
                 throw new HTTPSeekRequestError.INVALID_RANGE ( "Invalid %s range end: '%s'",
-                                                               DTCP_CLEARTEXT_RANGE_REQUEST_HEADER,
-                                                               range );
+                                                               DTCP_RANGE_HEADER, range );
             }
             // valid end range specified
         }
 
         if ((end != UNSPECIFIED) && (start > end)) {
             throw new HTTPSeekRequestError.INVALID_RANGE ( "Invalid %s range - start > end: '%s'",
-                                                           DTCP_CLEARTEXT_RANGE_REQUEST_HEADER,
-                                                           range );
+                                                           DTCP_RANGE_HEADER, range );
         }
 
         if ((total_size != UNSPECIFIED) && (start > total_size-1)) {
             throw new HTTPSeekRequestError.OUT_OF_RANGE ( "Invalid %s range - start > length: '%s'",
-                                                           DTCP_CLEARTEXT_RANGE_REQUEST_HEADER,
-                                                           range );
+                                                           DTCP_RANGE_HEADER, range );
         }
 
         if ((total_size != UNSPECIFIED) && (end > total_size-1)) {
@@ -146,6 +140,6 @@ public class Rygel.DTCPCleartextRequest : Rygel.HTTPSeekRequest {
     }
 
     public static bool requested (HTTPGet request) {
-        return (request.msg.request_headers.get_one (DTCP_CLEARTEXT_RANGE_REQUEST_HEADER) != null);
+        return (request.msg.request_headers.get_one (DTCP_RANGE_HEADER) != null);
     }
 }
