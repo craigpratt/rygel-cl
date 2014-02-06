@@ -71,9 +71,9 @@ public class Rygel.PlaySpeedResponse : Rygel.HTTPResponseElement {
         // Format: PlaySpeed.dlna.org: speed=<rate>
         request.msg.response_headers.append (PLAYSPEED_HEADER, "speed=" + this.speed.to_string ());
         if (this.framerate > 0) {
-            // Format: FrameRateInTrickMode.dlna.org: rate=<framerate>
-            request.msg.response_headers.append ( FRAMERATE_HEADER,
-                                                  "rate=" + this.framerate.to_string () );
+            // Format: FrameRateInTrickMode.dlna.org: rate=<2-digit framerate>
+            var framerate_val = "rate=%02d".printf(this.framerate);
+            request.msg.response_headers.append (FRAMERATE_HEADER, framerate_val);
         }
     }
 
