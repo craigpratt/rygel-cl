@@ -122,6 +122,9 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
                 // Note: Don't use set_content_range () here - we don't want a "Content-range" header
                 request.msg.response_headers.set_content_length (this.range_length);
             }
+            if (request.msg.get_http_version () == Soup.HTTPVersion.@1_0) {
+                request.msg.response_headers.replace ("Pragma","no-cache");
+            }
         }
     }
 

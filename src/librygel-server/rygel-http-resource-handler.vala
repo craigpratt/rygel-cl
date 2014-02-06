@@ -78,7 +78,7 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
             if (request.msg.get_http_version () == Soup.HTTPVersion.@1_1) {
                 request.msg.response_headers.append ("Cache-control","no-cache");
             }
-            request.msg.response_headers.append ("Pragma","no-cache");
+            request.msg.response_headers.replace ("Pragma","no-cache");
         }
 
         // Add contentFeatures.dlna.org

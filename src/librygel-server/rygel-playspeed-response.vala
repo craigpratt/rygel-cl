@@ -77,6 +77,9 @@ public class Rygel.PlaySpeedResponse : Rygel.HTTPResponseElement {
                 var framerate_val = "rate=%02d".printf(this.framerate);
                 request.msg.response_headers.append (FRAMERATE_HEADER, framerate_val);
             }
+            if (request.msg.get_http_version () == Soup.HTTPVersion.@1_0) {
+                request.msg.response_headers.replace ("Pragma","no-cache");
+            }
         }
     }
 

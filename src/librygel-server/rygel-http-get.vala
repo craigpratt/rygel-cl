@@ -267,26 +267,29 @@ public class Rygel.HTTPGet : HTTPRequest {
             this.msg.response_headers.set_encoding (response_body_encoding);
         }
 
-        // Determine the Vary header
+        // Determine the Vary header (if not HTTP 1.0)
         {
             // Per DLNA 7.5.4.3.2.35.4, the Vary header needs to include the timeseek and/or
             //  playspeed header if both/either are supported for the resource/uri
             bool supports_playspeed = PlaySpeedRequest.supported (this);
             if (supports_time_seek || supports_playspeed) {
-                var vary_headers = new StringBuilder (this.msg.response_headers.get_list ("Vary"));
-                if (supports_time_seek) {
-                    if (vary_headers.len > 0) {
-                        vary_headers.append (",");
+                if (this.msg.get_http_version () != Soup.HTTPVersion.@1_0) {
+                    var vary_header = new StringBuilder
+                                             (this.msg.response_headers.get_list ("Vary"));
+                    if (supports_time_seek) {
+                        if (vary_header.len > 0) {
+                            vary_header.append (",");
+                        }
+                        vary_header.append (HTTPTimeSeekRequest.TIMESEEKRANGE_HEADER);
                     }
-                    vary_headers.append (HTTPTimeSeekRequest.TIMESEEKRANGE_HEADER);
-                }
-                if (supports_playspeed) {
-                    if (vary_headers.len > 0) {
-                        vary_headers.append (",");
+                    if (supports_playspeed) {
+                        if (vary_header.len > 0) {
+                            vary_header.append (",");
+                        }
+                        vary_header.append (PlaySpeedRequest.PLAYSPEED_HEADER);
                     }
-                    vary_headers.append (PlaySpeedRequest.PLAYSPEED_HEADER);
+                    this.msg.response_headers.replace ("Vary", vary_header.str);
                 }
-                this.msg.response_headers.replace ("Vary", vary_headers.str);
             }
         }
 
@@ -299,6 +302,12 @@ public class Rygel.HTTPGet : HTTPRequest {
                 response_code = Soup.Status.OK;
             }
             this.msg.set_status (response_code);
+        }
+
+        // Set the response version to HTTP 1.1 (see DLNA 7.5.4.3.2.7.2)
+        if (msg.get_http_version () == Soup.HTTPVersion.@1_0) {
+            msg.set_http_version (Soup.HTTPVersion.@1_1);
+            msg.response_headers.append ("Connection", "close");
         }
 
         debug ("Following HTTP headers appended to response:");
