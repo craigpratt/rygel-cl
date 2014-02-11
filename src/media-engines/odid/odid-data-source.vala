@@ -36,8 +36,9 @@ using Dtcpip;
 using GUPnP;
 
 internal class Rygel.ODIDDataSource : DataSource, Object {
-    protected string source_uri;
+    protected string resource_uri;
     protected string content_uri;
+    protected string index_uri;
     protected int64 range_start = 0;
     protected bool frozen = false;
     protected HTTPSeekRequest seek_request;
@@ -45,9 +46,12 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     protected MediaResource res;
     protected bool content_protected = false;
     protected int dtcp_session_handle = -1;
-    protected Gee.ArrayList<int64?> range_length_list = new Gee.ArrayList<int64?> ();
-    protected KeyFile keyFile = new KeyFile ();
-    
+    protected int64 chunk_size; // HTTP chunk size to use (when chunking)
+    protected Gee.ArrayList<int64?> range_offset_list = new Gee.ArrayList<int64?> ();
+    protected ODIDLiveSimulator live_sim = null;
+    protected DataInputStream index_stream;
+    protected bool pacing;
+
     // Keep track as the progress through the byte range.
     protected int64 total_bytes_read = 0;
     
@@ -71,9 +75,18 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     private GLib.Regex NB_REGEX;
     private GLib.Regex FILE_REGEX;
       
-    public ODIDDataSource (string source_uri, MediaResource ? res) {
-        this.source_uri = source_uri;
+    public ODIDDataSource (string resource_uri, MediaResource ? res, int64 chunk_size) {
+        this.resource_uri = resource_uri;
         this.res = res;
+        this.chunk_size = chunk_size;
+    }
+
+    public ODIDDataSource.from_live (ODIDLiveSimulator live_sim, MediaResource res,
+                                     int64 chunk_size) {
+        this.live_sim = live_sim;
+        this.resource_uri = live_sim.resource_uri;
+        this.res = res;
+        this.chunk_size = chunk_size;
         
         // Pipe channel initialization.
         try {
@@ -95,83 +108,52 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
                                                      PlaySpeedRequest? playspeed_request)
        throws Error {
-        debug ("source uri: " + source_uri);
+        debug ("resource uri: " + this.resource_uri);
+        debug ("Resource " + res.to_string ());
 
-        var response_list = new Gee.ArrayList<HTTPResponseElement> ();
-
+        //
+        // Setup and checks...
+        //
         this.seek_request = seek_request;
         this.playspeed_request = playspeed_request;
 
-        if (res == null) {
-            throw new DataSourceError.GENERAL ("null resource");
-        }
-        debug ("Resource " + res.to_string ());
-        File odidItem = File.new_for_uri (source_uri);
-
-        this.keyFile.load_from_file (odidItem.get_path (),
-                               KeyFileFlags.KEEP_COMMENTS |
-                               KeyFileFlags.KEEP_TRANSLATIONS);
-
-        string odid_item_path = null;
-        if (this.keyFile.has_key ("item", "odid_uri"))    {
-            odid_item_path = this.keyFile.get_string ("item", "odid_uri");
-        } else {
-            // If the odid_uri property is not available, assume this file exists in
-            // the correct directory.
-            if (odidItem.get_parent () != null) {
-                odid_item_path = odidItem.get_parent ().get_uri () + "/";
-            } else {
-                throw new DataSourceError.GENERAL ("Root level odid items not supported");
-            }
-        }
-
-        debug ("Source item path: %s", odid_item_path);
-
-        // The resources are published by this engine according to the resource directory name
-        //  i.e. the MediaResource "name" field was set to the directory name when
-        //  get_resources() was called
-        string resource_dir = res.get_name ();
-        string resource_path = odid_item_path + resource_dir + "/";
-        debug ("  resource directory: %s", resource_dir);
-
-        string basename = get_resource_property (resource_path, "basename");
-
+        string basename = ODIDUtil.get_resource_property (this.resource_uri, "basename");
         string file_extension;
-        string content_filename = ODIDMediaEngine.content_filename_for_res_speed (
-                                                      odid_item_path + resource_dir,
+        string content_filename = ODIDUtil.content_filename_for_res_speed (
+                                                      this.resource_uri,
                                                       basename,
                                                       (playspeed_request==null)
-                                                       ? null
+                                                       ? null // indicates normal-rate
                                                        : playspeed_request.speed,
                                                       out file_extension );
-        this.content_uri = resource_path + content_filename;
-        debug ("    content file: %s", content_filename);
+        this.content_uri = this.resource_uri + content_filename;
+        this.index_uri = this.content_uri + ".index";
+        debug ("  content file: %s", content_filename);
 
-        this.content_protected = ( res.dlna_flags
-                                   & DLNAFlags.LINK_PROTECTED_CONTENT ) != 0;
+        File content_file = File.new_for_uri (this.content_uri);
+        File content_index_file = File.new_for_uri (this.index_uri);
+        this.content_protected = (DLNAFlags.LINK_PROTECTED_CONTENT in res.dlna_flags);
         if (this.content_protected) {
-            // Sanity check
             if (!res.dlna_profile.has_prefix ("DTCP_")) {
                 throw new DataSourceError.GENERAL
                               ("Request to stream protected content in non-protected profile: "
                                + res.dlna_profile );
             }
-            debug ("      Content is protected");
+            debug ("    Content is protected");
         } else {
-            debug ("      Content is not protected");
+            debug ("    Content is not protected");
         }
 
-        // Get the size for the content file
-        File content_file = File.new_for_uri (this.content_uri);
-        FileInfo content_info = content_file.query_info (GLib.FileAttribute.STANDARD_SIZE, 0);
-        int64 total_size = content_info.get_size ();
-        debug ("      Total size is " + total_size.to_string ());
+        //
+        // Process the request...
+        //
+        var response_list = new Gee.ArrayList<HTTPResponseElement> ();
 
         // Process PlaySpeed
         if (playspeed_request != null) {
             int framerate = 0;
-            string framerate_for_speed = get_content_property
-                                             (content_uri, "framerate");
+            string framerate_for_speed = ODIDUtil.get_content_property (content_uri,
+                                                                        "framerate");
             if (framerate_for_speed == null) {
                 framerate = PlaySpeedResponse.NO_FRAMERATE;
             } else {
@@ -181,59 +163,116 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                     framerate = PlaySpeedResponse.NO_FRAMERATE;
                 }
             }
-            debug ( "    framerate for speed %s: %s",
+            debug ( "    Framerate for speed %s: %s",
                     playspeed_request.speed.to_string (),
                     ( (framerate == PlaySpeedResponse.NO_FRAMERATE) ? "None"
                       : framerate.to_string () ) );
             var speed_response
-                 = new PlaySpeedResponse.from_speed ( playspeed_request.speed,
+                 = new PlaySpeedResponse.from_speed (playspeed_request.speed,
                                                      (framerate > 0) ? framerate
-                                                     : PlaySpeedResponse.NO_FRAMERATE );
+                                                     : PlaySpeedResponse.NO_FRAMERATE);
             response_list.add (speed_response);
         }
 
+        if (this.live_sim == null) {
+            preroll_static_resource (content_file, content_index_file, response_list);
+        } else {
+            preroll_livesim_resource (content_file, content_index_file, response_list);
+        }
+
+        // Command line to pipe if defined, search content, resource, item, then config.
+        this.read_cmd = ODIDUtil.get_content_property (this.content_uri, READ_CMD);
+        if (this.read_cmd == null) {
+            this.read_cmd =  ODIDUtil.get_resource_property (this.resource_uri, READ_CMD);
+            if (this.read_cmd == null) {
+                try {
+                    this.read_cmd = MetaConfig.get_default ().get_string ("OdidMediaEngine", READ_CMD);
+                    if (this.read_cmd != null) {
+                        debug (@"$(READ_CMD) $(this.read_cmd) defined in rygel config.");
+                    }
+                } catch (Error error) {
+                    // Can ignore errors
+                }
+            } else {
+                debug (@"$(READ_CMD) $(this.read_cmd) defined in resource property.");
+            }
+        } else {
+            debug (@"$(READ_CMD) $(this.read_cmd) defined in content property.");
+        }
+        
+        if (this.read_cmd == null) {
+            debug (@"No $(READ_CMD) defined for pipe, using direct file access.");
+        }
+        
+        // If requested bytes are not set, go for largest amount of data
+        // possible.  Should get to EOF or client termination.
+        int64 last_offset = this.range_offset_list.last ();
+        debug ("preroll_livesim_resource: staging bytes %s-%s",
+               (this.range_start==int64.MAX ? "*" : this.range_start.to_string ()),
+               (last_offset==int64.MAX ? "*" : last_offset.to_string ()) );
+        if ((last_offset == 0) || (last_offset == int64.MAX)){
+            this.total_bytes_requested = last_offset; // 0 for none, MAX for everything
+        } else {
+            this.total_bytes_requested = last_offset - this.range_start;
+        }
+        
+        return response_list;
+    }
+
+    internal void preroll_static_resource (File content_file,
+                                           File index_file,
+                                           Gee.ArrayList<HTTPResponseElement> response_list)
+            throws Error {
         bool perform_cleartext_response;
+        // Get the size for the content file
+        FileInfo content_info = content_file.query_info (GLib.FileAttribute.STANDARD_SIZE, 0);
+        int64 content_size = content_info.get_size ();
+        debug ("    Total content size is " + content_size.to_string ());
 
         // Process HTTPSeekRequest
         if (seek_request == null) {
-            debug ("No seek request received");
-            // Set range end to 0
-            this.range_length_list.add (0);
+            //
+            // No seek
+            //
+            debug ("preroll_static_resource: No seek request received");
+            // Note: The upstream code assumes the entire binary will be sent (res@size)
+            this.range_start = 0;
+            this.range_offset_list.add (content_size); // Send the whole thing
             perform_cleartext_response = false;
         } else if (seek_request is HTTPTimeSeekRequest) {
             //
             // Time-based seek
             //
             var time_seek = seek_request as HTTPTimeSeekRequest;
-            bool is_reverse = (playspeed_request != null)
-                              && (!playspeed_request.speed.is_positive ());
-
-            // Calculate the effective range of the time seek using the appropriate index file
+            // Note: Static range/duration checks are already expected to be performed by
+            //       librygel-server. We just need to perform dynamic checks here...
 
             int64 time_offset_start = time_seek.start_time;
             int64 time_offset_end;
+            bool is_reverse = (this.playspeed_request == null)
+                               ? false : (!playspeed_request.speed.is_positive ());
             if (time_seek.end_time == HTTPSeekRequest.UNSPECIFIED) {
                 // For time-seek, the "end" of the time range depends on the direction
                 time_offset_end = is_reverse ? 0 : int64.MAX;
-            } else {
+            } else { // End time specified
                 time_offset_end = time_seek.end_time;
             }
 
-            string index_path = resource_path + "/"
-                                + content_filename + ".index";
-            int64 total_duration = (time_seek.total_duration
-                                    != HTTPSeekRequest.UNSPECIFIED)
+            int64 total_duration = (time_seek.total_duration != HTTPSeekRequest.UNSPECIFIED)
                                    ? time_seek.total_duration : int64.MAX;
-            debug ("      Total duration is " + total_duration.to_string ());
-            debug ("Processing time seek (time %lldns to %lldns)",
-                   time_offset_start, time_offset_end);
+            debug ("    Total duration is " + total_duration.to_string ());
+            debug ("Processing time seek (time %0.3fs to %0.3fs)",
+                   ODIDUtil.usec_to_secs (time_offset_start),
+                   ODIDUtil.usec_to_secs (time_offset_end));
 
             // Now set the effective time/data range and duration/size for the time range
-            offsets_for_time_range (index_path, is_reverse,
-                                   ref time_offset_start, ref time_offset_end,
-                                   total_duration,
-                                   out this.range_start, this.range_length_list,
-                                   total_size );
+            int64 range_end;
+            ODIDUtil.offsets_covering_time_range (index_file, is_reverse,
+                                                  ref time_offset_start, ref time_offset_end,
+                                                  total_duration,
+                                                  out this.range_start, out range_end,
+                                                  content_size);
+            this.range_offset_list.add (range_end);
             if (this.content_protected) {
                 // We don't currently support Range on link-protected binaries. So leave out
                 //  the byte range from the TimeSeekRange response
@@ -241,19 +280,20 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                     = new HTTPTimeSeekResponse.time_only (time_offset_start,
                                                           time_offset_end,
                                                           total_duration );
-                debug ("Time range for time seek: %lldms through %lldms",
-                         seek_response.start_time, seek_response.end_time);
+                debug ("Time range for time seek response: %0.3fs through %0.3fs",
+                       ODIDUtil.usec_to_secs (seek_response.start_time),
+                       ODIDUtil.usec_to_secs (seek_response.end_time));
                 response_list.add (seek_response);
                 perform_cleartext_response = true; // We'll packet-align the range below
             } else { // No link protection
-                int64 range_end = this.range_length_list[0];
                 var seek_response = new HTTPTimeSeekResponse
                                             (time_offset_start, time_offset_end,
                                              total_duration,
                                              this.range_start, range_end-1,
-                                             total_size);
-                debug ("Time range for time seek response: %lldms through %lldms",
-                       seek_response.start_time, seek_response.end_time);
+                                             content_size);
+                debug ("Time range for time seek response: %0.3fs through %0.3fs",
+                       ODIDUtil.usec_to_secs (seek_response.start_time),
+                       ODIDUtil.usec_to_secs (seek_response.end_time));
                 debug ("Byte range for time seek response: bytes %lld through %lld",
                        seek_response.start_byte, seek_response.end_byte );
                 response_list.add (seek_response);
@@ -272,19 +312,22 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             debug ("Processing byte seek (bytes %lld to %s)", byte_seek.start_byte,
                    (byte_seek.end_byte == HTTPSeekRequest.UNSPECIFIED)
                    ? "*" : byte_seek.end_byte.to_string () );
+
             this.range_start = byte_seek.start_byte;
+
+            int64 range_end; // Inclusive range end
             if (byte_seek.end_byte == HTTPSeekRequest.UNSPECIFIED) {
-                this.range_length_list.add (total_size);
-            } else {
-                int64 end = int64.min (byte_seek.end_byte + 1, total_size);
-                this.range_length_list.add (end);
+                range_end = content_size-1;
+            } else { // Range end specified (but fence it in)
+                range_end = int64.min (byte_seek.end_byte, content_size-1);
             }
-            
+            this.range_offset_list.add (range_end+1); // List is non-inclusive
+
             var seek_response = new HTTPByteSeekResponse (this.range_start,
-                                                          this.range_length_list[0]-1,
-                                                          total_size);
-            debug ("Byte range for byte seek response: bytes %lld through %lld",
-                   seek_response.start_byte, seek_response.end_byte );
+                                                          range_end,
+                                                          content_size);
+            debug ("Byte range for byte seek response: bytes %lld through %lld of %lld",
+                   seek_response.start_byte, seek_response.end_byte, content_size );
             response_list.add (seek_response);
             perform_cleartext_response = false;
         } else if (seek_request is DTCPCleartextRequest) {
@@ -300,287 +343,434 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                       (cleartext_seek.end_byte == HTTPSeekRequest.UNSPECIFIED)
                       ? "*" : cleartext_seek.end_byte.to_string () );
             this.range_start = cleartext_seek.start_byte;
+            int64 range_end; // Inclusive range end
             if (cleartext_seek.end_byte == HTTPSeekRequest.UNSPECIFIED) {
-                this.range_length_list.add (total_size);
+                range_end = content_size-1;
             } else {
-                int64 end = int64.min (cleartext_seek.end_byte + 1, total_size);
-                this.range_length_list.add (end);
+                range_end = int64.min (cleartext_seek.end_byte, content_size-1);
             }
+            this.range_offset_list.add (range_end+1); // List is non-inclusive
             perform_cleartext_response = true; // We'll packet-align the range below
         } else {
             throw new DataSourceError.SEEK_FAILED ("Unsupported seek type");
         }
 
-        string index_file = resource_path + "/" + content_filename + ".index";
         if (this.content_protected) {
             // The range needs to be packet-aligned, which can affect range returned
-            get_packet_aligned_range( res, index_file, 
-                                      this.range_start, this.range_length_list[0],
-                                      total_size,
-                                      out this.range_start, this.range_length_list );
+            ODIDUtil.get_dtcp_aligned_range (res, index_file, 
+                                             this.range_start, this.range_offset_list[0],
+                                             content_size,
+                                             out this.range_start, this.range_offset_list);
         }
-        if (perform_cleartext_response) {
-            int64 range_end = 0;
-            int64 encrypted_length = 0;
-            int64 byte_range = 0;
-            int64 start = this.range_start;
-            foreach (int64 range_val in this.range_length_list) {
-                byte_range = range_val  - start;
-                range_end += byte_range;
-                encrypted_length += (int64) Dtcpip.get_encrypted_length (byte_range, ODIDMediaEngine.chunk_size);
-                start = range_val;
-            }
-            // Final element in the list becomes range_end 
-            range_end = start;
-            debug ("encrypted_length: %lld", encrypted_length);
-            // 
-            var seek_response = new DTCPCleartextResponse (this.range_start,
-                                             range_end-1,
-                                             total_size, encrypted_length);
 
+        if (perform_cleartext_response) {
+            int64 encrypted_length = ODIDUtil.calculate_dtcp_encrypted_length
+                                                (this.range_start, this.range_offset_list,
+                                                 this.chunk_size);
+            debug ("encrypted_length: %lld", encrypted_length);
+            var range_end = this.range_offset_list.last () - 1;
+            var seek_response = new DTCPCleartextResponse (this.range_start,
+                                                           range_end,
+                                                           content_size, encrypted_length);
             response_list.add (seek_response);
             debug ("Byte range for cleartext byte seek response: bytes %lld through %lld",
                    seek_response.start_byte, seek_response.end_byte );
         }
+    }
+
+    internal void preroll_livesim_resource (File content_file,
+                                            File index_file,
+                                            Gee.ArrayList<HTTPResponseElement> response_list)
+            throws Error {
+        assert (this.live_sim != null);
+        debug ("    content is live (%s is %s)", live_sim.name, live_sim.get_state_string ());
+
+        ODIDLiveSimulator.Mode sim_mode = this.live_sim.get_mode ();
+        ODIDLiveSimulator.State sim_state = this.live_sim.get_state ();
+        this.live_sim.enable_autoreset (); // Reset the autoreset timer (if set)
         
-        // Command line to pipe if defined, search content, resource, item, then config.
-        this.read_cmd = get_content_property (this.content_uri, READ_CMD);
-        if (this.read_cmd == null) {
-            this.read_cmd = get_resource_property (resource_path, READ_CMD);
-            if (this.read_cmd == null) {
-                if (this.keyFile.has_key ("item", READ_CMD)) {
-                    this.read_cmd = this.keyFile.get_string ("item", READ_CMD);
+        if (! index_file.query_exists ()) {
+            throw new DataSourceError.GENERAL
+                          ("Request to stream live resource without index file: "
+                           + resource_uri);
+        }
+        // Get the size for the content file
+        FileInfo content_info = content_file.query_info (GLib.FileAttribute.STANDARD_SIZE, 0);
+        int64 content_size = content_info.get_size ();
+        debug ("    Total content size is " + content_size.to_string ());
+        
+        bool is_reverse = (this.playspeed_request == null)
+                           ? false : (!playspeed_request.speed.is_positive ());
+        int lop_mode;
+        {
+            string resprop = ODIDUtil.get_resource_property (this.resource_uri,
+                                                             "limited-operation-mode");
+            lop_mode = (resprop == null ? 0 : int.parse (resprop));
+            debug ("    limited operation mode: %d", lop_mode);
+            if (lop_mode < 0 || lop_mode > 1) {
+                throw new DataSourceError.GENERAL
+                              ("Invalid limited-operation-mode (not 0 or 1): " + resprop);
+            }
+        }
+
+        int64 timelimit_start; // The earliest time that can be requested right now
+        int64 timelimit_end; // The latest time that can be requested right now
+        int64 bytelimit_start; // The earliest byte that can be requested right now
+        int64 bytelimit_end; // The latest byte that can be requested right now
+        int64 total_duration = ODIDUtil.duration_from_index_file_ms (index_file)
+                               * MICROS_PER_MILLI;
+
+        if (lop_mode == 1) { // We're not constrained by the sim range
+            timelimit_start = 0;
+            timelimit_end = total_duration;
+            bytelimit_start = 0;
+            bytelimit_end = content_size;
+        } else { // Get the time constraints from the sim        
+            live_sim.get_available_time_range (out timelimit_start, out timelimit_end);
+            debug ("    sim time availability: %0.3fs-%0.3fs",
+                   ODIDUtil.usec_to_secs (timelimit_start), ODIDUtil.usec_to_secs (timelimit_end));
+            ODIDUtil.offsets_within_time_range (index_file, is_reverse,
+                                                ref timelimit_start, ref timelimit_end, 
+                                                total_duration,
+                                                out bytelimit_start, out bytelimit_end,
+                                                content_size);
+            debug ("    effective time constraints: %0.3fs-%0.3fs",
+                   ODIDUtil.usec_to_secs (timelimit_start), ODIDUtil.usec_to_secs (timelimit_end));
+            debug ("    effective byte constraints: %lld-%lld",
+                   bytelimit_start, bytelimit_end);
+            if (!live_sim.stopped && (live_sim.get_duration () > 0)) { // Per DLNA 7.5.4.3.2.20.4
+                // Adding this unconditionally when legal - which doesn't seem to be verboten
+                // TODO: Add a way for DLNAAvailableSeekRangeRequest to be passed to preroll()
+                response_list.add (new DLNAAvailableSeekRangeResponse
+                                            (lop_mode,
+                                             timelimit_start,
+                                             timelimit_end,
+                                             bytelimit_start,
+                                             bytelimit_end-1) );
+            }
+        }
+
+        if (this.seek_request == null) {
+            //
+            // No seek
+            //
+            debug ("preroll_livesim_resource: No seek request received (state/mode %s/%s)",
+                   this.live_sim.get_state_string (), this.live_sim.get_mode_string ());
+            this.range_start = bytelimit_start;
+            this.range_offset_list.add (this.live_sim.stopped ? bytelimit_end
+                                                              : int64.MAX); // Send unbounded
+        } else if (seek_request is HTTPTimeSeekRequest) {
+            //
+            // Time-based seek
+            //
+            var time_seek = seek_request as HTTPTimeSeekRequest;
+            // Note: Static range/duration checks are already expected to be performed by
+            //       librygel-server. We just need to perform dynamic checks here...
+            int64 adjusted_seek_start;
+            int64 adjusted_seek_end;
+            bool send_unbound = false;
+
+            if (this.playspeed_request != null
+                 && this.playspeed_request.speed.is_normal_rate ()
+                 && (time_seek.end_time == HTTPSeekRequest.UNSPECIFIED)
+                 && this.live_sim.is_s0_increasing ()) {
+                    // Per DLNA 7.5.4.3.2.20.3, end time must be specified at trick rates when
+                    //  in limited random access mode
+                    throw new DataSourceError.SEEK_FAILED
+                                  ("End time must be specified for trick play in LOP content");
+            }
+
+            if (sim_mode == ODIDLiveSimulator.Mode.S0_EQUALS_SN) {
+                throw new DataSourceError.SEEK_FAILED
+                              ("Random access not supported on this resource (S0==Sn)");
+            }
+
+            // If the sim is stopped, we need to 0-base the time/data offsets
+            int64 time_offset = 0;
+            int64 data_offset = 0;
+            if (sim_state == ODIDLiveSimulator.State.STOPPED) {
+                time_offset = timelimit_start;
+                data_offset = bytelimit_start;
+                debug ("    sim is stopped - applying time/byte adjustment: %0.3fs/%lld",
+                       ODIDUtil.usec_to_secs (time_offset), data_offset);
+            }
+
+            if (!is_reverse) { // Forward range check
+                if ((time_seek.start_time + time_offset < timelimit_start)
+                    || (time_seek.start_time + time_offset > timelimit_end) ) {
+                    throw new DataSourceError.SEEK_FAILED
+                                  ("Seek start time %0.3fs is outside valid time range (%0.3fs-%0.3fs)",
+                                   ODIDUtil.usec_to_secs (time_seek.start_time),
+                                   ODIDUtil.usec_to_secs (timelimit_start - time_offset),
+                                   ODIDUtil.usec_to_secs (timelimit_end - time_offset));
                 }
-                if (this.read_cmd == null) {
-                    try {
-                        this.read_cmd = MetaConfig.get_default ().get_string ("OdidMediaEngine", READ_CMD);
-                        if (this.read_cmd != null) {
-                            debug (@"$(READ_CMD) $(this.read_cmd) defined in rygel config.");
-                        }
-                    } catch (Error error) {
-                        // Can ignore errors
-                    }
+                adjusted_seek_start = time_seek.start_time + time_offset;
+
+                if (time_seek.end_time == HTTPSeekRequest.UNSPECIFIED) {
+                    adjusted_seek_end = timelimit_end;
+                    send_unbound = !this.live_sim.stopped; // DLNA 7.5.4.3.2.19.2/20.1
                 } else {
-                    debug (@"$(READ_CMD) $(this.read_cmd) defined in item property.");
+                    if (time_seek.end_time + time_offset > timelimit_end) {
+                        throw new DataSourceError.SEEK_FAILED
+                                      ("Seek end time %0.3fs is after valid time range (%0.3fs-%0.3fs)",
+                                       ODIDUtil.usec_to_secs (time_seek.end_time),
+                                       ODIDUtil.usec_to_secs (timelimit_start - time_offset),
+                                       ODIDUtil.usec_to_secs (timelimit_end - time_offset));
+                    }
+                    adjusted_seek_end = time_seek.end_time + time_offset;
                 }
-            } else {
-                debug (@"$(READ_CMD) $(this.read_cmd) defined in resource property.");
+            } else { // reverse
+                if (time_seek.start_time + time_offset > timelimit_end) {
+                    throw new DataSourceError.SEEK_FAILED
+                                  ("Reverse seek start time %0.3fs is after valid time range (%0.3fs-%0.3fs)",
+                                   ODIDUtil.usec_to_secs (time_seek.start_time),
+                                   ODIDUtil.usec_to_secs (timelimit_start - time_offset),
+                                   ODIDUtil.usec_to_secs (timelimit_end - time_offset) );
+                }
+                adjusted_seek_start = time_seek.start_time + time_offset;
+                if (time_seek.end_time == HTTPSeekRequest.UNSPECIFIED) {
+                    adjusted_seek_end = timelimit_start; // DLNA 7.5.4.3.2.20.1
+                } else {
+                    if (time_seek.end_time + time_offset < timelimit_start) {
+                        throw new DataSourceError.SEEK_FAILED
+                                      ("Seek end time %0.3fs is before valid time range (%0.3fs-%0.3fs)",
+                                       ODIDUtil.usec_to_secs (time_seek.end_time),
+                                       ODIDUtil.usec_to_secs (timelimit_start - time_offset),
+                                       ODIDUtil.usec_to_secs (timelimit_end - time_offset) );
+                    }
+                    adjusted_seek_end = time_seek.end_time + time_offset;
+                }
+            } // END seek range check
+
+            // Assert: adjusted_seek_start/end are checked/fenced into the valid time range
+            // Assert: send_unbound is set if we should send data live data after the range
+
+            debug ("    sim-adjusted time range: %0.3fs-%0.3fs",
+                   ODIDUtil.usec_to_secs (adjusted_seek_start),
+                   ODIDUtil.usec_to_secs (adjusted_seek_end));
+            // Now lookup the effective range
+            int64 range_end;
+            ODIDUtil.offsets_within_time_range (index_file, is_reverse,
+                                                ref adjusted_seek_start, ref adjusted_seek_end, 
+                                                total_duration,
+                                                out this.range_start, out range_end,
+                                                content_size);
+            debug ("    index-adjusted time/data range: %0.3fs-%0.3fs/%lld-%lld",
+                   ODIDUtil.usec_to_secs (adjusted_seek_start),
+                   ODIDUtil.usec_to_secs (adjusted_seek_end),
+                   this.range_start, range_end);
+
+            int64 response_start_time = adjusted_seek_start - time_offset;
+            int64 response_end_time, response_total_duration;
+            int64 response_start_byte = this.range_start - data_offset;
+            int64 response_end_byte, response_total_size;
+
+            if (this.live_sim.stopped) {
+                assert (!send_unbound);
+                this.range_offset_list.add (range_end);
+                response_end_time = adjusted_seek_end - time_offset;
+                response_total_duration = timelimit_end - timelimit_start;
+                response_end_byte = range_end - data_offset - 1; // Response is inclusive range
+                response_total_size = bytelimit_end - bytelimit_start;
+            } else { // sim still active
+                if (send_unbound) {
+                    this.range_offset_list.add (int64.MAX);
+                    response_end_time = HTTPSeekRequest.UNSPECIFIED;
+                    response_end_byte = HTTPSeekRequest.UNSPECIFIED;
+                } else { // Closed range on active sim
+                    this.range_offset_list.add (range_end);
+                    response_end_time = adjusted_seek_end - time_offset;
+                    response_end_byte = range_end - data_offset - 1; // Response is inclusive range
+                }
+                response_total_duration = HTTPSeekRequest.UNSPECIFIED;
+                response_total_size = HTTPSeekRequest.UNSPECIFIED;
+            }
+            debug ("    sim-adjusted time range: %0.3fs-%0.3fs",
+                   ODIDUtil.usec_to_secs (adjusted_seek_start),
+                   ODIDUtil.usec_to_secs (adjusted_seek_end));
+
+            HTTPResponseElement seek_response;
+            if (this.content_protected) {
+                // We don't currently support Range on link-protected binaries. So leave out
+                //  the byte range from the TimeSeekRange response
+                seek_response
+                    = new HTTPTimeSeekResponse.time_only (response_start_time, response_end_time,
+                                                          response_total_duration );
+                response_list.add (seek_response);
+                debug ("    generated response: " + seek_response.to_string());
+                ODIDUtil.get_dtcp_aligned_range (res, index_file, 
+                                                 this.range_start, this.range_offset_list[0],
+                                                 content_size,
+                                                 out this.range_start, this.range_offset_list);
+                if (!send_unbound) {
+                    // We can generate a cleartext response (the range is known)
+                    int64 encrypted_length = ODIDUtil.calculate_dtcp_encrypted_length
+                                                        (this.range_start,
+                                                         this.range_offset_list,
+                                                         this.chunk_size);
+                    seek_response = new DTCPCleartextResponse (response_start_byte,
+                                                               response_end_byte,
+                                                               response_total_size,
+                                                               encrypted_length);
+                    response_list.add (seek_response);
+                    debug ("    generated response: " + seek_response.to_string());
+                }
+            } else { // No link protection
+                seek_response = new HTTPTimeSeekResponse
+                                            (response_start_time, response_end_time,
+                                             response_total_duration,
+                                             response_start_byte, response_end_byte,
+                                             response_total_size);
+                response_list.add (seek_response);
+                debug ("    generated response: " + seek_response.to_string());
+            }
+            debug ("Time seek response: " + seek_response.to_string ());
+        } else if (seek_request is HTTPByteSeekRequest) {
+            //
+            // Byte-based seek (only for non-protected content currently)
+            //
+            if (this.content_protected) { // Sanity check
+                throw new DataSourceError.GENERAL
+                              ("Byte seek not supported on protected content");
+            }
+            var byte_seek = seek_request as HTTPByteSeekRequest;
+            debug ("preroll_livesim_resource: Processing byte seek (bytes %lld to %s)",
+                   byte_seek.start_byte,
+                   (byte_seek.end_byte == HTTPSeekRequest.UNSPECIFIED)
+                    ? "*" : byte_seek.end_byte.to_string () );
+            int64 data_offset = 0;
+            if (sim_state == ODIDLiveSimulator.State.STOPPED) {
+                data_offset = bytelimit_start;
+                debug ("    sim is stopped - applying byte adjustment: %lld", data_offset);
+            }
+
+            if ((byte_seek.start_byte + data_offset < bytelimit_start)
+                || (byte_seek.start_byte + data_offset >= bytelimit_end) ) {
+                throw new DataSourceError.SEEK_FAILED
+                              ("Seek start byte %lld is outside valid data range (%lld-%lld)",
+                               byte_seek.start_byte,
+                               bytelimit_start - data_offset, bytelimit_end - data_offset);
+            }
+
+            this.range_start = byte_seek.start_byte + data_offset;
+
+            HTTPByteSeekResponse seek_response = null;
+            if (byte_seek.end_byte == HTTPSeekRequest.UNSPECIFIED) { // No end time in request
+                debug ("    unbound range request on %s sim: request range %lld-",
+                       this.live_sim.get_state_string (), byte_seek.start_byte);
+                if (this.live_sim.stopped) { // Give what we have
+                    this.range_offset_list.add (bytelimit_end);
+                    seek_response = new HTTPByteSeekResponse (byte_seek.start_byte,
+                                                              bytelimit_end - data_offset - 1,
+                                                              bytelimit_end - bytelimit_start);
+                } else { // Give what we have, and then some...
+                    this.range_offset_list.add (int64.MAX);
+                    // Note: We can't include a Content-Range in this case (end is indefinite)
+                }
+            } else { // End specified in request
+                // Note: HTTPByteSeekRequest already checks that end > start
+                if (byte_seek.end_byte + data_offset + 1 > bytelimit_end) {
+                    throw new DataSourceError.SEEK_FAILED
+                                  ("Seek end byte %lld is after valid data range (%lld-%lld)",
+                                   byte_seek.end_byte + data_offset,
+                                   bytelimit_start, bytelimit_end);
+                }
+                this.range_offset_list.add (byte_seek.end_byte + data_offset + 1);
+                seek_response = new HTTPByteSeekResponse
+                                        (byte_seek.start_byte,
+                                         byte_seek.end_byte,
+                                         byte_seek.end_byte - byte_seek.start_byte + 1);
+                debug ("    bound range request on sim: request range %lld-%lld",
+                       byte_seek.start_byte, byte_seek.end_byte);
+            }
+
+            response_list.add (seek_response);
+            debug ("    generated response: " + seek_response.to_string());
+        } else if (seek_request is DTCPCleartextRequest) {
+            //
+            // Cleartext-based seek (only for link-protected content)
+            //
+            if (!this.content_protected) { // Sanity check
+                throw new DataSourceError.GENERAL ("Cleartext seek not supported on unprotected content");
+            }
+            var cleartext_seek = seek_request as DTCPCleartextRequest;
+            debug ( "preroll_livesim_resource: Processing cleartext byte request (bytes %lld to %s)",
+                      cleartext_seek.start_byte,
+                      (cleartext_seek.end_byte == HTTPSeekRequest.UNSPECIFIED)
+                      ? "*" : cleartext_seek.end_byte.to_string () );
+
+            int64 data_offset = 0;
+            if (sim_state == ODIDLiveSimulator.State.STOPPED) {
+                data_offset = bytelimit_start;
+                debug ("    sim is stopped - applying byte adjustment: %lld", data_offset);
+            }
+
+            if ((cleartext_seek.start_byte + data_offset < bytelimit_start)
+                || (cleartext_seek.start_byte + data_offset >= bytelimit_end) ) {
+                throw new DataSourceError.SEEK_FAILED
+                              ("cleartext start byte %lld is outside valid data range (%lld-%lld)",
+                               cleartext_seek.start_byte,
+                               bytelimit_start - data_offset, bytelimit_end - data_offset);
+            }
+
+            this.range_start = cleartext_seek.start_byte + data_offset;
+
+            int64 response_start_byte = cleartext_seek.start_byte;
+            int64 response_end_byte, response_total_size;
+            bool send_unbound = false;
+            if (cleartext_seek.end_byte == HTTPSeekRequest.UNSPECIFIED) { // No end time in request
+                debug ("    unbound cleartext request on %s sim: request range %lld-",
+                       this.live_sim.get_state_string (), cleartext_seek.start_byte);
+                this.range_offset_list.add (content_size); // We'll calc offsets for the rest
+                send_unbound = !this.live_sim.stopped;
+                response_end_byte = bytelimit_end - data_offset - 1;
+                response_total_size = bytelimit_end - bytelimit_start;
+            } else { // End specified in request
+                // Note: DTCPCleartextRequest already checks that end > start
+                if (cleartext_seek.end_byte + data_offset >= bytelimit_end) {
+                    throw new DataSourceError.SEEK_FAILED
+                                  ("cleartext end byte %lld is after valid data range (%lld-%lld)",
+                                   cleartext_seek.end_byte + data_offset,
+                                   bytelimit_start, bytelimit_end);
+                }
+                this.range_offset_list.add (cleartext_seek.end_byte + data_offset + 1);
+                response_end_byte = cleartext_seek.end_byte;
+                response_total_size = cleartext_seek.end_byte - cleartext_seek.start_byte + 1;
+                debug ("    bound cleartext request on sim: request range %lld-%lld",
+                       cleartext_seek.start_byte, cleartext_seek.end_byte);
+            }
+
+            ODIDUtil.get_dtcp_aligned_range (res, index_file, 
+                                             this.range_start, this.range_offset_list[0],
+                                             content_size,
+                                             out this.range_start, this.range_offset_list);
+            if (!send_unbound) {
+                // We can generate a cleartext response (the range is known)
+                int64 encrypted_length = ODIDUtil.calculate_dtcp_encrypted_length
+                                                    (this.range_start,
+                                                     this.range_offset_list,
+                                                     this.chunk_size);
+                var seek_response = new DTCPCleartextResponse (response_start_byte,
+                                                               response_end_byte,
+                                                               response_total_size,
+                                                               encrypted_length);
+                response_list.add (seek_response);
+                debug ("    generated response: " + seek_response.to_string());
             }
         } else {
-            debug (@"$(READ_CMD) $(this.read_cmd) defined in content property.");
+            throw new DataSourceError.SEEK_FAILED ("Unsupported seek type");
         }
-        
-        if(this.read_cmd == null) {
-            debug (@"No $(READ_CMD) defined for pipe, using direct file access.");
-        }
-        
-        // If requested bytes are not set, go for largest amount of data
-        // possible.  Should get to EOF or client termination.
-        if (this.range_length_list[0] == 0) {
-            this.total_bytes_requested = int64.MAX;
-        } else {
-            this.total_bytes_requested = 
-                this.range_length_list[this.range_length_list.size - 1] - range_start;
-        }
-        
-        return response_list;
-        // Wait for a start() before sending anything
-    }
-
-    /**
-     * Note: range_end and aligned_end are non-inclusive
-     */
-    internal void get_packet_aligned_range (MediaResource res, string index_file,
-                                            int64 range_start, int64 req_end_val,
-                                            int64 total_size,
-                                            out int64 aligned_start,
-                                            Gee.ArrayList<int64?> aligned_range_list) 
-       throws Error {
-        //Get the transport stream packet size for the profile
-        string profile = res.dlna_profile;
-        aligned_start = range_start;
-        // Transport streams
-        if ((profile.has_prefix ("DTCP_MPEG_TS") ||
-             profile.has_prefix ("DTCP_AVC_TS")) ) {
-            // Align the bytes to transport packet boundaries
-            int64 packet_size = ODIDUtil.get_profile_packet_size (profile);
-            // TODO: Align beginning of the packet also??
-            if (packet_size > 0) {
-                // DLNA Link Protection : 8.9.5.4.2
-                int64 aligned_end = ODIDUtil.get_dtcp_aligned_end (range_start, req_end_val,
-                                                                   packet_size);
-                aligned_end = int64.min (aligned_end, total_size);
-                aligned_range_list[0] = aligned_end;
-            }
-            else {
-                aligned_range_list[0] = req_end_val;
-            }
-        } 
-        // Program streams
-        else if ((profile.has_prefix ("DTCP_MPEG_PS"))) {
-            // Align the 'end' to VOBU boundary
-            // This can be a list of vobu offsets
-            ODIDUtil.vobu_aligned_offsets_for_range (index_file,
-                           range_start, req_end_val,
-                           out aligned_start, aligned_range_list,
-                           total_size );
-        } 
-        else {
-            warning ("Attemped to DTCP-align unsupported protocol: "
-                     + profile);
-        }
-    }
-    
-    /**
-     * Find the time/data offsets that cover the provided time range start_time to end_time.
-     *
-     * Note: This method will clamp the end time/offset to the duration/total_size if not
-     *       present in the index file.
-     */
-    internal void offsets_for_time_range (string index_path, bool is_reverse,
-                                          ref int64 start_time, ref int64 end_time,
-                                          int64 total_duration,
-                                          out int64 start_offset, Gee.ArrayList<int64?> end_offset_list,
-                                          int64 total_size)
-         throws Error {
-        debug ("offsets_for_time_range: %s, %lld-%s",
-               index_path, start_time,
-               ((end_time != int64.MAX) ? end_time.to_string () : "*") );
-        bool start_offset_found = false;
-        bool end_offset_found = false;
-
-        var file = File.new_for_uri (index_path);
-        var dis = new DataInputStream (file.read ());
-        string line;
-        int64 cur_time_offset = 0;
-        string cur_data_offset = null;
-        int64 last_time_offset = is_reverse ? total_duration : 0; // Time can go backward
-        string last_data_offset = "0"; // but data offsets always go forward...
-        start_offset = int64.MAX;
-        int line_count = 0;
-        end_offset_list.clear ();
-        // Read lines until end of file (null) is reached
-        while ((line = dis.read_line (null)) != null) {
-            line_count++;
-            // Entry Type (V: Video Frame)
-            // | Video Frame Type (I,B,P)
-            // | | Time Offset (seconds.milliseconds) (fixed decimal places, 8.3)
-            // | | |            File Byte Offset (fixed decimal places, 19)
-            // | | |            |                   Frame size (fixed decimal places, 10)
-            // | | |            |                   |
-            // v v v            v                   v
-            // V F 00000000.000 0000000000000000000 0000000000<16 spaces><newline>
-            if (line.length != ODIDMediaEngine.INDEXFILE_ROW_SIZE-1) {
-                throw new ODIDMediaEngineError.INDEX_FILE_ERROR (
-                              "Bad index file entry size (line %d of %s is %d bytes - should be %d bytes): '%s'",
-                              line_count, index_path, line.length,
-                              ODIDMediaEngine.INDEXFILE_ROW_SIZE, line);
-            }
-            var index_fields = line.split (" "); // Could use fixed field positions here...
-            if ((index_fields[0][0] == 'V') && (index_fields[1][0] == 'I')) {
-                string time_offset_string = index_fields[2];
-                string extended_time_string = time_offset_string[0:7]
-                                              + time_offset_string[8:11]
-                                              + "000";
-                // Leading "0"s cause parse() to assume the value is octal (see Vala bug 656691)
-                cur_time_offset = int64.parse (strip_leading_zeros
-                                                   (extended_time_string));
-                cur_data_offset = index_fields[3]; // Convert this only when needed
-                // debug ("offsets_for_time_range: keyframe at %s (%s) has offset %s",
-                //       extended_time_string, cur_time_offset.to_string(), cur_data_offset);
-                if (!start_offset_found) {
-                    if ( (is_reverse && (cur_time_offset < start_time))
-                         || (!is_reverse && (cur_time_offset > start_time)) ) {
-                        start_time = last_time_offset;
-                        start_offset = int64.parse (strip_leading_zeros
-                                                        (last_data_offset));
-                        start_offset_found = true;
-                        debug ("offsets_for_time_range: found start of range (%s): time %lld, offset %lld",
-                               (is_reverse ? "reverse" : "forward"),
-                               start_time, start_offset);
-                    }
-                } else {
-                    if ( (is_reverse && (cur_time_offset < end_time))
-                         || (!is_reverse && (cur_time_offset > end_time)) ) {
-                        int64 end_offset = int64.parse (strip_leading_zeros (cur_data_offset));
-                        end_time = cur_time_offset;
-                        end_offset_list.add (end_offset);
-                        end_offset_found = true;
-                        debug ("offsets_for_time_range: found end of range (%s): time %lld, offset %lld",
-                               (is_reverse ? "reverse" : "forward"),
-                               end_time, end_offset);
-                        break;
-                    }
-                }
-                last_time_offset = cur_time_offset;
-                last_data_offset = cur_data_offset;
-            }
-        }
-
-        if (!start_offset_found) {
-            throw new DataSourceError.SEEK_FAILED ("Start time %lld is out of index file range",
-                                                  start_time);
-        }
-
-        if (!end_offset_found) {
-            // Modify the end byte value to align to start/end of the file, if necessary
-            //  (see DLNA 7.5.4.3.2.24.4)
-            int64 end_offset = total_size;
-            if (is_reverse) {
-                end_time = 0;
-            } else {
-                end_time = total_duration;
-            }
-            end_offset_list.add (end_offset);
-            debug ("offsets_for_time_range: end of range beyond index range (%s): time %lld, offset %lld",
-                   (is_reverse ? "reverse" : "forward"), end_time, end_offset);
-        }
-    }
-
-    internal static string strip_leading_zeros (string number_string) {
-        return ODIDMediaEngine.strip_leading_zeros (number_string);
-    }
-
-    internal string ? get_resource_property (string odid_resource_uri,
-                                             string property_name)
-         throws Error {
-        return get_property_from_file (odid_resource_uri + "resource.info",
-                                       property_name);
-    }
-
-    internal string ? get_content_property (string odid_content_uri,
-                                            string property_name)
-         throws Error {
-        string content_info_filename = odid_content_uri + ".info";
-        try {
-            return get_property_from_file (content_info_filename, property_name);
-        } catch (Error error) {
-            debug ("Content info file %s not found (non-fatal)", content_info_filename);
-            return null;
-        }
-    }
-
-    internal string ? get_property_from_file (string uri, string property_name)
-         throws Error {
-        var file = File.new_for_uri (uri);
-        var dis = new DataInputStream (file.read ());
-        string line;
-        // Read lines until end of file (null) is reached
-        while ((line = dis.read_line (null)) != null) {
-            if (line[0] == '#') continue;
-            var equals_pos = line.index_of ("=");
-            var name = line[0:equals_pos].strip ();
-            if (name == property_name) {
-                var value = line[equals_pos+1:line.length].strip ();
-                return ((value.length == 0) ? null : value);
-            }
-        }
-
-        return null;
     }
 
     public void start () throws Error {
         debug ("Starting data source for %s", content_uri);
+        bool start_reading = true;
+
+        if (this.total_bytes_requested == 0) {
+            debug ("0 bytes to send - signaling done()...");
+            Idle.add ( () => { this.done (); return false; });
+            return;
+        }
 
         if (this.content_protected) {
             Dtcpip.server_dtcp_open (out dtcp_session_handle, 0);
@@ -595,7 +785,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         }
 
         var file = File.new_for_uri (this.content_uri);
-            
+
         // Create channel for piped command or file on disk.
         this.output = this.read_cmd == null ? 
             channel_from_disk (file) : channel_from_pipe (file);
@@ -604,62 +794,64 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         if (this.output == null) {
             throw new DataSourceError.GENERAL ("Unable to access data source.");
         }
-            
+
         // Set channel options
         this.output.set_encoding (null);
         // Set channel buffer to be required chunk size.  In an effort to not
         // block when we are called to read.
-        if (this.range_length_list.size > 1) {
+        if (this.range_offset_list.size > 1) {
             this.output.set_buffer_size 
-                ((size_t) (this.range_length_list[this.alignment_pos++] - 
+                ((size_t) (this.range_offset_list[this.alignment_pos++] - 
                 this.range_start));
         } else {
-            this.output.set_buffer_size ((size_t) ODIDMediaEngine.chunk_size);
+            this.output.set_buffer_size ((size_t) this.chunk_size);
         }
 
-        // Async event callback when data is available from channel.  We expect
-        // our set buffer worth or data will be available on the channel
-        // without blocking.    
-        this.output_watch_id =          
-            this.output.add_watch 
-                (IOCondition.IN | IOCondition.ERR | IOCondition.HUP, read_data);
-    }
+        if (this.live_sim != null) {
+            // Keep the sim alive so long as we're serving data
+            this.live_sim.cancel_autoreset (); 
+            done.connect ((t) => {
+                debug ("Processing done signal for " + content_uri);
+                // And restart the timer when we're done sending
+                this.live_sim.enable_autoreset (); // Restart the autoreset timer (if set)
+                if (this.pacing && this.index_stream != null) {
+                    try {
+                        this.index_stream.close ();
+                    } catch (Error err) {
+                    }
+                    this.index_stream = null;
+                }
+            });
 
-    public void freeze () {
-        // This will cause the async event callback to remove itself from
-        // the main event loop.
-        this.frozen = true;
-    }
+            if ((!this.live_sim.stopped) && this.total_bytes_requested == int64.MAX) {
+                // Need to pace our sending to the sim using the index file
+                this.pacing = true;
+                var index_file = File.new_for_uri (this.index_uri);
+                this.index_stream = new DataInputStream (index_file.read ());
+                if (!this.live_sim.started) {
+                    debug ("sim is setup but not started. Will wait for sim to start.");
+                    start_reading = false;
+                    // TODO: Register sim start signal
+                } else { // sim is active
+                    int time_to_next_buf_ms = time_to_next_buffer ();
+                    if (time_to_next_buf_ms > 0) {
+                        start_reading = false;
+                        uint pacing_timer = Timeout.add (time_to_next_buf_ms, on_paced_data_ready);
+                        debug ("Scheduled pacing %u for %dms from now",
+                               pacing_timer, time_to_next_buf_ms);
+                    }
+                }
+            }
+        }
 
-    public void thaw () {
-        if (this.frozen) {
-            // We need to add the async event callback into the main event
-            // loop.
-            this.frozen = false;
-            this.output.add_watch
-                (IOCondition.IN | IOCondition.ERR | IOCondition.HUP, read_data);            
+        if (start_reading) {
+            // Async event callback when data is available from channel.  We expect
+            // our set buffer worth or data will be available on the channel
+            // without blocking.
+            initiate_reading ();
         }
     }
 
-    public void stop () {
-        // If pipe used, reap child otherwise shut down channel.
-        // Make sure event callback is removed from main loop.
-        if ((int)this.child_pid != 0) {
-            debug (@"Stopping pid: $(this.child_pid)");
-            Posix.kill (this.child_pid, Posix.SIGTERM);
-        } else {
-            GLib.Source.remove (this.output_watch_id);
-        }
-    }
-
-    public void clear_dtcp_session () {
-        if (dtcp_session_handle != -1) {
-            int ret_close = Dtcpip.server_dtcp_close (dtcp_session_handle);
-            debug ("Dtcp session closed : %d",ret_close);
-            dtcp_session_handle = -1;
-        }
-    }
-    
     // Creates a channel to read data from a command's stdout through a pipe.
     private IOChannel channel_from_pipe (File file) throws IOChannelError {
         IOChannel channel = null;
@@ -734,12 +926,82 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         
         return channel;
     }
+
+    private void initiate_reading () {
+        this.output_watch_id
+            = this.output.add_watch (IOCondition.IN | IOCondition.ERR | IOCondition.HUP,
+                                     read_data);
+    }
+
+    /**
+     * Number of milliseconds until the next buffer should be available.
+     *
+     * Note that the index file stream must be open and the buffer size set on the
+     * output IOChannel.
+     *
+     * This will be negative if the next buffer is already available.
+     */
+    private int time_to_next_buffer () {
+        assert (this.live_sim != null);
+        size_t buf_size = this.output.get_buffer_size ();
+        int64 next_offset = this.range_start + this.total_bytes_read + buf_size;
+        try {
+            int64 next_offset_time_ms = ODIDUtil.advance_index_to_offset (this.index_stream,
+                                                                          ref next_offset);
+            return (int)(next_offset_time_ms - (this.live_sim.get_elapsed_live_time ()
+                                                /  MICROS_PER_MILLI ) );
+        } catch (Error error) {
+            warning ("time_to_next_buffer: Error finding offset %lld in %s: %s",
+                     next_offset, this.index_uri, error.message);
+            return 0;
+        }
+    }
+
+    public void freeze () {
+        // This will cause the async event callback to remove itself from
+        // the main event loop.
+        this.frozen = true;
+    }
+
+    public void thaw () {
+        if (this.frozen) {
+            // We need to add the async event callback into the main event
+            // loop.
+            this.frozen = false;
+            initiate_reading ();
+        }
+    }
+
+    public void stop () {
+        // If pipe used, reap child otherwise shut down channel.
+        // Make sure event callback is removed from main loop.
+        if ((int)this.child_pid != 0) {
+            debug (@"Stopping pid: $(this.child_pid)");
+            Posix.kill (this.child_pid, Posix.SIGTERM);
+        } else {
+            GLib.Source.remove (this.output_watch_id);
+        }
+    }
+	public bool on_paced_data_ready () {
+        // A buffer's worth of data is ready 
+        initiate_reading ();
+        return false; // Don't repeat - this is a one-shot
+	}
+
+    public void clear_dtcp_session () {
+        if (dtcp_session_handle != -1) {
+            int ret_close = Dtcpip.server_dtcp_close (dtcp_session_handle);
+            debug ("Dtcp session closed : %d",ret_close);
+            dtcp_session_handle = -1;
+        }
+    }
     
     // Async event callback is called when data is available on a channel, this
     // method will be called mulitple times till the data source has exhausted
     // the requested bytes or the channel closes (in the case of a pipe).
     private bool read_data (IOChannel channel, IOCondition condition) {
         if (condition == IOCondition.HUP || condition == IOCondition.ERR) {
+            debug ("Received " + condition.to_string () + " - signaling done()");
             done ();
             return false;
         }
@@ -762,6 +1024,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             // Read data off of channel
             IOStatus status = channel.read_chars (read_buffer, out bytes_read);         
             if (status == IOStatus.EOF) {
+                debug ("Hit EOF - signaling done()");
                 done ();
                 return false;
             }
@@ -813,18 +1076,32 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         // If we are aligning VOBU per PCP, we need to set the channel buffer to 
         // the next VOBU buffer size.  This way we won't block when we get called
         // to read again.
-        int list_size = this.range_length_list.size; // just for short hand
+        int list_size = this.range_offset_list.size; // just for short hand
         if (list_size > 1 && list_size - 1 >= this.alignment_pos) {
             this.output.set_buffer_size 
-                ((size_t) (this.range_length_list[this.alignment_pos++] 
+                ((size_t) (this.range_offset_list[this.alignment_pos++] 
                 - this.total_bytes_read));
         }
 
-        if (this.total_bytes_read >= this.total_bytes_requested) {
+        bool all_data_read = (this.total_bytes_read >= this.total_bytes_requested);
+        if (all_data_read) {
+            debug ("All requested data sent (%lld bytes) - signaling done()",
+                   this.total_bytes_read);
             done ();
         }
 
-        // Keep reading from channel if data left and not frozen.
-        return !this.frozen && this.total_bytes_read < this.total_bytes_requested;
+        bool pace = false;
+        if (!all_data_read && this.pacing) {
+            int time_to_next_buf_ms = time_to_next_buffer ();
+            if (time_to_next_buf_ms > 0) {
+                pace = true; // We need to wait for the next buffer of data
+                uint pacing_timer = Timeout.add (time_to_next_buf_ms, on_paced_data_ready);
+                debug ("Scheduled pacing %u for %dms from now",
+                       pacing_timer, time_to_next_buf_ms);
+            }
+        }
+        
+        // Keep reading from channel if data left and not frozen or not 
+        return !this.frozen && !all_data_read && !pace;
     }
 }

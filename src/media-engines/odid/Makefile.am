@@ -9,8 +9,11 @@ libdtcpip_la_SOURCES = \
 
 librygel_media_engine_odid_la_SOURCES = \
 	odid-media-engine.vala \
+	odid-control-channel.vala \
+	odid-live-simulator.vala \
+	odid-index-entry.vala \
 	odid-util.vala \
-	odid-data-source.vala
+	odid-data-source.vala 
 
 librygel_media_engine_odid_la_VALAFLAGS = \
 	$(RYGEL_COMMON_LIBRYGEL_SERVER_VALAFLAGS) \
@@ -30,4 +33,3 @@ librygel_media_engine_odid_la_LDFLAGS = \
 	$(RYGEL_PLUGIN_LINKER_FLAGS)
 
 EXTRA_DIST = media-engine-odid.plugin.in
-

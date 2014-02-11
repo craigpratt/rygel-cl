@@ -117,7 +117,8 @@ public abstract class Rygel.MediaEngine : GLib.Object {
      * @return A #DataSource representing the given item resource
      */
     public abstract DataSource? create_data_source_for_resource (MediaObject item,
-                                                                 MediaResource resource);
+                                                                 MediaResource resource)
+          throws Error;
 
     /**
      * Get a #DataSource for the URI.
@@ -125,5 +126,5 @@ public abstract class Rygel.MediaEngine : GLib.Object {
      * @param uri to create the #DataSource for.
      * @return A #DataSource representing the uri
      */
-    public abstract DataSource? create_data_source_for_uri (string uri);
+    public abstract DataSource? create_data_source_for_uri (string uri) throws Error;
 }

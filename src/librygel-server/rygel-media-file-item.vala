@@ -124,7 +124,8 @@ public abstract class Rygel.MediaFileItem : MediaItem {
     }
 
     public override DataSource? create_stream_source_for_resource (HTTPRequest request,
-                                                                   MediaResource resource) {
+                                                                   MediaResource resource)
+        throws Error {
         if (this.uris.size == 0) {
             return null;
         }

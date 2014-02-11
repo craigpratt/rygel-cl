@@ -191,8 +191,7 @@ public class Rygel.HTTPGet : HTTPRequest {
                 // Assert: speed_request has been checked/processed
                 var time_seek = new HTTPTimeSeekRequest (this, ((this.speed_request == null) ? null
                                                                 : this.speed_request.speed) );
-                debug ("Processing time seek request (time %lldns to %lldns)",
-                       time_seek.start_time, time_seek.end_time);
+                debug ("Processing " + time_seek.to_string ());
                 this.seek = time_seek;
             } else {
                 this.seek = null;
@@ -232,14 +231,22 @@ public class Rygel.HTTPGet : HTTPRequest {
         // Determine the size value
         int64 response_size;
         {
-            if (this.seek != null) {
-                // The response element for seeks is responsible for setting the appropriate
-                //  length if/when appropriate. So it should already be set (if it can be set)
-                response_size = this.msg.response_headers.get_content_length ();
-            } else {
-                // If a seek wasn't included, we'll be returning the entire resource binary
-                response_size = this.handler.get_resource_size ();
+            // Response size might have already been set by one of the response elements
+            response_size = this.msg.response_headers.get_content_length ();
+
+            if (response_size > 0) {
                 this.msg.response_headers.set_content_length (response_size);
+                debug ("Response size set via response element: size "
+                       + response_size.to_string());
+            } else {
+                // If not already set by a response element, try to set it to the resource size
+                if ((response_size = this.handler.get_resource_size ()) > 0) {
+                    this.msg.response_headers.set_content_length (response_size);
+                    debug ("Response size set via response element: size "
+                           + response_size.to_string());
+                } else {
+                    debug ("Response size unknown");
+                }
             }
             // size will factor into other logic below...
         }
@@ -253,15 +260,19 @@ public class Rygel.HTTPGet : HTTPRequest {
                 // We'll want the option to insert PlaySpeed position information
                 //  whether or not we know the length (see DLNA 7.5.4.3.3.17)
                 response_body_encoding = Soup.Encoding.CHUNKED;
+                debug ("Response encoding set to CHUNKED");
             } else if (response_size > 0) {
                 // TODO: Incorporate ChunkEncodingMode.dlna.org request into this block
                 response_body_encoding = Soup.Encoding.CONTENT_LENGTH;
-            } else { // Response size is 0
+                debug ("Response encoding set to CONTENT-LENGTH");
+            } else { // Response size is <= 0
                 if (this.msg.get_http_version () == Soup.HTTPVersion.@1_0) {
                     // Can't send the length and can't send chunked (in HTTP 1.0)...
                     response_body_encoding = Soup.Encoding.EOF;
+                    debug ("Response encoding set to EOF");
                 } else {
                     response_body_encoding = Soup.Encoding.CHUNKED;
+                    debug ("Response encoding set to CHUNKED");
                 }
             }
             this.msg.response_headers.set_encoding (response_body_encoding);

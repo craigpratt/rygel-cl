@@ -63,7 +63,8 @@ public class Rygel.ODID.MediaItem : Rygel.MediaItem,
     }
 
     public override DataSource? create_stream_source_for_resource
-                                    (HTTPRequest request, MediaResource resource) {
+                                    (HTTPRequest request, MediaResource resource)
+        throws Error {
         if (this.uris.size == 0) {
             return null;
         }

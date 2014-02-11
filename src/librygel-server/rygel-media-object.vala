@@ -302,7 +302,7 @@ public abstract class Rygel.MediaObject : GLib.Object {
      * Create a stream source for the given resource
      */
     public abstract DataSource? create_stream_source_for_resource
-                                 (HTTPRequest request, MediaResource resource);
+                                 (HTTPRequest request, MediaResource resource) throws Error;
 
     internal virtual void apply_didl_lite (DIDLLiteObject didl_object) {
         this.title = didl_object.title;

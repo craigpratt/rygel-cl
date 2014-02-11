@@ -143,9 +143,12 @@ internal class Rygel.ODID.Harvester : GLib.Object {
     private void on_file_changed (File             file,
                                   File?            other,
                                   FileMonitorEvent event) {
+        debug ("on_file_changed: %s: %s%s", event.to_string (), file.get_path (),
+               ((other==null) ? "" : ", %s".printf(other.get_path ())) );
         try {
             switch (event) {
                 case FileMonitorEvent.CREATED:
+                case FileMonitorEvent.ATTRIBUTE_CHANGED:
                 case FileMonitorEvent.CHANGES_DONE_HINT:
                     this.on_changes_done (file);
                     break;

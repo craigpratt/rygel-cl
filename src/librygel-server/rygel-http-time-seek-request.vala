@@ -26,14 +26,9 @@
  */
 
 /**
- * This class represents a DLNA TimeSeekRange request and response.
+ * This class represents a DLNA TimeSeekRange request.
  *
- * A TimeSeekRange request can only have a time range ("npt=start-end"). But a
- * TimeSeekRange response may have a time range ("npt=start-end/duration" and
- * a byte range ("bytes=") corresponding with the actual time/data range.
- *
- * Note that DLNA requires both "npt=" and "bytes=" to be set if both
- * data- and time-based seek are supported. (see DLNA 7.5.4.3.2.24.5)
+ * A TimeSeekRange request can only have a time range ("npt=start-end").
  */
 public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
     public static const string TIMESEEKRANGE_HEADER = "TimeSeekRange.dlna.org";
@@ -58,11 +53,19 @@ public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
     public int64 total_duration;
 
     /**
-     * Create a HTTPTimeSeekRequest corresponding with a HTTPGet that contains a TimeSeekRange.dlna.org
-     * header value.
+     * Create a HTTPTimeSeekRequest corresponding with a HTTPGet that contains a
+     * TimeSeekRange.dlna.org header value.
      *
+     * Note: This constructor will check the syntax of the request (per DLNA 7.5.4.3.2.24.3)
+     *       as well as perform some range validation. If the provided request is associated
+     *       with a handler that can provide content duration, the start and end time will
+     *       be checked for out-of-bounds conditions. Additionally, the start and end will
+     *       be checked according to playspeed direction (with rate +1.0 assumed when speed
+     *       is not provided). When speed is provided, the range end parameter check is
+     *       relaxed when the rate is not +1.0 (per DLNA 7.5.4.3.2.24.4).
+     * 
      * @param request The HTTP GET/HEAD request
-     * @param positive_rate Indicates if playback is in the positive or negative direction
+     * @speed speed An associated speed request
      */
     internal HTTPTimeSeekRequest (HTTPGet request, PlaySpeed ? speed)
             throws HTTPSeekRequestError {
@@ -158,12 +161,23 @@ public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
         } else { // End time not specified in the npt field ("start-")
             // See DLNA 7.5.4.3.2.24.4
             this.end_time = UNSPECIFIED; // Will indicate "end/beginning of binary"
-            if (positive_rate) {
-                this.range_duration = this.total_duration - this.start_time;
-            } else { // Negative rate
-                this.range_duration = this.start_time; // Going backward from start to 0
+            if (this.total_duration == UNSPECIFIED) {
+                this.range_duration = UNSPECIFIED;
+            } else {
+                if (positive_rate) {
+                    this.range_duration = this.total_duration - this.start_time;
+                } else {
+                    this.range_duration = this.start_time; // Going backward from start to 0
+                }
             }
         }
+    }
+
+    public string to_string () {
+        return ("HTTPTimeSeekRequest (npt=%lld-%s)".printf (this.start_time,
+                                                           (this.end_time != UNSPECIFIED
+                                                            ? this.end_time.to_string()
+                                                            : "*") ) );
     }
 
     /**

@@ -62,7 +62,7 @@ public class Rygel.ODID.RecursiveFileMonitor : Object {
             case FileMonitorEvent.DELETED:
                 var file_monitor = this.monitors.get (file);
                 if (file_monitor != null) {
-                    debug ("Folder %s gone; removing watch",
+                    debug ("File/dir %s gone; removing watch",
                            file.get_uri ());
                     this.monitors.unset (file);
                     file_monitor.cancel ();
@@ -93,9 +93,15 @@ public class Rygel.ODID.RecursiveFileMonitor : Object {
                                          this.cancellable);
                 this.monitors.set (file, file_monitor);
                 file_monitor.changed.connect (this.on_monitor_changed);
+            } else if (info.get_file_type () == FileType.REGULAR) {
+                var file_monitor = file.monitor
+                                        (FileMonitorFlags.NONE,
+                                         this.cancellable);
+                this.monitors.set (file, file_monitor);
+                file_monitor.changed.connect (this.on_monitor_changed);
             }
         } catch (Error err) {
-            warning (_("Failed to get file info for %s"), file.get_uri ());
+            warning (_("Failed to monitor %s"), file.get_uri ());
         }
     }
 

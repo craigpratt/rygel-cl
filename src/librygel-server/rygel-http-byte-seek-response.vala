@@ -71,7 +71,7 @@ public class Rygel.HTTPByteSeekResponse : Rygel.HTTPResponseElement {
     }
 
     public override string to_string () {
-        return ("HTTPByteSeekResponse(bytes=%lld-%lld/%lld)"
-                .printf (this.start_byte, this.end_byte, this.total_size));
+        return ("HTTPByteSeekResponse(bytes=%lld-%lld/%lld (%lld bytes))"
+                .printf (this.start_byte, this.end_byte, this.total_size, this.total_size));
     }
 }

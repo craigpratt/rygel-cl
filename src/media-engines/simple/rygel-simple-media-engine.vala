@@ -76,7 +76,8 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
     }
 
     public override DataSource? create_data_source_for_resource (MediaObject object,
-                                                                 MediaResource resource) {
+                                                                 MediaResource resource)
+        throws Error {
         if (! (object is MediaFileItem)) {
             warning ("Can only process file-based MediaObjects (MediaFileItems)");
             return null;

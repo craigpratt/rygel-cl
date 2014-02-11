@@ -69,6 +69,18 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
      */
     public int64 total_size { get; private set; }
 
+    /**
+     * Construct a HTTPTimeSeekResponse with time and byte range
+     *
+     * start_time and start_byte must be specified.
+     *
+     * if total_duration and total_size are UNSPECIFIED, then the content duration/size
+     * will be signaled as unknown ("*")
+     * 
+     * if end_time is UNSPECIFIED, then the time range end will be omitted from the
+     * response. If the end_byte is UNSPECIFIED, the entire byte range response will be
+     * omitted. (see DLNA 7.5.4.3.2.24.3)
+     */
     public HTTPTimeSeekResponse (int64 start_time, int64 end_time, int64 total_duration,
                                  int64 start_byte, int64 end_byte, int64 total_size) {
         base ();
@@ -78,7 +90,8 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
 
         this.start_byte = start_byte;
         this.end_byte = end_byte;
-        this.range_length = end_byte - start_byte + 1;
+        this.range_length = (end_byte == UNSPECIFIED) ? UNSPECIFIED
+                                                      : (end_byte - start_byte + 1);
         this.total_size = total_size;
     }
 
@@ -118,7 +131,7 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
         if (response != null) {
             request.msg.response_headers.append (HTTPTimeSeekRequest.TIMESEEKRANGE_HEADER,
                                                  response);
-            if (this.start_byte != UNSPECIFIED) {
+            if (this.range_length != UNSPECIFIED) {
                 // Note: Don't use set_content_range () here - we don't want a "Content-range" header
                 request.msg.response_headers.set_content_length (this.range_length);
             }
@@ -150,14 +163,16 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
         var response = new StringBuilder ();
         response.append ("npt=");
         response.append_printf ("%.3f-", (double) this.start_time / TimeSpan.SECOND);
-        response.append_printf ("%.3f/", (double) this.end_time / TimeSpan.SECOND);
+        if (this.end_time != UNSPECIFIED) {
+            response.append_printf ("%.3f", (double) this.end_time / TimeSpan.SECOND);
+        }
         if (this.total_duration != UNSPECIFIED) {
-            response.append_printf ("%.3f", (double) this.total_duration / TimeSpan.SECOND);
+            response.append_printf ("/%.3f", (double) this.total_duration / TimeSpan.SECOND);
         } else {
-            response.append ("*");
+            response.append ("/*");
         }
 
-        if (this.start_byte != UNSPECIFIED) {
+        if ((this.start_byte != UNSPECIFIED) && (this.end_byte != UNSPECIFIED)) {
             response.append (" bytes=");
             response.append (this.start_byte.to_string ());
             response.append ("-");

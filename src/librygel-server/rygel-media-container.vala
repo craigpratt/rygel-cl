@@ -357,7 +357,8 @@ public abstract class Rygel.MediaContainer : MediaObject {
     }
 
     public override DataSource? create_stream_source_for_resource (HTTPRequest request,
-                                                                   MediaResource resource) {
+                                                                   MediaResource resource)
+        throws Error {
         SerializerType playlist_type;
 
         switch (resource.get_name ()) {

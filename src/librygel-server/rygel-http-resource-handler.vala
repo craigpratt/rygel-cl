@@ -157,11 +157,13 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
     }
 
     public override bool supports_byte_seek () {
-        return media_resource.supports_arbitrary_byte_seek ();
+        return media_resource.supports_arbitrary_byte_seek ()
+               || media_resource.supports_limited_byte_seek ();
     }
 
     public override bool supports_time_seek () {
-        return media_resource.supports_arbitrary_time_seek ();
+        return media_resource.supports_arbitrary_time_seek ()
+               || media_resource.supports_limited_time_seek ();
     }
 
     public override bool supports_playspeed () {

@@ -172,7 +172,8 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
     }
 
     public override DataSource? create_data_source_for_resource ( MediaObject object,
-                                                                  MediaResource resource) {
+                                                                  MediaResource resource)
+        throws Error {
         if (! (object is MediaFileItem)) {
             warning ("Can only process file-based MediaObjects (MediaFileItems)");
             return null;
@@ -183,28 +184,20 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
         string source_uri = item.uris.get (0);
         debug ("creating data source for %s", source_uri);
 
-        try {
-            DataSource ds = new GstDataSource (source_uri, resource);
-            debug ("MediaResource %s, profile %s, mime_type %s", resource.get_name (),
-                   resource.dlna_profile, resource.mime_type);
-            if (resource.dlna_conversion == DLNAConversion.TRANSCODED) {
-                foreach (var transcoder in transcoders) {
-                    if (transcoder.name == resource.get_name()) {
-                        debug ("creating data source from transcoder %s (profile %s)",
-                                transcoder.name, transcoder.dlna_profile );
-                        ds = transcoder.create_source (item, ds);
-                        break;
-                    }
+        DataSource ds = new GstDataSource (source_uri, resource);
+        debug ("MediaResource %s, profile %s, mime_type %s", resource.get_name (),
+               resource.dlna_profile, resource.mime_type);
+        if (resource.dlna_conversion == DLNAConversion.TRANSCODED) {
+            foreach (var transcoder in transcoders) {
+                if (transcoder.name == resource.get_name()) {
+                    debug ("creating data source from transcoder %s (profile %s)",
+                            transcoder.name, transcoder.dlna_profile );
+                    ds = transcoder.create_source (item, ds);
+                    break;
                 }
             }
-            return ds;
-        } catch (Error error) {
-            warning (_("Failed to create GStreamer data source for %s: %s"),
-                     source_uri,
-                     error.message);
-
-            return null;
         }
+        return ds;
     }
 
     public override DataSource? create_data_source_for_uri (string source_uri) {

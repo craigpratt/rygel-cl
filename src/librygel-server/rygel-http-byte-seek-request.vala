@@ -52,53 +52,69 @@ public class Rygel.HTTPByteSeekRequest : Rygel.HTTPSeekRequest {
     public HTTPByteSeekRequest (HTTPGet request) throws HTTPSeekRequestError,
                                                  HTTPRequestError {
         base ();
-        Soup.Range[] ranges;
-        int64 start, stop;
         unowned string range = request.msg.request_headers.get_one ("Range");
-        string range_header_str = null;
-
-        int64 total_size = request.handler.get_resource_size ();
-        // TODO: Deal with resources that support Range but don't have fixed/known sizes
-
-        // Check if Range is present in the header
         if (range == null) {
-            start = 0;
-            stop = total_size -1;
+            throw new HTTPSeekRequestError.INVALID_RANGE ("Range header not present");
+        }
+
+        int64 start_byte, end_byte, total_size;
+
+        // The size (entity body size) may not be known up-front (especially for live sources)
+        total_size = request.handler.get_resource_size ();
+        if (total_size < 0) {
+            total_size = UNSPECIFIED;
+        }
+
+        // Note: DLNA restricts the syntax on the Range header (see DLNA 7.5.4.3.2.22.3)
+        //       And we need to retain the concept of an "open range" ("bytes=DIGITS-")
+        //       since the interpretation/legality varies based on the context
+        //       (e.g. DLNA 7.5.4.3.2.19.2, 7.5.4.3.2.20.1, 7.5.4.3.2.20.3)
+        if (!range.has_prefix ("bytes=")) {
+            throw new HTTPSeekRequestError.INVALID_RANGE
+                          ("Invalid Range value (missing 'bytes=' field): '%s'", range);
+        }
+
+        var parsed_range = range.substring (6);
+        if (!parsed_range.contains ("-")) {
+            throw new HTTPSeekRequestError.INVALID_RANGE
+                          ("Invalid Range request with no '-': '%s'", range);
+        }
+
+        var range_tokens = parsed_range.split ("-", 2);
+
+        if (!int64.try_parse (strip_leading_zeros(range_tokens[0]), out start_byte)) {
+            throw new HTTPSeekRequestError.INVALID_RANGE
+                          ("Invalid Range start value: '%s'", range);
+        }
+
+        if ((total_size != UNSPECIFIED) && (start_byte >= total_size)) {
+            throw new HTTPSeekRequestError.OUT_OF_RANGE
+                          ("Range start value %lld is larger than content size %lld: '%s'",
+                          start_byte, total_size, range);
+        }
+
+        if (range_tokens[1] == null || (range_tokens[1].length == 0)) {
+            end_byte = UNSPECIFIED;
+            range_length = UNSPECIFIED;
         } else {
-            range_header_str = range;
-            if (request.msg.request_headers.get_ranges (total_size,
-                                                        out ranges)) {
-                // TODO: Somehow deal with multipart/byterange properly
-                //       (not legal in DLNA per 7.5.4.3.2.22.3)
-                start = ranges[0].start;
-                stop = ranges[0].end;
-                // TODO: For live/in-progress sources, we need to differentiate between "x-" and
-                //       "x-y" (and cases where y>total_size) (see DLNA 7.5.4.3.2.19.2)
-                //       We can't tell the difference with get_ranges()...
-            } else {
-                throw new HTTPSeekRequestError.INVALID_RANGE (_("Invalid Range '%s'"),
-                                                              range_header_str);
+            if (!int64.try_parse (strip_leading_zeros(range_tokens[1]), out end_byte)) {
+                throw new HTTPSeekRequestError.INVALID_RANGE
+                              ("Invalid Range end value: '%s'", range);
             }
+            if (end_byte < start_byte) {
+                throw new HTTPSeekRequestError.INVALID_RANGE
+                              ("Range end value %lld is smaller than range start value %lld: '%s'",
+                              end_byte, start_byte, range);
+            }
+            if ((total_size != UNSPECIFIED) && (end_byte >= total_size)) {
+                throw new HTTPSeekRequestError.OUT_OF_RANGE
+                              ("Range end value %lld is larger than content size %lld: '%s'",
+                              end_byte, total_size, range);
+            }
+            range_length = end_byte - start_byte + 1; // range is inclusive
         }
-
-        if (start > total_size-1) {
-            throw new HTTPSeekRequestError.OUT_OF_RANGE (_("Invalid Range '%s'"),
-                                                         range_header_str);
-        }
-
-        if (stop < start) {
-            throw new HTTPSeekRequestError.INVALID_RANGE (_("Invalid Range '%s'"),
-                                                          range_header_str);
-        }
-
-        if ((total_size > 0) && (stop > total_size-1)) {
-            // Per RFC 2616, the range end can be beyond the total length. And Soup doesn't clamp...
-            stop = total_size-1;
-        }
-
-        this.start_byte = start;
-        this.end_byte = stop;
-        this.range_length = stop-start+1; // +1, since range is inclusive
+        this.start_byte = start_byte;
+        this.end_byte = end_byte;
         this.total_size = total_size;
     }
 
@@ -116,4 +132,19 @@ public class Rygel.HTTPByteSeekRequest : Rygel.HTTPSeekRequest {
     public static bool requested (HTTPGet request) {
         return (request.msg.request_headers.get_one ("Range") != null);
     }
+
+    // Leading "0"s cause try_parse() to assume the value is octal (see Vala bug 656691)
+    //  So we strip them off before passing to int64.try_parse()
+    private static string strip_leading_zeros (string number_string) {
+        int i=0;
+        while ((number_string[i] == '0') && (i < number_string.length)) {
+            i++;
+        }
+        if (i == 0) {
+            return number_string;
+        } else {
+            return number_string[i:number_string.length];
+        }
+    }
+    
 }
