@@ -654,15 +654,16 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
             this.range_start = byte_seek.start_byte + data_offset;
 
-            HTTPByteSeekResponse seek_response = null;
             if (byte_seek.end_byte == HTTPSeekRequest.UNSPECIFIED) { // No end time in request
                 debug ("    unbound range request on %s sim: request range %lld-",
                        this.live_sim.get_state_string (), byte_seek.start_byte);
                 if (this.live_sim.stopped) { // Give what we have
                     this.range_offset_list.add (bytelimit_end);
-                    seek_response = new HTTPByteSeekResponse (byte_seek.start_byte,
-                                                              bytelimit_end - data_offset - 1,
-                                                              bytelimit_end - bytelimit_start);
+                    var seek_response = new HTTPByteSeekResponse (byte_seek.start_byte,
+                                                                  bytelimit_end - data_offset - 1,
+                                                                  bytelimit_end - bytelimit_start);
+                    response_list.add (seek_response);
+                    debug ("    generated response: " + seek_response.to_string());
                 } else { // Give what we have, and then some...
                     this.range_offset_list.add (int64.MAX);
                     // Note: We can't include a Content-Range in this case (end is indefinite)
@@ -676,16 +677,15 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                    bytelimit_start, bytelimit_end);
                 }
                 this.range_offset_list.add (byte_seek.end_byte + data_offset + 1);
-                seek_response = new HTTPByteSeekResponse
+                var seek_response = new HTTPByteSeekResponse
                                         (byte_seek.start_byte,
                                          byte_seek.end_byte,
                                          byte_seek.end_byte - byte_seek.start_byte + 1);
                 debug ("    bound range request on sim: request range %lld-%lld",
                        byte_seek.start_byte, byte_seek.end_byte);
+                response_list.add (seek_response);
+                debug ("    generated response: " + seek_response.to_string());
             }
-
-            response_list.add (seek_response);
-            debug ("    generated response: " + seek_response.to_string());
         } else if (seek_request is DTCPCleartextRequest) {
             //
             // Cleartext-based seek (only for link-protected content)
