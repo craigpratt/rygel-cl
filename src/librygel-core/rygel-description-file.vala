@@ -247,7 +247,6 @@ public class Rygel.DescriptionFile : Object {
         }
 
         if (PluginCapabilities.DIAGNOSTICS in capabilities) {
-            flags += DIAGE_DEV_CAP;
 
             // Add X_DLNADOC element that holds DIAGE capability
             // in the device template
