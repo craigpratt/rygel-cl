@@ -116,19 +116,20 @@ public class Rygel.BasicManagement : Service {
             this.tests_map[old_id].cancellable.cancel ();
             this.tests_map.unset (old_id);
         }
-
-        this.notify ("TestIDs", typeof (string), create_test_ids_list (false));
-        this.notify ("ActiveTestIDs",
+        this.freeze_notify();
+        this.notify ("TestIDs",
+                     typeof (string),
+                     create_test_ids_list (false),
+                     "ActiveTestIDs",
                      typeof (string),
                      create_test_ids_list (true));
-
+        this.thaw_notify ();
         return test.id;
     }
 
     private void add_test_and_return_action (BasicManagementTest bm_test,
                                              ServiceAction       action) {
         var id = this.add_test (bm_test);
-
         /* NOTE: it might be useful queue the execution but this is not
          * currently done: if "BandwidthTest" is implemented queueing is
          * practically required. */
@@ -138,6 +139,7 @@ public class Rygel.BasicManagement : Service {
                          typeof (string),
                          create_test_ids_list (true));
         });
+
 
         action.set ("TestID", typeof (string), id);
 
