@@ -107,9 +107,7 @@ public class Rygel.HTTPByteSeekRequest : Rygel.HTTPSeekRequest {
                               end_byte, start_byte, range);
             }
             if ((total_size != UNSPECIFIED) && (end_byte >= total_size)) {
-                throw new HTTPSeekRequestError.OUT_OF_RANGE
-                              ("Range end value %lld is larger than content size %lld: '%s'",
-                              end_byte, total_size, range);
+                end_byte = total_size - 1;
             }
             range_length = end_byte - start_byte + 1; // range is inclusive
         }
