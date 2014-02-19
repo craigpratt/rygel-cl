@@ -257,6 +257,15 @@ public class Rygel.DescriptionFile : Object {
             remove_dlna_doc_diage_element ();
         }
 
+        // Add CVP2 capability for server
+        try {
+            var config = MetaConfig.get_default ();
+            flags += config.get_string ("general", "cvp2-server-caps");
+            flags += config.get_string ("general", "cvp2-client-caps");
+        } catch (GLib.Error error) {
+            warning ("Unable to add CVP2 related flag to X_DLNACAP");
+        }
+
         // Set the flags we found; otherwise remove whatever is in the
         // template.
         if (flags.length > 0) {
