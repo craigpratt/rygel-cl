@@ -438,7 +438,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                    ODIDUtil.usec_to_secs (timelimit_start), ODIDUtil.usec_to_secs (timelimit_end));
             debug ("    effective byte constraints: %lld-%lld",
                    bytelimit_start, bytelimit_end);
-            if (!live_sim.stopped && (live_sim.get_duration () > 0)) { // Per DLNA 7.5.4.3.2.20.4
+            if (sim_state != ODIDLiveSimulator.State.STOPPED
+                && sim_mode == ODIDLiveSimulator.Mode.S0_INCREASING) { // Per DLNA 7.5.4.3.2.20.4
                 // Adding this unconditionally when legal - which doesn't seem to be verboten
                 // TODO: Add a way for DLNAAvailableSeekRangeRequest to be passed to preroll()
                 response_list.add (new DLNAAvailableSeekRangeResponse
@@ -456,9 +457,21 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             //
             debug ("preroll_livesim_resource: No seek request received (state/mode %s/%s)",
                    this.live_sim.get_state_string (), this.live_sim.get_mode_string ());
-            this.range_start = bytelimit_start;
-            this.range_offset_list.add (this.live_sim.stopped ? bytelimit_end
-                                                              : int64.MAX); // Send unbounded
+            if (sim_state == ODIDLiveSimulator.State.STOPPED) {
+                this.range_start = bytelimit_start;
+                this.range_offset_list.add (bytelimit_end);
+            } else {
+                if (sim_mode == ODIDLiveSimulator.Mode.S0_FIXED) {
+                    this.range_start = bytelimit_start;
+                    debug ("    sim is active/S0-fixed - starting playback at %0.3fs/%lld",
+                           ODIDUtil.usec_to_secs (timelimit_start), this.range_start);
+                } else {
+                    this.range_start = bytelimit_end;
+                    debug ("    sim is active/S0-increasing - starting playback at %0.3fs/%lld",
+                           ODIDUtil.usec_to_secs (timelimit_end), bytelimit_end);
+                }
+                this.range_offset_list.add (int64.MAX);
+            }
         } else if (seek_request is HTTPTimeSeekRequest) {
             //
             // Time-based seek
