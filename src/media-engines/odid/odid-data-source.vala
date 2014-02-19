@@ -50,13 +50,15 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     protected Gee.ArrayList<int64?> range_offset_list = new Gee.ArrayList<int64?> ();
     protected ODIDLiveSimulator live_sim = null;
     protected DataInputStream index_stream;
+    protected uint pacing_timer;
     protected bool pacing;
 
+    // Post condition to preroll (int64.MAX: send indefinitely)
+    protected int64 total_bytes_requested = 0;
+    
     // Keep track as the progress through the byte range.
     protected int64 total_bytes_read = 0;
-    
-    // Post condition to preroll.
-    protected int64 total_bytes_requested = 0;
+    protected int64 total_bytes_written = 0;
     
     // Track alignment position in list if required for 
     // VOBU alignment of PCPs.
@@ -102,7 +104,6 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     ~ODIDDataSource () {
         this.stop ();
         this.clear_dtcp_session ();
-        debug ("Stopped data source");
     }
 
     public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
@@ -780,7 +781,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         bool start_reading = true;
 
         if (this.total_bytes_requested == 0) {
-            debug ("0 bytes to send - signaling done()...");
+            message ("0 bytes to send for %s - signaling done()...",
+                     ODIDUtil.short_content_path (this.content_uri));
             Idle.add ( () => { this.done (); return false; });
             return;
         }
@@ -994,9 +996,12 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         } else {
             GLib.Source.remove (this.output_watch_id);
         }
+        message ("stop(): " + ODIDUtil.short_content_path (this.content_uri));
     }
+
 	public bool on_paced_data_ready () {
-        // A buffer's worth of data is ready 
+        // A buffer's worth of data is ready
+        this.pacing_timer = 0;
         initiate_reading ();
         return false; // Don't repeat - this is a one-shot
 	}
@@ -1014,42 +1019,40 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     // the requested bytes or the channel closes (in the case of a pipe).
     private bool read_data (IOChannel channel, IOCondition condition) {
         if (condition == IOCondition.HUP || condition == IOCondition.ERR) {
-            debug ("Received " + condition.to_string () + " - signaling done()");
+            message ("Received " + condition.to_string () + "for "
+                     + ODIDUtil.short_content_path (this.content_uri) + " - signaling done()");
             done ();
             return false;
         }
-        
-        size_t bytes_read = 0;
-        int64 bytes_left_to_read = this.total_bytes_requested - this.total_bytes_read;
 
-        char[] read_buffer = null;
-        
-        int64 max_bytes = this.output.get_buffer_size ();
-        
-        // Truncate to remaining bytes if needed.
-        max_bytes = max_bytes < bytes_left_to_read ? 
-                max_bytes : bytes_left_to_read;
-        
-        // Create a read buffer of approprate size
-        read_buffer = new char[max_bytes];
-        
+        size_t bytes_read = 0;
+        size_t bytes_written = 0;
+        int64 bytes_left_to_read = (this.total_bytes_requested == int64.MAX) ? int64.MAX
+                                   : (this.total_bytes_requested - this.total_bytes_read);
+
+        // Create a read buffer of appropriate size
+        var read_buffer = new char[int64.min (this.output.get_buffer_size (),
+                                              bytes_left_to_read ) ];
         try {
             // Read data off of channel
-            IOStatus status = channel.read_chars (read_buffer, out bytes_read);         
+            IOStatus status = channel.read_chars (read_buffer, out bytes_read);
             if (status == IOStatus.EOF) {
-                debug ("Hit EOF - signaling done()");
+                message ("Hit EOF for " + ODIDUtil.short_content_path (this.content_uri)
+                         + " signaling done()");
                 done ();
                 return false;
             }
-                        
+
             this.total_bytes_read += bytes_read;
-            
-            debug (@"buffer=$(max_bytes) read=$(bytes_read) left=$(bytes_left_to_read)");
-                        
+            if (this.total_bytes_requested != int64.MAX) {
+                bytes_left_to_read -= bytes_read;
+            }
+
             if (this.dtcp_session_handle == -1) {
                 // No content protection
                 // Call event to send buffer to client
                 data_available ((uint8[])read_buffer[0:bytes_read]);
+                bytes_written = bytes_read;
             } else {
                 // Encrypted data has to be unowned as the reference will be passed
                 // to DTCP libraries to perform the cleanup, else vala will be
@@ -1060,17 +1063,17 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 // Encrypt the data
                 int return_value = Dtcpip.server_dtcp_encrypt
                                   ( dtcp_session_handle, cci,
-                                    (uint8[])read_buffer[0:bytes_read], 
+                                    (uint8[])read_buffer[0:bytes_read],
                                     out encrypted_data );
-                
+
                 debug ("Encryption returned: %d and the encryption size : %s",
-                  return_value,
-                  (encrypted_data == null)
-                   ? "NULL" : encrypted_data.length.to_string ());
-                            
+                       return_value, (encrypted_data == null)
+                                     ? "NULL" : encrypted_data.length.to_string ());
+
                 // Call event to send buffer to client
                 data_available (encrypted_data);
-                
+                bytes_written = encrypted_data.length;
+
                 int ret_free = Dtcpip.server_dtcp_free (encrypted_data);
                 debug ("DTCP-IP data reference freed : %d", ret_free);
             }
@@ -1083,23 +1086,25 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             done ();
             return false;
         }
-        
-        debug (@"bytes written $(this.total_bytes_read)");
-        
-        // If we are aligning VOBU per PCP, we need to set the channel buffer to 
+        this.total_bytes_written += bytes_written;
+
+        debug (@"read $(bytes_read) (total $(this.total_bytes_read), %s remaining), wrote $(bytes_written) (total $(this.total_bytes_written))",
+               ((bytes_left_to_read == int64.MAX) ? "*" : bytes_left_to_read.to_string ()) );
+
+        // If we are aligning VOBU per PCP, we need to set the channel buffer to
         // the next VOBU buffer size.  This way we won't block when we get called
         // to read again.
         int list_size = this.range_offset_list.size; // just for short hand
         if (list_size > 1 && list_size - 1 >= this.alignment_pos) {
-            this.output.set_buffer_size 
-                ((size_t) (this.range_offset_list[this.alignment_pos++] 
-                - this.total_bytes_read));
+            this.output.set_buffer_size
+                ((size_t) (this.range_offset_list[this.alignment_pos++]
+                           - this.total_bytes_read ) );
         }
 
         bool all_data_read = (this.total_bytes_read >= this.total_bytes_requested);
         if (all_data_read) {
-            debug ("All requested data sent (%lld bytes) - signaling done()",
-                   this.total_bytes_read);
+            message ("All requested data sent for %s (%lld bytes) - signaling done()",
+                     ODIDUtil.short_content_path (this.content_uri), this.total_bytes_read);
             done ();
         }
 
@@ -1108,13 +1113,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             int time_to_next_buf_ms = time_to_next_buffer ();
             if (time_to_next_buf_ms > 0) {
                 pace = true; // We need to wait for the next buffer of data
-                uint pacing_timer = Timeout.add (time_to_next_buf_ms, on_paced_data_ready);
-                debug ("Scheduled pacing %u for %dms from now",
-                       pacing_timer, time_to_next_buf_ms);
+                this.pacing_timer = Timeout.add (time_to_next_buf_ms, on_paced_data_ready);
+                debug ("pacing: Waiting %dms to send next buffer (timer %u)",
+                       time_to_next_buf_ms, this.pacing_timer);
             }
         }
-        
-        // Keep reading from channel if data left and not frozen or not 
+
+        // Keep reading from channel if data left and not frozen or not
         return !this.frozen && !all_data_read && !pace;
     }
 }

@@ -382,10 +382,10 @@ public class Rygel.ODIDUtil : Object {
     internal static int64 advance_index_to_offset (DataInputStream index_stream,
                                                    ref int64 data_offset)
             throws Error {
-        debug ("advance_index_to_offset: %lld", data_offset);
+        // debug ("advance_index_to_offset: %lld", data_offset);
 
         if (data_offset == 0) { // 0-time is always a valid random access point
-            debug ("advance_index_to_offset: Using 0 time/offset");
+            // debug ("advance_index_to_offset: Using 0 time/offset");
             return 0;
         }
 
@@ -406,8 +406,8 @@ public class Rygel.ODIDUtil : Object {
             if (cur_data_offset >= data_offset) {
                 data_offset = cur_data_offset;
                 int64 time_offset_ms = ODIDIndexEntry.time_ms (line);
-                debug ("advance_index_to_offset: found offset %lld with time %0.3f",
-                       data_offset, msec_to_secs (time_offset_ms));
+                // debug ("advance_index_to_offset: found offset %lld with time %0.3f",
+                //        data_offset, msec_to_secs (time_offset_ms));
                 return (time_offset_ms);
             }
         }
@@ -504,11 +504,11 @@ public class Rygel.ODIDUtil : Object {
         }
     }
 
-    internal static float usec_to_secs (uint64 time_us) {
+    public static float usec_to_secs (uint64 time_us) {
         return ((float)time_us)/MICROS_PER_SEC;
     }
 
-    internal static float msec_to_secs (uint64 time_ms) {
+    public static float msec_to_secs (uint64 time_ms) {
         return ((float)time_ms)/MILLIS_PER_SEC;
     }
 
@@ -709,6 +709,13 @@ public class Rygel.ODIDUtil : Object {
         // Return a string with the last two path elements of a resource URI
         var segments = odid_resource_uri.split ("/");
         return segments[segments.length-3] + "/" + segments[segments.length-2];
+    }
+
+    public static string short_content_path (string odid_content_uri) {
+        // Return a string with the last three path elements of a content URI
+        var segments = odid_content_uri.split ("/");
+        return segments[segments.length-3] + "/" + segments[segments.length-2]
+                                           + "/" + segments[segments.length-1];
     }
 
     /**
