@@ -429,7 +429,7 @@ public class Rygel.ODIDUtil : Object {
 
         var dis = new DataInputStream (index_file.read ());
         string line;
-        int64  aligned_offset;
+        int64  aligned_offset = 0, last_aligned_offset;
         int64  end_offset;
         start_offset = int64.MAX;
         int line_count = 0;
@@ -446,24 +446,23 @@ public class Rygel.ODIDUtil : Object {
             }
             if ( (ODIDIndexEntry.type (line) == 'S')
                  && (ODIDIndexEntry.subtype (line) == 'S')) {
+                last_aligned_offset = aligned_offset;
                 aligned_offset = ODIDIndexEntry.offset_bytes (line);
                 if (!start_offset_found) {
-                    if( aligned_offset <= start ) {
-                        debug ("vobu_offsets_for_range: found start of range req_start %lld, aligned_start %lld",
-                               start, aligned_offset);
-                                
-                        start_offset = aligned_offset;
+                    if (aligned_offset >= start) {
+                        start_offset = last_aligned_offset;
                         start_offset_found = true;
-                        continue;
+                        debug ("vobu_offsets_for_range: found start of range req_start %lld, aligned_start %lld",
+                               start, start_offset);
                     }
                 }
-                // If a byte range spans multiple vobus, each vobu boundary
-                // needs to be added to a list so that the vobus can be
-                // streamed one at a time.
-                // From DLNA_Link_Protection_Part_3_2011-12-01.pdf
-                // 8.9.5.3.2 (For content using MPEG-2 Program Stream (PS) transferred with the HTTP
-                // transport protocol, the size of each PCP shall be one VOBU)
-                if (!end_offset_found) {
+                else if (!end_offset_found) {
+                    // If a byte range spans multiple vobus, each vobu boundary
+                    // needs to be added to a list so that the vobus can be
+                    // streamed one at a time.
+                    // From DLNA_Link_Protection_Part_3_2011-12-01.pdf
+                    // 8.9.5.3.2 (For content using MPEG-2 Program Stream (PS) transferred with the HTTP
+                    // transport protocol, the size of each PCP shall be one VOBU)
                     if (aligned_offset >= end && end != 0) {
                          debug ("vobu_offsets_for_range: found end of range req_end %lld, aligned_end %lld",
                                    end, aligned_offset);
