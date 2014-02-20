@@ -471,6 +471,8 @@ public class Rygel.ODIDUtil : Object {
                          end_offset_found = true;
                      }
                      else {
+                         // debug ("vobu_offsets_for_range: found aligned_offset %lld",
+                         //        aligned_offset);
                          aligned_range_list.add (aligned_offset);
                      } 
                  }

@@ -60,9 +60,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     protected int64 total_bytes_read = 0;
     protected int64 total_bytes_written = 0;
     
-    // Track alignment position in list if required for 
-    // VOBU alignment of PCPs.
-    private int alignment_pos = 0;
+    // Track position in the range_offset_list (for VOBU alignment of PCPs) 
+    private int range_offset_index;
     
     private IOChannel output;
     private uint output_watch_id = -1;
@@ -208,7 +207,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         // If requested bytes are not set, go for largest amount of data
         // possible.  Should get to EOF or client termination.
         int64 last_offset = this.range_offset_list.last ();
-        debug ("preroll_livesim_resource: staging bytes %s-%s",
+        debug ("preroll: staging bytes %s-%s",
                (this.range_start==int64.MAX ? "*" : this.range_start.to_string ()),
                (last_offset==int64.MAX ? "*" : last_offset.to_string ()) );
         if ((last_offset == 0) || (last_offset == int64.MAX)){
@@ -815,9 +814,9 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         // Set channel buffer to be required chunk size.  In an effort to not
         // block when we are called to read.
         if (this.range_offset_list.size > 1) {
+            this.range_offset_index = 0;
             this.output.set_buffer_size 
-                ((size_t) (this.range_offset_list[this.alignment_pos++] - 
-                this.range_start));
+                ((size_t) (this.range_offset_list[this.range_offset_index] - this.range_start));
         } else {
             this.output.set_buffer_size ((size_t) this.chunk_size);
         }
@@ -1091,21 +1090,20 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         debug (@"read $(bytes_read) (total $(this.total_bytes_read), %s remaining), wrote $(bytes_written) (total $(this.total_bytes_written))",
                ((bytes_left_to_read == int64.MAX) ? "*" : bytes_left_to_read.to_string ()) );
 
-        // If we are aligning VOBU per PCP, we need to set the channel buffer to
-        // the next VOBU buffer size.  This way we won't block when we get called
-        // to read again.
-        int list_size = this.range_offset_list.size; // just for short hand
-        if (list_size > 1 && list_size - 1 >= this.alignment_pos) {
-            this.output.set_buffer_size
-                ((size_t) (this.range_offset_list[this.alignment_pos++]
-                           - this.total_bytes_read ) );
-        }
-
         bool all_data_read = (this.total_bytes_read >= this.total_bytes_requested);
         if (all_data_read) {
             message ("All requested data sent for %s (%lld bytes) - signaling done()",
                      ODIDUtil.short_content_path (this.content_uri), this.total_bytes_read);
             done ();
+        }
+
+        // If we are aligning VOBU per PCP, we set the channel buffer to
+        // the next VOBU size so we can encrypt it as a single unit
+        if (!all_data_read && (this.range_offset_list.size > 1)) {
+            assert (this.range_offset_index < this.range_offset_list.size);
+            this.output.set_buffer_size
+                ((size_t) (this.range_offset_list[++this.range_offset_index]
+                           - this.range_offset_list[this.range_offset_index-1] ) );
         }
 
         bool pace = false;
