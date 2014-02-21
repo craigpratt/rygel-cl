@@ -140,7 +140,6 @@ public class Rygel.BasicManagement : Service {
                          create_test_ids_list (true));
         });
 
-
         action.set ("TestID", typeof (string), id);
 
         action.return ();
