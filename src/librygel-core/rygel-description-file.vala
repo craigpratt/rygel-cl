@@ -263,7 +263,7 @@ public class Rygel.DescriptionFile : Object {
             flags += config.get_string ("general", "cvp2-server-caps");
             flags += config.get_string ("general", "cvp2-client-caps");
         } catch (GLib.Error error) {
-            warning ("Unable to add CVP2 related flag to X_DLNACAP");
+            debug ("Unable to add CVP2 related flag to X_DLNACAP");
         }
 
         // Set the flags we found; otherwise remove whatever is in the
