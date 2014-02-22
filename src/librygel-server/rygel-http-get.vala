@@ -199,15 +199,7 @@ public class Rygel.HTTPGet : HTTPRequest {
         } catch (HTTPSeekRequestError error) {
             warning ("Caught HTTPSeekRequestError: " + error.message);
             this.server.unpause_message (this.msg);
-
-            if (error is HTTPSeekRequestError.INVALID_RANGE) {
-                this.end (Soup.Status.BAD_REQUEST);
-            } else if (error is HTTPSeekRequestError.OUT_OF_RANGE) {
-                this.end (Soup.Status.REQUESTED_RANGE_NOT_SATISFIABLE);
-            } else {
-                throw error;
-            }
-
+            this.end (error.code); // All seek error codes are Soup.Status codes
             return;
         }
 
@@ -219,13 +211,20 @@ public class Rygel.HTTPGet : HTTPRequest {
         HTTPResponse response = this.handler.render_body (this);
 
         // Have the response process the seek/speed request
-        var responses = response.preroll ();
+        try {
+            var responses = response.preroll ();
 
-        // Incorporate the prerolled responses
-        if (responses != null) {
-            foreach (var response_elem in responses) {
-                response_elem.add_response_headers (this);
+            // Incorporate the prerolled responses
+            if (responses != null) {
+                foreach (var response_elem in responses) {
+                    response_elem.add_response_headers (this);
+                }
             }
+        } catch (HTTPSeekRequestError error) {
+            warning ("Caught HTTPSeekRequestError on preroll: " + error.message);
+            this.server.unpause_message (this.msg);
+            this.end (error.code); // All seek error codes are Soup.Status codes
+            return;
         }
 
         // Determine the size value
