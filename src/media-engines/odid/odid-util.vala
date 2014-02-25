@@ -737,32 +737,4 @@ public class Rygel.ODIDUtil : Object {
         }
         return duration_from_index_file_ms (index_file) * MICROS_PER_MILLI;
     }
-
-    public static void touch_file_and_parentdir (string file_uri) {
-        try {
-            File file = File.new_for_uri (file_uri);
-            touch_file (file);
-            touch_file (file.get_parent ());
-        } catch (Error e) {
-            warning ("touch_file: Error touching file: %s\n", e.message);
-        }
-    }
-
-    public static void touch_file_uri (string file_uri) {
-        try {
-            File file = File.new_for_uri (file_uri);
-            touch_file (file);
-        } catch (Error e) {
-            warning ("touch_file_uri: Error touching file: %s\n", e.message);
-        }
-    }
-
-    public static void touch_file (File file) throws Error {
-        FileInfo file_info = file.query_info (FileAttribute.TIME_MODIFIED, 0);
-        TimeVal timeval_now = TimeVal ();
-        debug ("touch_file: Changing modification time of %s from %s to %s", file.get_path (),
-               file_info.get_modification_time ().to_iso8601 (), timeval_now.to_iso8601 ());
-        file_info.set_modification_time (timeval_now);
-        file.set_attributes_from_info (file_info, 0);
-    }
 }

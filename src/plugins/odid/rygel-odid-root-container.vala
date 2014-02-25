@@ -453,6 +453,9 @@ public class Rygel.ODID.RootContainer : TrackableDbContainer {
         // Subscribe to configuration changes
         MetaConfig.get_default ().setting_changed.connect
                                         (this.on_setting_changed);
+
+        // Register for item changes with the MediaEngine
+        MediaEngine.get_default ().resource_changed.connect (on_resource_changed);
     }
 
     // Signal that the container has been updated with new/changed content.
@@ -535,6 +538,16 @@ public class Rygel.ODID.RootContainer : TrackableDbContainer {
             this.media_db.drop_virtual_folders ();
         }
         this.root_updated ();
+    }
+
+    private void on_resource_changed (string media_object_uri) {
+        debug ("resource_changed: " + media_object_uri);
+        try {
+            var item_file = File.new_for_uri (media_object_uri);
+            this.harvester.file_changed (item_file);
+        } catch (Error error) {
+            message ("Error processing item change for %s: %s",media_object_uri, error.message);
+        }
     }
 
     private void on_initial_harvesting_done () {

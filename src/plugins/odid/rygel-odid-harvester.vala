@@ -124,6 +124,16 @@ internal class Rygel.ODID.Harvester : GLib.Object {
     }
 
     /**
+     * A particular item file (or dependent resource) has changed.
+     *
+     * This is for supporting updates that cannot be detected due to a filesystem
+     *  change.
+     */
+    public void file_changed (File item_file) throws Error {
+        on_changes_done (item_file);
+    }
+
+    /**
      * Callback for finished harvester.
      *
      * Updates book-keeping hash.

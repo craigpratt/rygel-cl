@@ -109,6 +109,15 @@ public abstract class Rygel.MediaEngine : GLib.Object {
     public abstract async Gee.List<MediaResource> ? get_resources_for_item (MediaObject item);
 
     /**
+     * Signaled when one or more #MediaResources<!-- -->s associated with a MediaObject changes.
+     * #get_resources_for_item should be called in response to this signal to retrieve the
+     * updated list of MediaResources for the associated MediaObject.
+     *
+     * @param media_object_uri is the uri associated with a MediaObject.=
+     */
+    public signal void resource_changed (string media_object_uri);
+
+    /**
      * Get a #DataSource for given #MediaResource representation of the #MediaObject.
      *
      * @param item The #MediaObject to create the #DataSource for

@@ -773,14 +773,14 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     void sim_stopped (Object sim) {
         var live_sim = (ODIDLiveSimulator)sim;
         debug ("sim_stopped for simulator " + live_sim.name);
-        ODIDUtil.touch_file_uri (live_sim.item_info_uri);
+        this.resource_changed (live_sim.item_info_uri);
     }
 
     void sim_reset (Object sim) {
         var live_sim = (ODIDLiveSimulator)sim;
         debug ("sim_reset for simulator " + live_sim.name);
         debug ("  item info file: " + live_sim.item_info_uri);
-        ODIDUtil.touch_file_uri (live_sim.item_info_uri);
+        this.resource_changed (live_sim.item_info_uri);
     }
 }
 
