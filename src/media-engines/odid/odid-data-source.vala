@@ -304,7 +304,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             // Byte-based seek (only for non-protected content currently)
             //
             if (this.content_protected) { // Sanity check
-                throw new DataSourceError.GENERAL
+                throw new DataSourceError.SEEK_FAILED
                               ("Byte seek not supported on protected content");
             }
 
@@ -335,7 +335,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             // Cleartext-based seek (only for link-protected content)
             //
             if (!this.content_protected) { // Sanity check
-                throw new DataSourceError.GENERAL ("Cleartext seek not supported on unprotected content");
+                throw new DataSourceError.SEEK_FAILED
+                              ("Cleartext seek not supported on unprotected content");
             }
             var cleartext_seek = seek_request as DTCPCleartextRequest;
             debug ( "Processing cleartext byte request (bytes %lld to %s)",
@@ -484,16 +485,16 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             bool send_unbound = false;
 
             if (this.playspeed_request != null
-                 && this.playspeed_request.speed.is_normal_rate ()
+                 && !this.playspeed_request.speed.is_normal_rate ()
                  && (time_seek.end_time == HTTPSeekRequest.UNSPECIFIED)
                  && this.live_sim.is_s0_increasing ()) {
                     // Per DLNA 7.5.4.3.2.20.3, end time must be specified at trick rates when
                     //  in limited random access mode
-                    throw new DataSourceError.SEEK_FAILED
-                                  ("End time must be specified for trick play in LOP content");
+                    throw new HTTPSeekRequestError.INVALID_RANGE
+                                  ("End time not specified for trick rate limited access");
             }
 
-            if (sim_mode == ODIDLiveSimulator.Mode.S0_EQUALS_SN) {
+            if (sim_mode == ODIDLiveSimulator.Mode.S0_EQUALS_SN) { // Sanity check
                 throw new DataSourceError.SEEK_FAILED
                               ("Random access not supported on this resource (S0==Sn)");
             }
@@ -511,7 +512,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             if (!is_reverse) { // Forward range check
                 if ((time_seek.start_time + time_offset < timelimit_start)
                     || (time_seek.start_time + time_offset > timelimit_end) ) {
-                    throw new DataSourceError.SEEK_FAILED
+                    throw new HTTPSeekRequestError.OUT_OF_RANGE
                                   ("Seek start time %0.3fs is outside valid time range (%0.3fs-%0.3fs)",
                                    ODIDUtil.usec_to_secs (time_seek.start_time),
                                    ODIDUtil.usec_to_secs (timelimit_start - time_offset),
@@ -524,7 +525,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                     send_unbound = !this.live_sim.stopped; // DLNA 7.5.4.3.2.19.2/20.1
                 } else {
                     if (time_seek.end_time + time_offset > timelimit_end) {
-                        throw new DataSourceError.SEEK_FAILED
+                        throw new HTTPSeekRequestError.OUT_OF_RANGE
                                       ("Seek end time %0.3fs is after valid time range (%0.3fs-%0.3fs)",
                                        ODIDUtil.usec_to_secs (time_seek.end_time),
                                        ODIDUtil.usec_to_secs (timelimit_start - time_offset),
@@ -534,7 +535,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 }
             } else { // reverse
                 if (time_seek.start_time + time_offset > timelimit_end) {
-                    throw new DataSourceError.SEEK_FAILED
+                    throw new HTTPSeekRequestError.OUT_OF_RANGE
                                   ("Reverse seek start time %0.3fs is after valid time range (%0.3fs-%0.3fs)",
                                    ODIDUtil.usec_to_secs (time_seek.start_time),
                                    ODIDUtil.usec_to_secs (timelimit_start - time_offset),
@@ -545,7 +546,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                     adjusted_seek_end = timelimit_start; // DLNA 7.5.4.3.2.20.1
                 } else {
                     if (time_seek.end_time + time_offset < timelimit_start) {
-                        throw new DataSourceError.SEEK_FAILED
+                        throw new HTTPSeekRequestError.OUT_OF_RANGE
                                       ("Seek end time %0.3fs is before valid time range (%0.3fs-%0.3fs)",
                                        ODIDUtil.usec_to_secs (time_seek.end_time),
                                        ODIDUtil.usec_to_secs (timelimit_start - time_offset),
@@ -643,7 +644,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             // Byte-based seek (only for non-protected content currently)
             //
             if (this.content_protected) { // Sanity check
-                throw new DataSourceError.GENERAL
+                throw new DataSourceError.SEEK_FAILED
                               ("Byte seek not supported on protected content");
             }
             var byte_seek = seek_request as HTTPByteSeekRequest;
@@ -659,7 +660,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
             if ((byte_seek.start_byte + data_offset < bytelimit_start)
                 || (byte_seek.start_byte + data_offset >= bytelimit_end) ) {
-                throw new DataSourceError.SEEK_FAILED
+                throw new HTTPSeekRequestError.OUT_OF_RANGE
                               ("Seek start byte %lld is outside valid data range (%lld-%lld)",
                                byte_seek.start_byte,
                                bytelimit_start - data_offset, bytelimit_end - data_offset);
@@ -684,7 +685,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             } else { // End specified in request
                 // Note: HTTPByteSeekRequest already checks that end > start
                 if (byte_seek.end_byte + data_offset + 1 > bytelimit_end) {
-                    throw new DataSourceError.SEEK_FAILED
+                    throw new HTTPSeekRequestError.OUT_OF_RANGE
                                   ("Seek end byte %lld is after valid data range (%lld-%lld)",
                                    byte_seek.end_byte + data_offset,
                                    bytelimit_start, bytelimit_end);
@@ -704,7 +705,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             // Cleartext-based seek (only for link-protected content)
             //
             if (!this.content_protected) { // Sanity check
-                throw new DataSourceError.GENERAL ("Cleartext seek not supported on unprotected content");
+                throw new DataSourceError.SEEK_FAILED
+                              ("Cleartext seek not supported on unprotected content");
             }
             var cleartext_seek = seek_request as DTCPCleartextRequest;
             debug ( "preroll_livesim_resource: Processing cleartext byte request (bytes %lld to %s)",
@@ -720,7 +722,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
             if ((cleartext_seek.start_byte + data_offset < bytelimit_start)
                 || (cleartext_seek.start_byte + data_offset >= bytelimit_end) ) {
-                throw new DataSourceError.SEEK_FAILED
+                throw new HTTPSeekRequestError.OUT_OF_RANGE
                               ("cleartext start byte %lld is outside valid data range (%lld-%lld)",
                                cleartext_seek.start_byte,
                                bytelimit_start - data_offset, bytelimit_end - data_offset);
@@ -741,7 +743,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             } else { // End specified in request
                 // Note: DTCPCleartextRequest already checks that end > start
                 if (cleartext_seek.end_byte + data_offset >= bytelimit_end) {
-                    throw new DataSourceError.SEEK_FAILED
+                    throw new HTTPSeekRequestError.OUT_OF_RANGE
                                   ("cleartext end byte %lld is after valid data range (%lld-%lld)",
                                    cleartext_seek.end_byte + data_offset,
                                    bytelimit_start, bytelimit_end);

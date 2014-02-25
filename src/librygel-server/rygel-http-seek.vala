@@ -25,6 +25,11 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+/**
+ * Various errors that can be thrown when attempting to seek into a stream.
+ *
+ * Note: All codes must be set to Soup.Status codes
+ */
 public errordomain Rygel.HTTPSeekRequestError {
     INVALID_RANGE = Soup.Status.BAD_REQUEST,
     BAD_REQUEST = Soup.Status.BAD_REQUEST,
@@ -33,7 +38,6 @@ public errordomain Rygel.HTTPSeekRequestError {
 
 /**
  * HTTPSeekRequest is an abstract base for a variety of seek request types.
- *
  */
 public abstract class Rygel.HTTPSeekRequest : GLib.Object {
     // For designating fields that are unset
