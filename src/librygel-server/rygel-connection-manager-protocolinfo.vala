@@ -78,6 +78,15 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
         }
 
         public string to_string () {
+            StringBuilder sb_name = new StringBuilder();
+            // If no other 4th param available, then remove the ';' at the end
+            sb_name.append (this.name);
+            if (this.op_param == DLNAOperation.NONE &&
+                this.ps_flag == null &&
+                this.flags == DLNAFlags.NONE) {
+                sb_name.truncate (sb_name.len - 1);
+            }
+
             // Work around due to core resulting from string.joinv call.
             StringBuilder sb = new StringBuilder();
             if (this.ps_flag != null) {
@@ -90,7 +99,7 @@ public class Rygel.ConnectionManagerProtocolInfo : GLib.Object {
                 sb.append(";");
             }
             
-            return this.name +
+            return sb_name.str +
                      (this.op_param == DLNAOperation.NONE ? ""
                       : "DLNA.ORG_OP=" + "%0.2x".printf (this.op_param) + ";")
                      + sb.str
