@@ -427,6 +427,11 @@ public class Rygel.ODIDUtil : Object {
         bool start_offset_found = false;
         bool end_offset_found = false;
 
+        if (start >= total_size) {
+            throw new DataSourceError.SEEK_FAILED ("Start offset %lld is larger than total size %lld",
+                                                  start, total_size);
+        }
+
         var dis = new DataInputStream (index_file.read ());
         string line;
         int64  aligned_offset = 0, last_aligned_offset;
@@ -452,11 +457,11 @@ public class Rygel.ODIDUtil : Object {
                     if (aligned_offset >= start) {
                         start_offset = last_aligned_offset;
                         start_offset_found = true;
-                        debug ("vobu_offsets_for_range: found start of range req_start %lld, aligned_start %lld",
+                        debug ("vobu_offsets_for_range: found start of range %lld, aligned_start %lld",
                                start, start_offset);
                     }
                 }
-                else if (!end_offset_found) {
+                if (start_offset_found) {
                     // If a byte range spans multiple vobus, each vobu boundary
                     // needs to be added to a list so that the vobus can be
                     // streamed one at a time.
@@ -469,6 +474,7 @@ public class Rygel.ODIDUtil : Object {
                          end_offset = aligned_offset;
                          aligned_range_list.add (aligned_offset);
                          end_offset_found = true;
+                         break;
                      }
                      else {
                          // debug ("vobu_offsets_for_range: found aligned_offset %lld",
@@ -480,14 +486,14 @@ public class Rygel.ODIDUtil : Object {
         }
 
         if (!start_offset_found) {
-            throw new DataSourceError.SEEK_FAILED ("Start offset %lld is out of index file range",
-                                                  start);
+            start_offset = aligned_offset;
+            debug ("vobu_offsets_for_range: start of range %lld beyond last entry at %lld",
+                   start, start_offset);
         }
 
         if (!end_offset_found) {
             // Modify the end byte value to align to start/end of the file, if necessary
             //  (see DLNA 7.5.4.3.2.24.4)
-            //end_offset = total_size;
             aligned_range_list.add (total_size);
             debug ("vobu_offsets_for_range: end of range beyond index range offset %lld", total_size);
         }
