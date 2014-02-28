@@ -1,7 +1,6 @@
 
 LIBRYGEL_SERVER_VAPI_SOURCE_FILES = \
 	rygel-audio-item.vala \
-	rygel-dlna-profile.vala \
 	rygel-image-item.vala \
 	rygel-logical-expression.vala \
 	rygel-media-art-store.vala \
@@ -38,6 +37,7 @@ LIBRYGEL_SERVER_NONVAPI_SOURCE_FILES = \
 	rygel-content-directory.vala \
 	rygel-dbus-thumbnailer.vala \
 	rygel-engine-loader.vala \
+	rygel-free-desktop-interfaces.vala \
 	rygel-http-byte-seek.vala \
 	rygel-http-get-handler.vala \
 	rygel-http-get.vala \
@@ -62,6 +62,7 @@ LIBRYGEL_SERVER_NONVAPI_SOURCE_FILES = \
 	rygel-last-change-obj-mod.vala \
 	rygel-last-change-st-done.vala \
 	rygel-last-change.vala \
+	rygel-lg-tv-hacks.vala \
 	rygel-m3u-playlist.vala \
 	rygel-media-query-action.vala \
 	rygel-media-receiver-registrar.vala \
