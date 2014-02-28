@@ -1,7 +1,8 @@
 /*
- * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2009,2010 Nokia Corporation.
  *
- * Author: Jens Georg <jensg@openismus.com>
+ * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
+ *                               <zeeshan.ali@nokia.com>
  *
  * This file is part of Rygel.
  *
@@ -20,26 +21,12 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-/**
- * Data class representing a DLNA profile.
- * It contains the name and the corresponding DLNA mime type.
- *
- * Note: The mime type can deviate from mime types typically used elsewhere.
- */
-public class Rygel.DLNAProfile {
-    public string mime;
-    public string name;
-
-    public DLNAProfile (string name, string mime) {
-        this.mime = mime;
-        this.name = name;
-    }
-
-    /**
-     * Compare two DLNA profiles by name
-     */
-    public static int compare_by_name (DLNAProfile a, DLNAProfile b) {
-        return a.name.ascii_casecmp (b.name);
-    }
+namespace FreeDesktop {
+    internal const string DBUS_SERVICE = "org.freedesktop.DBus";
+    internal const string DBUS_OBJECT_PATH = "/org/freedesktop/DBus";
 }
 
+[DBus (name = "org.freedesktop.DBus")]
+internal interface FreeDesktop.DBusObject: Object {
+    internal abstract async string[] list_activatable_names () throws DBusError;
+}

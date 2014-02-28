@@ -22,22 +22,22 @@
  */
 
 namespace FreeDesktop {
-    public const string DBUS_SERVICE = "org.freedesktop.DBus";
-    public const string DBUS_OBJECT_PATH = "/org/freedesktop/DBus";
+    internal const string DBUS_SERVICE = "org.freedesktop.DBus";
+    internal const string DBUS_OBJECT_PATH = "/org/freedesktop/DBus";
 }
 
 [DBus (name = "org.freedesktop.DBus")]
-public interface FreeDesktop.DBusObject: Object {
-    public abstract signal void name_owner_changed (string name,
+internal interface FreeDesktop.DBusObject: Object {
+    internal abstract signal void name_owner_changed (string name,
                                                     string old_owner,
                                                     string new_owner);
 
-    public abstract async string[] list_names () throws DBusError;
-    public abstract async string[] list_activatable_names () throws DBusError;
+    internal abstract async string[] list_names () throws DBusError;
+    internal abstract async string[] list_activatable_names () throws DBusError;
 }
 
 [DBus (name = "org.freedesktop.DBus.Properties")]
-public interface FreeDesktop.Properties: Object {
-    public abstract async HashTable<string,Variant> get_all (string iface)
+internal interface FreeDesktop.Properties: Object {
+    internal abstract async HashTable<string,Variant> get_all (string iface)
                                                              throws DBusError;
 }

@@ -29,7 +29,6 @@
 
 using Gst;
 using GUPnP;
-using Rygel.Renderer;
 using Xml;
 
 /**
@@ -54,8 +53,6 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
     private string[] mime_types = null;
 
     private static Player player;
-
-
 
     public dynamic Gst.Element playbin { get; private set; }
 
@@ -180,10 +177,10 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
             try {
                 if (Gst.Element.make_from_uri
                          (Gst.URIType.SRC,"dlna+"+value, "") != null) {
-                    // Add dlna+ protocol since it is supported.
+                    /* Add dlna+ protocol since it is supported. */
                     this.playbin.uri = "dlna+" + value;
                 } else {
-                    //Default value if dlna+ protocol is not supported.
+                    /* Default value if dlna+ protocol is not supported. */
                     this.playbin.uri = value;
                 }
             } catch (GLib.Error err) {
@@ -295,6 +292,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
     public int64 duration {
         get {
             int64 dur=0;
+
             if (this.playbin.source.query_duration (Format.TIME, out dur)) {
                 return dur / Gst.USECOND;
             } else {
@@ -494,11 +492,9 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         this.parse_file();
     }
 
-    public Player.wrap (Gst.Element playbin) {
-
-        return_if_fail (playbin != null);
-        return_if_fail (playbin.get_type ().name() == "GstPlayBin");
-
+    [Deprecated (since="0.21.5")]
+    public Player.wrap (Gst.Element playbin)
+                        requires (playbin.get_type ().name () == "GstPlayBin") {
         this.playbin = playbin;
         this.setup_playbin ();
     }
