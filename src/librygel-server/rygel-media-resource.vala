@@ -62,9 +62,10 @@ public class Rygel.MediaResource : GLib.Object {
     public DLNAOperation dlna_operation { get; set; default = DLNAOperation.NONE; }
 
     // I know gupnp-av DIDLLiteResource and ProtocolInfo structures have the above fields.
-    //  But both proved to be problematic in their current form. This class can be
-    //  refactored if/when these classes are made more more flexible. For now, this class
-    //  needs to serve the needs of Rygel first and foremost...
+    //  But both proved to be problematic in their current form when used in a variety
+    //  of containers (appears to be issues with reference management causing (incomplete)
+    //  copies of DIDLLiteResource/ProtocolInfo to be made). This class can be refactored
+    //  if/when these classes are made more flexible.
 
     public MediaResource (string name) {
         this.name = name;
@@ -100,6 +101,35 @@ public class Rygel.MediaResource : GLib.Object {
         this.dlna_operation = that.dlna_operation;
     }
 
+    public MediaResource.from_didl_lite_resource (string name, DIDLLiteResource didl_resource) {
+        // Create a MediaResource from the given DIDLLiteResource
+        // Note: For a DIDLLiteResource, a value of -1/null also signals "not set"
+        this.name = name;
+        // res block
+        this.uri = didl_resource.uri;
+        this.size = didl_resource.size64;
+        this.cleartext_size = didl_resource.cleartext_size;
+        this.duration = didl_resource.duration;
+        this.bitrate = didl_resource.bitrate;
+        this.bits_per_sample = didl_resource.bits_per_sample;
+        this.color_depth = didl_resource.color_depth;
+        this.width = didl_resource.width;
+        this.height = didl_resource.height;
+        this.audio_channels = didl_resource.audio_channels;
+        this.sample_freq = didl_resource.sample_freq;
+        // protocol info
+        if (didl_resource.protocol_info != null) {
+            this.protocol = didl_resource.protocol_info.protocol;
+            this.mime_type = didl_resource.protocol_info.mime_type;
+            this.dlna_profile = didl_resource.protocol_info.dlna_profile;
+            this.network = didl_resource.protocol_info.network;
+            this.play_speeds = copy_speeds (didl_resource.protocol_info.play_speeds);
+            this.dlna_conversion = didl_resource.protocol_info.dlna_conversion;
+            this.dlna_flags = didl_resource.protocol_info.dlna_flags;
+            this.dlna_operation = didl_resource.protocol_info.dlna_operation;
+        }
+    }
+
     public static string []? copy_speeds (string? [] src) {
         if (src == null) {
             return null;
@@ -117,48 +147,8 @@ public class Rygel.MediaResource : GLib.Object {
         return this.name;
     }
 
-    private HashMap<string,string> property_table = new HashMap<string,string> ();
-
-    public void set_custom_property (string ? name, string ? value) {
-        property_table.set (name,value);
-    }
-
-    public string get_custom_property (string ? name) {
-        return property_table.get (name);
-    }
-
-    public Set get_custom_property_names () {
-        return property_table.keys;
-    }
-
-    public void apply_didl_lite (DIDLLiteResource didl_resource) {
-        //  Populate the MediaResource from the given DIDLLiteResource
-        // Note: For a DIDLLiteResource, a value of -1/null also signals "not set"
-        this.uri = didl_resource.uri;
-        this.size = didl_resource.size64;
-        this.cleartext_size = didl_resource.cleartext_size;
-        this.duration = didl_resource.duration;
-        this.bitrate = didl_resource.bitrate;
-        this.bits_per_sample = didl_resource.bits_per_sample;
-        this.color_depth = didl_resource.color_depth;
-        this.width = didl_resource.width;
-        this.height = didl_resource.height;
-        this.audio_channels = didl_resource.audio_channels;
-        this.sample_freq = didl_resource.sample_freq;
-        if (didl_resource.protocol_info != null) {
-            this.protocol = didl_resource.protocol_info.protocol;
-            this.mime_type = didl_resource.protocol_info.mime_type;
-            this.dlna_profile = didl_resource.protocol_info.dlna_profile;
-            this.network = didl_resource.protocol_info.network;
-            this.play_speeds = copy_speeds (didl_resource.protocol_info.play_speeds);
-            this.dlna_conversion = didl_resource.protocol_info.dlna_conversion;
-            this.dlna_flags = didl_resource.protocol_info.dlna_flags;
-            this.dlna_operation = didl_resource.protocol_info.dlna_operation;
-        }
-    }
-
     public DIDLLiteResource serialize (DIDLLiteResource didl_resource) {
-        // Note: For a DIDLLiteResource, a value of -1/null also signals "not set"
+        // Note: For a DIDLLiteResource, a values -1/null also signal "not set"
         didl_resource.uri = this.uri;
         didl_resource.size64 = this.size;
         didl_resource.cleartext_size = this.cleartext_size;
@@ -284,8 +274,8 @@ public class Rygel.MediaResource : GLib.Object {
     }
 
     public string to_string () {
-        var strbuf = new StringBuilder ();
-        strbuf.append (name).append_unichar ('(');
+        var strbuf = new StringBuilder (name);
+        strbuf.append_unichar ('(');
         if (this.size >= 0) {
             strbuf.append ("size ").append (this.size.to_string ())
                   .append_unichar (',');
