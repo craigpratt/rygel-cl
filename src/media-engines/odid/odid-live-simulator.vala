@@ -45,7 +45,8 @@ public class Rygel.ODIDLiveSimulator : Object {
     public uint64 live_start_offset_us; // Start time offset (in microseconds)
     public bool started = false;
     public bool stopped = false;
-    public int64 tsb_duration_us = -1; // -1: Unlimited, 0: None, >0: TSB duration (in microseconds)
+    public int64 range_duration_us = -1; // Time range duration (in microseconds) (-1: Unlimited) 
+    public int lop_mode = -1; // Limited operation mode (0: strict TSB, 1: timely TSB)
     public int64 autostop_at_us = 0;
     public signal void started_signal ();
     public signal void stopped_signal ();
@@ -317,8 +318,8 @@ public class Rygel.ODIDLiveSimulator : Object {
      * Get the start time for the available content range (in microseconds)
      */
     public int64 get_time_range_start () {
-        if (this.tsb_duration_us >= 0) {
-            return int64.max (0, get_elapsed_live_time () - this.tsb_duration_us);
+        if (this.range_duration_us >= 0) {
+            return int64.max (0, get_elapsed_live_time () - this.range_duration_us);
         } else {
             return 0;
         }
@@ -379,10 +380,10 @@ public class Rygel.ODIDLiveSimulator : Object {
     public enum Mode {INVALID=0, S0_FIXED, S0_INCREASING, S0_EQUALS_SN}
 
     public Mode get_mode () {
-        if (this.tsb_duration_us < 0) {
+        if (this.range_duration_us < 0) {
             return Mode.S0_FIXED;
         }
-        if (this.tsb_duration_us == 0) {
+        if (this.range_duration_us == 0) {
             return Mode.S0_EQUALS_SN;
         }
         return Mode.S0_INCREASING;
@@ -399,10 +400,10 @@ public class Rygel.ODIDLiveSimulator : Object {
     }
 
     public string get_mode_string () {
-        if (this.tsb_duration_us < 0) {
+        if (this.range_duration_us < 0) {
             return "S0_FIXED";
         }
-        if (this.tsb_duration_us == 0) {
+        if (this.range_duration_us == 0) {
             return "S0==SN";
         }
         return "S0_INCREASING";
@@ -412,7 +413,7 @@ public class Rygel.ODIDLiveSimulator : Object {
      * Returns true of the sim mode/state implies a moving/movable S0 boundary
      */
     public bool is_s0_increasing () {
-        return (!this.stopped && this.tsb_duration_us >= 0);
+        return (!this.stopped && this.range_duration_us >= 0);
     }
 
     /**
@@ -426,15 +427,15 @@ public class Rygel.ODIDLiveSimulator : Object {
      * Returns true of the sim mode/state implies limited random access
      */
     public bool is_limited_random_access () {
-        return (!this.stopped && (this.tsb_duration_us > 0));
+        return (!this.stopped && (this.range_duration_us > 0));
     }
 
     /**
      * Returns true of the sim mode/state implies full random access
      */
     public bool is_full_random_access () {
-        return ((this.tsb_duration_us < 0) // S0 fixed
-                || ((this.tsb_duration_us > 0) && this.stopped) );
+        return ((this.range_duration_us < 0) // S0 fixed
+                || ((this.range_duration_us > 0) && this.stopped) );
     }
 
     /**

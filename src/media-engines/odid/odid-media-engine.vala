@@ -70,6 +70,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     private bool autostart_live_sims;
     private int live_sim_reset_s; // In seconds
     private HashTable <string, ODIDLiveSimulator> live_sim_table;
+    internal string[] live_mode_vals          = {"off","live","recording","tsb","timely-range"};
+    internal enum ResourceLiveMode   {INVALID=-1, OFF,  LIVE,  RECORDING,  TSB,  TIMELY_RANGE}
 
     public ODIDMediaEngine () {
         debug ("constructing");
@@ -218,8 +220,11 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                     try {
                         string resource_uri = item_uri + file_info.get_name () + "/";
                         ODIDLiveSimulator live_sim = null;
-                        if (ODIDUtil.get_resource_property (resource_uri, "live") == "true") {
-                            live_sim = find_live_sim_or_create (item_info_uri, resource_uri);
+
+                        ResourceLiveMode live_sim_mode = get_resource_live_mode (resource_uri);
+                        if (live_sim_mode > ResourceLiveMode.OFF) {
+                            live_sim = find_live_sim_or_create (item_info_uri, resource_uri,
+                                                                live_sim_mode);
                         }
                         var res = create_resource (resource_uri, live_sim);
                         if (res != null) {
@@ -266,8 +271,6 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         string basename = null;
         bool dtcp_protected = false;
         bool is_converted = false;
-        bool is_live_mode = false;
-        int limited_operation_mode = -1;
 
         // Process fields set in the resource.info
         {
@@ -308,23 +311,14 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                     is_converted = (value == "true");
                     continue;
                 }
-                if (name == "live") {
-                    is_live_mode = (value == "true");
-                    continue;
-                }
-                if (name == "limited-operation-mode") {
-                    limited_operation_mode = int.parse (value);
-                    if (limited_operation_mode < 0 || limited_operation_mode > 1) {
-                        throw new ODIDMediaEngineError.CONFIG_ERROR
-                                      ("Invalid limited-operation-mode: " + value);
-                    }
-                    continue;
-                }
                 if (name.length > 0 && value.length > 0) {
                     set_resource_field (res, name, value);
                 }
             }
         }
+
+        ResourceLiveMode live_sim_mode = get_resource_live_mode (res_dir_uri);
+        bool is_live_mode = (live_sim_mode > ResourceLiveMode.OFF);
 
         // Modify the profile & mime type for DTCP, if necessary
         if (dtcp_protected) {
@@ -687,9 +681,10 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         string resource_uri = ODIDUtil.get_resource_uri (item_info_uri, resource);
         debug ("create_data_source_for_resource: resource_uri: %s", resource_uri);
 
-        if (ODIDUtil.get_resource_property (resource_uri, "live") == "true") {
+        ResourceLiveMode live_sim_mode = get_resource_live_mode (resource_uri);
+        if (live_sim_mode > ResourceLiveMode.OFF) {
             debug ("create_data_source_for_resource: IS live");
-            var live_sim = find_live_sim_or_create (item_info_uri, resource_uri);
+            var live_sim = find_live_sim_or_create (item_info_uri, resource_uri, live_sim_mode);
             if (live_sim == null) {
                 throw new ODIDMediaEngineError.CONFIG_ERROR
                               ("No live sim found/created for " + resource_uri);
@@ -726,33 +721,58 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                       ("Only resource-based data sources are currently supported");
     }
 
-    ODIDLiveSimulator ? find_live_sim_or_create (string item_info_uri, string resource_uri)
+    ODIDLiveSimulator ? find_live_sim_or_create (string item_info_uri, string resource_uri,
+                                                 ResourceLiveMode live_sim_mode)
             throws Error {
         var short_res_path = ODIDUtil.short_resource_path (resource_uri);
         var live_sim = find_live_sim (short_res_path);
         if (live_sim != null) {
             debug ("Found pre-existing live sim for %s", short_res_path);
         } else {
-            debug ("No live sim found for %s - creating one", short_res_path);
+            debug ("No live sim found for %s - creating one (mode %s)",
+                   short_res_path, live_mode_vals[live_sim_mode]);
             live_sim = new ODIDLiveSimulator (short_res_path, item_info_uri, resource_uri);
-            string live_time_window_val =
-                       ODIDUtil.get_resource_property (resource_uri, "live-time-window");
-            if (live_time_window_val != null) {
-                live_sim.tsb_duration_us = int.parse (live_time_window_val) * MICROS_PER_SEC;
-                debug ("Set time window of sim %s to %0.3f seconds",
-                       live_sim.name, ODIDUtil.usec_to_secs (live_sim.tsb_duration_us));
+
+            switch (live_sim_mode) {
+                case ResourceLiveMode.LIVE:
+                    live_sim.range_duration_us = 0; // No buffered content
+                break;
+                case ResourceLiveMode.RECORDING:
+                    live_sim.range_duration_us = -1; // unset/unlimited
+                break;
+                case ResourceLiveMode.TSB:
+                case ResourceLiveMode.TIMELY_RANGE:
+                    string live_time_window_val =
+                             ODIDUtil.get_resource_property (resource_uri, "live-range-duration");
+                    if (live_time_window_val == null) {
+                        throw new ODIDMediaEngineError.CONFIG_ERROR
+                                     ("TSB live mode requires live-range-duration to be set for "
+                                      + resource_uri);
+                    }
+                    live_sim.range_duration_us = int.parse (live_time_window_val) * MICROS_PER_SEC;
+                    live_sim.lop_mode = (live_sim_mode == ResourceLiveMode.TSB) ? 0 : 1;
+                    debug ("  Set limited operation mode of sim %s to %d",
+                           live_sim.name, live_sim.lop_mode);
+                break;
+                default:
+                    throw new ODIDMediaEngineError.CONFIG_ERROR
+                                 ("Invalid live mode value for creating sim: "
+                                  + live_sim_mode.to_string());
             }
+            debug ("  Set range duration of sim %s to %0.3f seconds",
+                   live_sim.name, ODIDUtil.usec_to_secs (live_sim.range_duration_us));
+
             string live_start_offset_val =
-                       ODIDUtil.get_resource_property (resource_uri, "live-start-offset");
+                       ODIDUtil.get_resource_property (resource_uri, "live-start-time-offset");
             if (live_start_offset_val != null) {
                 live_sim.live_start_offset_us = int.parse (live_start_offset_val) * MICROS_PER_SEC;
-                debug ("Set live start offset of sim %s to %0.3f seconds",
+                debug ("  Set live start time offset of sim %s to %0.3f seconds",
                        live_sim.name, ODIDUtil.usec_to_secs (live_sim.live_start_offset_us));
             }
             // We'll set the autostop time to the duration of the content
             live_sim.autostop_at_us = ODIDUtil.duration_for_resource_us (resource_uri);
             live_sim.report_range_when_active (1000, this.control_channel);
-            debug ("Set autostop time of sim %s to %0.3f seconds",
+            debug ("  Set autostop time of sim %s to %0.3f seconds",
                    live_sim.name, ODIDUtil.usec_to_secs (live_sim.autostop_at_us));
             this.live_sim_table.insert (live_sim.name, live_sim);
         }
@@ -762,6 +782,25 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
     ODIDLiveSimulator ? find_live_sim (string short_res_path) {
         return this.live_sim_table.get (short_res_path);
+    }
+
+    internal ResourceLiveMode get_resource_live_mode (string odid_resource_uri)
+        throws Error {
+        var live_sim_mode_val = ODIDUtil.get_resource_property
+                                            (odid_resource_uri, "live-sim-mode");
+        if (live_sim_mode_val == null) {
+            return ResourceLiveMode.INVALID;
+        }
+
+        for (int i=0; i<live_mode_vals.length; i++) {
+            if (live_mode_vals[i] == live_sim_mode_val) {
+                return (ResourceLiveMode)i;
+            }
+        }
+        // Value defined but not valid
+        throw new ODIDMediaEngineError.CONFIG_ERROR
+                                  ("Invalid live-sim-mode value '" + live_sim_mode_val
+                                   + "' for resource " + odid_resource_uri);
     }
 
     void sim_started (Object sim) {

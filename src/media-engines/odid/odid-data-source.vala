@@ -402,17 +402,6 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         
         bool is_reverse = (this.playspeed_request == null)
                            ? false : (!playspeed_request.speed.is_positive ());
-        int lop_mode;
-        {
-            string resprop = ODIDUtil.get_resource_property (this.resource_uri,
-                                                             "limited-operation-mode");
-            lop_mode = (resprop == null ? 0 : int.parse (resprop));
-            debug ("    limited operation mode: %d", lop_mode);
-            if (lop_mode < 0 || lop_mode > 1) {
-                throw new DataSourceError.GENERAL
-                              ("Invalid limited-operation-mode (not 0 or 1): " + resprop);
-            }
-        }
 
         int64 timelimit_start; // The earliest time that can be requested right now
         int64 timelimit_end; // The latest time that can be requested right now
@@ -421,11 +410,12 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         int64 total_duration = ODIDUtil.duration_from_index_file_ms (index_file)
                                * MICROS_PER_MILLI;
 
-        if (lop_mode == 1) { // We're not constrained by the sim range
+        if (this.live_sim.lop_mode == 1) { // We're not constrained by the sim range
             timelimit_start = 0;
             timelimit_end = total_duration;
             bytelimit_start = 0;
             bytelimit_end = content_size;
+            // TODO: Utilize the live-nontimely-delay setting
         } else { // Get the time constraints from the sim        
             live_sim.get_available_time_range (out timelimit_start, out timelimit_end);
             debug ("    sim time availability: %0.3fs-%0.3fs",
@@ -444,7 +434,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 // Adding this unconditionally when legal - which doesn't seem to be verboten
                 // TODO: Add a way for DLNAAvailableSeekRangeRequest to be passed to preroll()
                 response_list.add (new DLNAAvailableSeekRangeResponse
-                                            (lop_mode,
+                                            (this.live_sim.lop_mode,
                                              timelimit_start,
                                              timelimit_end,
                                              bytelimit_start,
