@@ -164,6 +164,8 @@ public class Rygel.RuihServiceManager
         if (filter.length > 0)
         {
             bool filter_wildcard = (filter == "*" || filter == "\"*\"");
+
+            // Only enable wildcard if deviceprofile is not available
             if (deviceProfileNode == null && filter_wildcard)
             {
                 // Wildcard filter entry
@@ -221,12 +223,11 @@ public class Rygel.RuihServiceManager
                 UIElem ui = (UIElem)i;
                 result_content.append(ui.toUIListing(filterEntries));
             }
-
+            // Return empty string is there is no matching UI for a filter
             if (result_content.str == "")
             {
                 return "";
             }
-
             result.append(result_content.str);
         }
         result.append(POST_RESULT);
@@ -257,7 +258,6 @@ public class Rygel.RuihServiceManager
             if(m_name != null && m_value != null)
             {
                 string value1 = null;
-
                 // Get rid of extra " left in m_value
                 while (m_value.contains("\""))
                 {
@@ -297,7 +297,11 @@ public class Rygel.RuihServiceManager
                         {
                              return true;
                         }
-                        else if (m_value.contains ("*") && value.contains (m_value.replace("*", "")))
+                        // Check if the filter value has wildcard in the content
+                        // ex: name="*music*", then select all ui that
+                        // has music in the name
+                        else if (m_value.contains ("*") &&
+                                 value.contains (m_value.replace("*", "")))
                         {
                              return true;
                         }
@@ -664,6 +668,7 @@ public class Rygel.RuihServiceManager
         {
             XMLFragment elements = new XMLFragment();
             bool atleastOne = false;
+            // Add all mandatory and optional elements
             elements.addElement(UIID, m_uiId);
             elements.addElement(NAME, m_name);
             elements.addElement(DESCRIPTION, m_description);
@@ -720,6 +725,8 @@ public class Rygel.RuihServiceManager
             }
             
             sb.append("</" + UI + ">\n");
+            // if one of the element or if a protocol filter matches filter
+            // condition, then send the UI in the result.
             if (atleastOne == true || protoPresent == true)
             {
                 protoPresent = false;
