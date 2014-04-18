@@ -202,7 +202,6 @@ public abstract class Rygel.MediaFileItem : MediaItem {
         if (uri_extension == null) {
             uri_extension = ext_from_mime_type (this.mime_type);
         }
-
         return uri_extension;
     }
 
@@ -221,6 +220,10 @@ public abstract class Rygel.MediaFileItem : MediaItem {
             // audios
             mime_to_ext.set ("audio/x-wav", "wav");
             mime_to_ext.set ("audio/x-matroska", "mka");
+            mime_to_ext.set ("audio/L16","pcm");
+            mime_to_ext.set ("audio/vnd.dlna.adts","adts");
+            mime_to_ext.set ("audio/mpeg","mp3");
+            mime_to_ext.set ("audio/3gpp","3gp");
 
             // images
             string[] images = {"jpeg", "png"};

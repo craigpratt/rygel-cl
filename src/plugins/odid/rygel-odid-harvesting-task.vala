@@ -308,7 +308,8 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
 
             MediaItem item = new Rygel.ODID.MediaItem
                                      (id, this.containers.peek_head (),
-                                      keyFile.get_string ("item", "title"));
+                                      keyFile.get_string ("item", "title"),
+                                      get_media_class (keyFile));
 
             if (keyFile.has_key ("item", "date"))    {
                 item.date = keyFile.get_string ("item", "date");
@@ -351,6 +352,39 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
             warning ("Unable to read item file %s, Message: %s",
                      file.get_path (), error.message);
         }
+    }
+
+    private string get_media_class (KeyFile key_file)
+                                   throws GLib.KeyFileError {
+        // Default media type is video
+        string media_type = Rygel.VideoItem.UPNP_CLASS;
+        // Check the type of media to populate upnp:class
+        if (key_file.has_key ("item", "type")) {
+            switch (key_file.get_string ("item", "type")) {
+                case "video":
+                    media_type = Rygel.VideoItem.UPNP_CLASS;
+                    break;
+                case "audio":
+                    media_type = Rygel.AudioItem.UPNP_CLASS;
+                    break;
+                case "image":
+                    media_type = Rygel.ImageItem.UPNP_CLASS;
+                    break;
+                case "photo":
+                    media_type = Rygel.PhotoItem.UPNP_CLASS;
+                    break;
+                case "music":
+                    media_type = Rygel.MusicItem.UPNP_CLASS;
+                    break;
+                case "playlist":
+                    media_type = Rygel.PlaylistItem.UPNP_CLASS;
+                    break;
+                default:
+                    media_type = Rygel.VideoItem.UPNP_CLASS;
+                    break;
+            }
+        }
+        return media_type;
     }
 
     /**
