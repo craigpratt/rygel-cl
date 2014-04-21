@@ -727,7 +727,7 @@ public class Rygel.RuihServiceManager
             sb.append("</" + UI + ">\n");
             // if one of the element or if a protocol filter matches filter
             // condition, then send the UI in the result.
-            if (atleastOne == true || protoPresent == true)
+            if (atleastOne || protoPresent)
             {
                 protoPresent = false;
                 return sb.str;
