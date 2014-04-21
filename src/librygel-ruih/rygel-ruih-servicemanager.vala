@@ -89,7 +89,6 @@ public class Rygel.RuihServiceManager
     public string getCompatibleUIs(string xmlStr, string deviceInfo, string filter) //no synchronized?
     {
         Xml.Node* deviceProfileNode = null;
-        ArrayList<ProtocolElem> protocols = new ArrayList<ProtocolElem> ();
         this.filterEntries = new ArrayList<FilterEntry> ();
         File file = null;
         // Parse if there is device info
@@ -164,12 +163,15 @@ public class Rygel.RuihServiceManager
         string[] entries = {};
         if (filter.length > 0)
         {
-            if(filter == "*" || filter == "\"*\"")
+            bool filter_wildcard = (filter == "*" || filter == "\"*\"");
+
+            // Only enable wildcard if deviceprofile is not available
+            if (deviceProfileNode == null && filter_wildcard)
             {
                 // Wildcard filter entry
                 filterEntries.add(new WildCardFilterEntry());
             }
-            else
+            else if (!filter_wildcard)
             {
                 // Check if the input UIFilter is in the right format.
                 // Else throw Error 702 and do cleanup. 
@@ -209,21 +211,27 @@ public class Rygel.RuihServiceManager
                 }
             }
         }
+
         // Generate result XML with or without protocols       
         StringBuilder result = new StringBuilder(PRE_RESULT);
-        
         if(m_uiList != null && m_uiList.size > 0)
         {
+            StringBuilder result_content = new StringBuilder ();
+
             foreach (UIElem i in m_uiList)
             {
                 UIElem ui = (UIElem)i;
-                if(ui.match(protocols , filterEntries))
-                {
-                    result.append(ui.toUIListing(filterEntries));
-                }
+                result_content.append(ui.toUIListing(filterEntries));
             }
+            // Return empty string is there is no matching UI for a filter
+            if (result_content.str == "")
+            {
+                return "";
+            }
+            result.append(result_content.str);
         }
         result.append(POST_RESULT);
+
         return result.str; 
     }
    
@@ -257,15 +265,6 @@ public class Rygel.RuihServiceManager
                     m_value = value1;
                 }
 
-                // Get rid of any * left
-                if (m_value.length > 1)
-                {
-                    while (m_value.contains("*"))
-                    {
-                        value1 = m_value.replace("*", "");
-                        m_value = value1;
-                    }
-                }
                 // Get rid of extra " left in m_name
                 while (m_name.contains("\""))
                 {
@@ -288,10 +287,23 @@ public class Rygel.RuihServiceManager
                             {
                                 return false;
                             }
-                        }     
-                        if ((m_value == "*") || (m_value == value) || value.contains(m_value)) // Wildcard entry "*"
+                        }
+
+                        if (m_value == value)
                         {
-                            return true;
+                             return true;
+                        }
+                        else if (m_value == "*") // Wildcard entry "*"
+                        {
+                             return true;
+                        }
+                        // Check if the filter value has wildcard in the content
+                        // ex: name="*music*", then select all ui that
+                        // has music in the name
+                        else if (m_value.contains ("*") &&
+                                 value.contains (m_value.replace("*", "")))
+                        {
+                             return true;
                         }
                     }
                 }
@@ -321,7 +333,6 @@ public class Rygel.RuihServiceManager
             foreach (FilterEntry fil in filters)
             {
                 FilterEntry entry = (FilterEntry)fil;
-                
                 if ((entry != null) && (entry.matches(name, value)))
                 {
                     return true;
@@ -657,8 +668,12 @@ public class Rygel.RuihServiceManager
         {
             XMLFragment elements = new XMLFragment();
             bool atleastOne = false;
+            // Add all mandatory and optional elements
             elements.addElement(UIID, m_uiId);
             elements.addElement(NAME, m_name);
+            elements.addElement(DESCRIPTION, m_description);
+            elements.addElement(FORK, m_fork);
+            elements.addElement(LIFETIME, m_lifetime);
             
             if ((m_name != null) && (filtersMatch(filters, NAME, m_name)))
             {
@@ -666,17 +681,14 @@ public class Rygel.RuihServiceManager
             }
             if ((m_description != null) && (filtersMatch(filters, DESCRIPTION, m_description)))
             {
-                elements.addElement(DESCRIPTION, m_description);
                 atleastOne = true;
             }
             if ((m_fork != null) && (filtersMatch(filters, FORK, m_fork)))
             {
-                elements.addElement(FORK, m_fork);
                 atleastOne = true;
             }
             if ((m_lifetime != null) && (filtersMatch(filters, LIFETIME, m_lifetime)))
             {
-                elements.addElement(LIFETIME, m_lifetime);
                 atleastOne = true;
             }
             
@@ -702,6 +714,7 @@ public class Rygel.RuihServiceManager
                     sb.append("</" + ICONLIST + ">\n");
                 }
             }
+
             if (m_protocols.size > 0)
             {
                 foreach(ProtocolElem i in m_protocols)
@@ -712,7 +725,9 @@ public class Rygel.RuihServiceManager
             }
             
             sb.append("</" + UI + ">\n");
-            if ((atleastOne == true) || (protoPresent == true))
+            // if one of the element or if a protocol filter matches filter
+            // condition, then send the UI in the result.
+            if (atleastOne || protoPresent)
             {
                 protoPresent = false;
                 return sb.str;
