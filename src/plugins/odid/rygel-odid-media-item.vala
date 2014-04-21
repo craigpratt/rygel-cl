@@ -31,7 +31,7 @@ public class Rygel.ODID.MediaItem : Rygel.MediaItem,
     public MediaItem (string         id,
                       MediaContainer parent,
                       string         title,
-                      string         upnp_class) {
+                      string         upnp_class = Rygel.VideoItem.UPNP_CLASS) {
         Object (id : id,
                 parent : parent,
                 title : title,

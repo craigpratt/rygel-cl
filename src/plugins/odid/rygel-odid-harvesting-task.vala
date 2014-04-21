@@ -357,10 +357,11 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
     private string get_media_class (KeyFile key_file)
                                    throws GLib.KeyFileError {
         // Default media type is video
-        string media_type = Rygel.VideoItem.UPNP_CLASS;
+        string media_type;
         // Check the type of media to populate upnp:class
         if (key_file.has_key ("item", "type")) {
-            switch (key_file.get_string ("item", "type")) {
+            string type_value = key_file.get_string ("item", "type");
+            switch (type_value) {
                 case "video":
                     media_type = Rygel.VideoItem.UPNP_CLASS;
                     break;
@@ -380,9 +381,14 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
                     media_type = Rygel.PlaylistItem.UPNP_CLASS;
                     break;
                 default:
-                    media_type = Rygel.VideoItem.UPNP_CLASS;
-                    break;
+                    message ("Valid values are video, audio,
+                             image, photo, music, playlist");
+                    throw new GLib.KeyFileError.INVALID_VALUE
+                               ("Type property \"%s\" invalid value.", type_value);
             }
+        } else { // If no type property available the set default to video.
+            debug ("No Type property present, setting to default video type.");
+            media_type = Rygel.VideoItem.UPNP_CLASS;
         }
         return media_type;
     }
