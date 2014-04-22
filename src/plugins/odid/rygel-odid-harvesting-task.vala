@@ -308,7 +308,8 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
 
             MediaItem item = new Rygel.ODID.MediaItem
                                      (id, this.containers.peek_head (),
-                                      keyFile.get_string ("item", "title"));
+                                      keyFile.get_string ("item", "title"),
+                                      get_media_class (keyFile));
 
             if (keyFile.has_key ("item", "date"))    {
                 item.date = keyFile.get_string ("item", "date");
@@ -351,6 +352,45 @@ public class Rygel.ODID.HarvestingTask : Rygel.StateMachine,
             warning ("Unable to read item file %s, Message: %s",
                      file.get_path (), error.message);
         }
+    }
+
+    private string get_media_class (KeyFile key_file)
+                                   throws GLib.KeyFileError {
+        // Default media type is video
+        string media_type;
+        // Check the type of media to populate upnp:class
+        if (key_file.has_key ("item", "type")) {
+            string type_value = key_file.get_string ("item", "type");
+            switch (type_value) {
+                case "video":
+                    media_type = Rygel.VideoItem.UPNP_CLASS;
+                    break;
+                case "audio":
+                    media_type = Rygel.AudioItem.UPNP_CLASS;
+                    break;
+                case "image":
+                    media_type = Rygel.ImageItem.UPNP_CLASS;
+                    break;
+                case "photo":
+                    media_type = Rygel.PhotoItem.UPNP_CLASS;
+                    break;
+                case "music":
+                    media_type = Rygel.MusicItem.UPNP_CLASS;
+                    break;
+                case "playlist":
+                    media_type = Rygel.PlaylistItem.UPNP_CLASS;
+                    break;
+                default:
+                    message ("Valid values are video, audio,
+                             image, photo, music, playlist");
+                    throw new GLib.KeyFileError.INVALID_VALUE
+                               ("Type property \"%s\" invalid value.", type_value);
+            }
+        } else { // If no type property available the set default to video.
+            debug ("No Type property present, setting to default video type.");
+            media_type = Rygel.VideoItem.UPNP_CLASS;
+        }
+        return media_type;
     }
 
     /**
