@@ -468,7 +468,15 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             if (normal_content_index_file.query_exists ()) {
                 res.duration = ODIDUtil.duration_from_index_file_s (normal_content_index_file);
                 res.dlna_operation |= DLNAOperation.TIMESEEK; // Full time seek (full RADA)
-                debug ("create_resource: %s: duration: %lds", short_res_path, res.duration);
+                debug ("create_resource: %s: duration from index: %lds", short_res_path, res.duration);
+            } else if (ODIDUtil.resource_has_mp4_container (res)) {
+                var mp4_file_container = new Rygel.IsoFileContainerBox (normal_content_file);
+                mp4_file_container.load_children (3); // file_container->MovieBox->MovieHeaderBox
+                var movie_box = mp4_file_container.get_movie_box ();
+                res.duration = (long)(movie_box.get_header_box ().get_duration_seconds ());
+                res.dlna_operation |= DLNAOperation.TIMESEEK; // Full time seek (full RADA)
+                debug ("create_resource: %s: duration from mp4 container: %lds",
+                       short_res_path, res.duration);
             } else {
                 debug ("create_resource: %s: duration: unknown (no index file)", short_res_path);
             }

@@ -13,7 +13,8 @@ librygel_media_engine_odid_la_SOURCES = \
 	odid-live-simulator.vala \
 	odid-index-entry.vala \
 	odid-util.vala \
-	odid-data-source.vala 
+	odid-data-source.vala \
+	odid-mp4-parser.vala
 
 librygel_media_engine_odid_la_VALAFLAGS = \
 	$(RYGEL_COMMON_LIBRYGEL_SERVER_VALAFLAGS) \

@@ -70,6 +70,11 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     private static const string READ_CMD = "read-cmd";
     private string read_cmd = null;
     private Pid child_pid = 0;
+
+    // MP4 container source support (for MP4 time-seek response generation)
+    private IsoFileContainerBox mp4_container_source = null;
+    private BufferGeneratingOutputStream mp4_container_stream = null;
+    private Thread mp4_container_thread = null;
     
     private GLib.Regex FB_REGEX;
     private GLib.Regex LB_REGEX;
@@ -109,7 +114,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                                      PlaySpeedRequest? playspeed_request)
        throws Error {
         debug ("resource uri: " + this.resource_uri);
-        debug ("Resource " + res.to_string ());
+        debug ("Resource " + this.res.to_string ());
 
         //
         // Setup and checks...
@@ -175,47 +180,61 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         }
 
         if (this.live_sim == null) {
-            preroll_static_resource (content_file, content_index_file, response_list);
+            if (ODIDUtil.resource_has_mp4_container (this.res)
+                && (seek_request is HTTPTimeSeekRequest)) {
+                preroll_mp4_time_seek (content_file, content_index_file, response_list);
+            } else {
+                preroll_static_resource (content_file, content_index_file, response_list);
+            }
         } else {
             preroll_livesim_resource (content_file, content_index_file, response_list);
         }
 
-        // Command line to pipe if defined, search content, resource, item, then config.
-        this.read_cmd = ODIDUtil.get_content_property (this.content_uri, READ_CMD);
-        if (this.read_cmd == null) {
-            this.read_cmd =  ODIDUtil.get_resource_property (this.resource_uri, READ_CMD);
+        if (this.mp4_container_source == null) {
+            // We're using a IOChannel
+            // Command line to pipe if defined, search content, resource, item, then config.
+            this.read_cmd = ODIDUtil.get_content_property (this.content_uri, READ_CMD);
             if (this.read_cmd == null) {
-                try {
-                    this.read_cmd = MetaConfig.get_default ().get_string ("OdidMediaEngine", READ_CMD);
-                    if (this.read_cmd != null) {
-                        debug (@"$(READ_CMD) $(this.read_cmd) defined in rygel config.");
+                this.read_cmd =  ODIDUtil.get_resource_property (this.resource_uri, READ_CMD);
+                if (this.read_cmd == null) {
+                    try {
+                        this.read_cmd = MetaConfig.get_default ().get_string ("OdidMediaEngine", READ_CMD);
+                        if (this.read_cmd != null) {
+                            debug (@"$(READ_CMD) $(this.read_cmd) defined in rygel config.");
+                        }
+                    } catch (Error error) {
+                        // Can ignore errors
                     }
-                } catch (Error error) {
-                    // Can ignore errors
+                } else {
+                    debug (@"$(READ_CMD) $(this.read_cmd) defined in resource property.");
                 }
             } else {
-                debug (@"$(READ_CMD) $(this.read_cmd) defined in resource property.");
+                debug (@"$(READ_CMD) $(this.read_cmd) defined in content property.");
+            }
+            
+            if (this.read_cmd == null) {
+                debug (@"No $(READ_CMD) defined for pipe, using direct file access.");
+            }
+
+            if (this.range_offset_list.size > 0) {
+                // If requested bytes are not set, go for largest amount of data
+                // possible.  Should get to EOF or client termination.
+                int64 last_offset = this.range_offset_list.last ();
+                debug ("preroll: staging bytes %s-%s for IOChannel sender",
+                       (this.range_start==int64.MAX ? "*" : this.range_start.to_string ()),
+                       (last_offset==int64.MAX ? "*" : last_offset.to_string ()) );
+                if ((last_offset == 0) || (last_offset == int64.MAX)){
+                    this.total_bytes_requested = last_offset; // 0 for none, MAX for everything
+                } else {
+                    this.total_bytes_requested = last_offset - this.range_start;
+                }
             }
         } else {
-            debug (@"$(READ_CMD) $(this.read_cmd) defined in content property.");
-        }
-        
-        if (this.read_cmd == null) {
-            debug (@"No $(READ_CMD) defined for pipe, using direct file access.");
-        }
-        
-        // If requested bytes are not set, go for largest amount of data
-        // possible.  Should get to EOF or client termination.
-        int64 last_offset = this.range_offset_list.last ();
-        debug ("preroll: staging bytes %s-%s",
-               (this.range_start==int64.MAX ? "*" : this.range_start.to_string ()),
-               (last_offset==int64.MAX ? "*" : last_offset.to_string ()) );
-        if ((last_offset == 0) || (last_offset == int64.MAX)){
-            this.total_bytes_requested = last_offset; // 0 for none, MAX for everything
-        } else {
-            this.total_bytes_requested = last_offset - this.range_start;
-        }
-        
+            this.total_bytes_requested = (int64)(this.mp4_container_source.size);
+            debug ("preroll: staging %llu bytes for MP4 BufferGeneratingOutputStream sender",
+                   this.total_bytes_requested);
+        }            
+
         return response_list;
     }
 
@@ -377,6 +396,65 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             debug ("Byte range for cleartext byte seek response: bytes %lld through %lld",
                    seek_response.start_byte, seek_response.end_byte );
         }
+    }
+
+    internal void preroll_mp4_time_seek (File content_file,
+                                           File index_file,
+                                           Gee.ArrayList<HTTPResponseElement> response_list)
+            throws Error {
+        // Get the size for the content file
+        FileInfo content_info = content_file.query_info (GLib.FileAttribute.STANDARD_SIZE, 0);
+        int64 content_size = content_info.get_size ();
+        debug ("    Total content size is " + content_size.to_string ());
+        debug ("    prerolling MP4 container file for time-seek (%s)",
+                 content_file.get_basename ());
+        assert (seek_request is HTTPTimeSeekRequest);
+        var time_seek = seek_request as HTTPTimeSeekRequest;
+
+        var new_mp4 = new Rygel.IsoFileContainerBox (content_file);
+        // Fully load/parse the input file (0 indicates full-depth parse)
+        new_mp4.load_children (0);
+
+        //message ("preroll_mp4_time_seek: DUMPING PARSED FILE");
+        //new_mp4.to_printer ( (line) => {message (line);}, "  ");
+
+        int64 time_offset_start = time_seek.start_time;
+        int64 time_offset_end;
+        bool is_reverse = (this.playspeed_request == null)
+                           ? false : (!playspeed_request.speed.is_positive ());
+        if (time_seek.end_time == HTTPSeekRequest.UNSPECIFIED) {
+            // For time-seek, the "end" of the time range depends on the direction
+            time_offset_end = is_reverse ? 0 : int64.MAX;
+        } else { // End time specified
+            time_offset_end = time_seek.end_time;
+        }
+
+        int64 total_duration = (time_seek.total_duration != HTTPSeekRequest.UNSPECIFIED)
+                               ? time_seek.total_duration : int64.MAX;
+        debug ("    Total duration is " + total_duration.to_string ());
+        debug ("Processing MP4 time seek (time %0.3fs to %0.3fs)",
+               ODIDUtil.usec_to_secs (time_offset_start),
+               ODIDUtil.usec_to_secs (time_offset_end));
+
+        Rygel.IsoSampleTableBox.AccessPoint start_point, end_point;
+        new_mp4.trim_to_time_range (ref time_offset_start, ref time_offset_end,
+                                    out start_point, out end_point);
+
+        var seek_response = new HTTPTimeSeekResponse.with_length
+                                    (time_offset_start, time_offset_end,
+                                     total_duration,
+                                     (int64)start_point.byte_offset,
+                                     (int64)end_point.byte_offset-1,
+                                     content_size,
+                                     (int64)new_mp4.size);
+        debug ("Time range for time seek response: %0.3fs through %0.3fs",
+               ODIDUtil.usec_to_secs (seek_response.start_time),
+               ODIDUtil.usec_to_secs (seek_response.end_time));
+        debug ("Byte range for time seek response: bytes %lld through %lld",
+               seek_response.start_byte, seek_response.end_byte );
+        response_list.add (seek_response);
+
+        this.mp4_container_source = new_mp4;
     }
 
     internal void preroll_livesim_resource (File content_file,
@@ -768,8 +846,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     }
 
     public void start () throws Error {
-        debug ("Starting data source for %s", content_uri);
-        bool start_reading = true;
+        debug ("Starting data source for %s", ODIDUtil.short_content_path (this.content_uri));
 
         if (this.total_bytes_requested == 0) {
             message ("0 bytes to send for %s - signaling done()...",
@@ -790,6 +867,20 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             }
         }
 
+        if (this.mp4_container_source == null) {
+            start_iochannel_source ();
+        } else {
+            start_mp4_container_source ();
+        }
+    }
+
+    /**
+     * Used to perform IOChannel-based streaming.
+     *
+     * This is used for both piped data source and file based source, with or without live
+     * simulation.
+     */
+    protected void start_iochannel_source () throws Error {
         var file = File.new_for_uri (this.content_uri);
 
         // Create channel for piped command or file on disk.
@@ -812,6 +903,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         } else {
             this.output.set_buffer_size ((size_t) this.chunk_size);
         }
+
+        bool start_reading = true;
 
         if (this.live_sim != null) {
             // Keep the sim alive so long as we're serving data
@@ -857,6 +950,83 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             initiate_reading ();
         }
     }
+
+    private static uint32 generator_count = 0;
+    /**
+     * Used to perform BufferGeneratingOutputStream-based streaming.
+     *
+     * This is used for streaming data from a serialized MP4 container.
+     * (e.g. a MP4 generated in response to a time-seek request)
+     */
+    protected void start_mp4_container_source () throws Error {
+        uint64 byte_count = 0;
+        debug ("start_mp4_container_source: Using buffer/chunk size %llu (0x%llx)",
+               this.chunk_size, this.chunk_size);
+        // This BufferGeneratingOutputStream.BufferReady delegate will invoke data_available()
+        //  for each buffer returned. 
+        this.mp4_container_stream = new BufferGeneratingOutputStream ((uint32)this.chunk_size,
+                                                                      (bytes, last_buffer) =>
+            {
+                if (bytes != null) {
+                    var buffer = bytes.get_data ();
+                    debug ("mp4_container_source: received %u bytes (%02x %02x %02x %02x %02x %02x) - offset %llu (0x%llx)",
+                           buffer.length, buffer[0], buffer[1], buffer[2],
+                           buffer[3], buffer[4], buffer[5], byte_count, byte_count);
+                    byte_count += buffer.length;
+                    // Run this through the glib queue to ensure non-reentrance to Rygel/Soup
+                    Idle.add ( () => {
+                        var bytes_ref = bytes; // maintain a reference
+                        // This should be the last reference to "bytes" when it's executed
+                        data_available (bytes_ref.get_data ());
+                        return false;
+                    }, Priority.HIGH_IDLE);
+                }
+                if (last_buffer) {
+                    debug ("mp4_container_source: last buffer received. Total bytes received: %llu",
+                           byte_count);
+                }
+            }, true /* paused at start */ );
+
+        // Start a thread that will serialize the MP4/ISO representation - inducing buffer
+        //  generation via the BufferGeneratingOutputStream created above. The thread will
+        //  exit when the entire representation is serialized or when write_to_stream()
+        //  throws an error (which should necessarily occur if/when
+        //  BufferGeneratingOutputStream.stop() is called).
+        generator_count = (generator_count+1) % uint32.MAX;
+        string generator_name = "mp4 time-seek generator " + generator_count.to_string ();
+        debug ("mp4_container_source: starting " + generator_name);
+        this.mp4_container_thread = new Thread<void*> ( generator_name, () => {
+            debug (generator_name + " started");
+            Rygel.IsoOutputStream out_stream;
+            try {
+                debug (generator_name + ": Starting write of mp4 box tree from %s (%llu bytes)",
+                       this.mp4_container_source.iso_file.get_basename (),
+                       this.mp4_container_source.size);
+                out_stream = new Rygel.IsoOutputStream (this.mp4_container_stream);
+                this.mp4_container_source.write_to_stream (out_stream);
+                debug (generator_name + ": Completed writing mp4 box tree from %s (%llu bytes written)",
+                       this.mp4_container_source.iso_file.get_basename (), byte_count);
+            } catch (Error err) {
+                message (generator_name + ": Error during write of mp4 box tree from %s (%llu bytes written): %s",
+                       this.mp4_container_source.iso_file.get_basename (), byte_count,
+                       err.message);
+            }
+            if (out_stream != null) {
+                try {
+                    out_stream.close ();
+                } catch (Error err) {
+                message (generator_name + ": Error closing mp4 box tree stream from %s (%llu bytes written): %s",
+                       this.mp4_container_source.iso_file.get_basename (), byte_count,
+                       err.message);
+                }
+            }
+            debug (generator_name + " done/exiting");
+            return null;
+        } );
+
+        this.mp4_container_stream.resume ();
+    }
+
 
     // Creates a channel to read data from a command's stdout through a pipe.
     private IOChannel channel_from_pipe (File file) throws IOChannelError {
@@ -964,28 +1134,41 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     }
 
     public void freeze () {
-        // This will cause the async event callback to remove itself from
-        // the main event loop.
+        debug ("Freezing data source for %s", ODIDUtil.short_content_path (this.content_uri));
+        // This will cause the async event callback to remove itself from the main event loop.
         this.frozen = true;
+        if (this.mp4_container_stream != null) {
+            this.mp4_container_stream.pause ();
+        }
     }
 
     public void thaw () {
+        debug ("Thawing data source for %s", ODIDUtil.short_content_path (this.content_uri));
         if (this.frozen) {
-            // We need to add the async event callback into the main event
-            // loop.
             this.frozen = false;
-            initiate_reading ();
+            if (this.mp4_container_stream == null) {
+                // We need to add the async event callback into the main event loop.
+                initiate_reading ();
+            } else {
+                this.mp4_container_stream.resume ();
+            }
         }
     }
 
     public void stop () {
-        // If pipe used, reap child otherwise shut down channel.
-        // Make sure event callback is removed from main loop.
-        if ((int)this.child_pid != 0) {
-            debug (@"Stopping pid: $(this.child_pid)");
-            Posix.kill (this.child_pid, Posix.SIGTERM);
+        debug ("Stopping data source for %s", ODIDUtil.short_content_path (this.content_uri));
+        if (this.mp4_container_stream == null) {
+            // If pipe used, reap child otherwise shut down channel.
+            if ((int)this.child_pid != 0) {
+                debug (@"Stopping pid: $(this.child_pid)");
+                Posix.kill (this.child_pid, Posix.SIGTERM);
+            } else { // Make sure event callback is removed from main loop.
+                GLib.Source.remove (this.output_watch_id);
+            }
         } else {
-            GLib.Source.remove (this.output_watch_id);
+            this.mp4_container_stream.stop ();
+            this.mp4_container_stream = null;
+            this.mp4_container_source = null;
         }
         message ("stop(): " + ODIDUtil.short_content_path (this.content_uri));
     }

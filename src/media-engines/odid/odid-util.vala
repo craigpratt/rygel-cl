@@ -743,4 +743,8 @@ public class Rygel.ODIDUtil : Object {
         }
         return duration_from_index_file_ms (index_file) * MICROS_PER_MILLI;
     }
+
+    public static bool resource_has_mp4_container (MediaResource res) {
+        return (res.dlna_profile.contains ("_MP4_"));
+    }
 }

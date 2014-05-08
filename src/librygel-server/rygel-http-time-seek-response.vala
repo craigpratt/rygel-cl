@@ -60,9 +60,9 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
     public int64 end_byte { get; private set; }
 
     /**
-     * The length of the range in bytes
+     * The response length in bytes
      */
-    public int64 range_length { get; private set; }
+    public int64 response_length { get; private set; }
 
     /**
      * The length of the resource in bytes
@@ -90,8 +90,8 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
 
         this.start_byte = start_byte;
         this.end_byte = end_byte;
-        this.range_length = (end_byte == UNSPECIFIED) ? UNSPECIFIED
-                                                      : (end_byte - start_byte + 1);
+        this.response_length = (end_byte == UNSPECIFIED) ? UNSPECIFIED
+                                                         : (end_byte - start_byte + 1);
         this.total_size = total_size;
     }
 
@@ -109,8 +109,38 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
 
         this.start_byte = UNSPECIFIED;
         this.end_byte = UNSPECIFIED;
-        this.range_length = UNSPECIFIED;
+        this.response_length = UNSPECIFIED;
         this.total_size = UNSPECIFIED;
+    }
+
+    /**
+     * Construct a HTTPTimeSeekResponse with time and byte range and allowing for a
+     * response length override. This is useful when the response body is larger than the
+     * specified byte range from the original content binary.
+     *
+     * start_time and start_byte must be specified.
+     *
+     * If total_duration and total_size are UNSPECIFIED, then the content duration/size
+     * will be signaled as unknown ("*")
+     * 
+     * if end_time is UNSPECIFIED, then the time range end will be omitted from the
+     * response. If the end_byte is UNSPECIFIED, the entire byte range response will be
+     * omitted. (see DLNA 7.5.4.3.2.24.3)
+     */
+    public HTTPTimeSeekResponse.with_length (int64 start_time, int64 end_time,
+                                             int64 total_duration,
+                                             int64 start_byte, int64 end_byte,
+                                             int64 total_size,
+                                             int64 response_length) {
+        base ();
+        this.start_time = start_time;
+        this.end_time = end_time;
+        this.total_duration = total_duration;
+
+        this.start_byte = start_byte;
+        this.end_byte = end_byte;
+        this.response_length = response_length;
+        this.total_size = total_size;
     }
 
     /**
@@ -131,9 +161,9 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
         if (response != null) {
             request.msg.response_headers.append (HTTPTimeSeekRequest.TIMESEEKRANGE_HEADER,
                                                  response);
-            if (this.range_length != UNSPECIFIED) {
+            if (this.response_length != UNSPECIFIED) {
                 // Note: Don't use set_content_range () here - we don't want a "Content-range" header
-                request.msg.response_headers.set_content_length (this.range_length);
+                request.msg.response_headers.set_content_length (this.response_length);
             }
             if (request.msg.get_http_version () == Soup.HTTPVersion.@1_0) {
                 request.msg.response_headers.replace ("Pragma","no-cache");
