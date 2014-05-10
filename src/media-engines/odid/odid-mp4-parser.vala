@@ -1151,7 +1151,8 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
 
     public void trim_to_time_range (ref int64 start_time_us, ref int64 end_time_us,
                                     out IsoSampleTableBox.AccessPoint start_point,
-                                    out IsoSampleTableBox.AccessPoint end_point)
+                                    out IsoSampleTableBox.AccessPoint end_point,
+                                    bool insert_empty_edit = false)
                 throws Error {
         message ("IsoFileContainerBox.trim_to_time_range(start %lluus, end %lluus)",
                  start_time_us, end_time_us);
@@ -1190,13 +1191,15 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
             message ("   Range end not provided (end time %llu)", end_point.time_offset);
         }
 
-        uint64 master_track_duration = end_point.time_offset - start_point.time_offset;
+        var range_duration = end_point.time_offset - start_point.time_offset;
+
         var movie_box_header = movie_box.get_header_box ();
-            
-        // This will convert from the track timescale to the movie timescale
+        // Master track duration needs to account for an empty edit
+        var master_track_duration = insert_empty_edit ? end_point.time_offset : range_duration;
+
         movie_box_header.set_duration (master_track_duration, master_track_timescale);
-        message ("   Range duration: %llu (%0.2fs)", movie_box_header.duration,
-                 movie_box_header.get_duration_seconds ());
+        message ("   Range duration: %llu (%0.2fs)", range_duration,
+                 (float)range_duration/master_track_timescale);
 
         //
         // Adjusting chunk/sample offsets
@@ -1250,37 +1253,40 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
                 }
                 // Adjust track time metadata
                 var media_header_box = track.get_media_box ().get_header_box ();
-                media_header_box.set_duration (master_track_duration, master_track_timescale);
+                media_header_box.set_duration (range_duration, master_track_timescale);
                 message ("    set track media duration to %llu (%0.2fs)",
                          media_header_box.duration, media_header_box.get_duration_seconds ());
                 track_header.set_duration (master_track_duration, master_track_timescale);
                 // Note: This is assuming the EditListBox is 1-for-1 with the track media
                 message ("    set track movie duration to %llu (%0.2fs)",
                          track_header.duration, track_header.get_duration_seconds ());
-                // Create the EditListBox
-                {
-                    // Note: We're assuming these tracks are synced
-                    var edit_list_box = track.create_edit_box ().get_edit_list_box ();
-                    //edit_list_box.edit_array = new IsoEditListBox.EditEntry[2];
-                    //edit_list_box.set_edit_list_entry (0, start_point.time_offset,
-                    //                                   master_track_timescale,
-                    //                                   -1, 0,
-                    //                                   1, 1);
-                    //message ("    Created empty edit: " + edit_list_box.string_for_entry (0));
-                    //edit_list_box.set_edit_list_entry (1, master_track_duration,
-                    //                                   master_track_timescale,
-                    //                                   0, master_track_timescale,
-                    //                                   1, 1);
-                    //message ("    Created offset edit: " + edit_list_box.string_for_entry (1));
+
+                // Create/replace the EditListBox
+                var edit_list_box = track.create_edit_box ().get_edit_list_box ();
+                if (insert_empty_edit) {
+                    edit_list_box.edit_array = new IsoEditListBox.EditEntry[2];
+                    edit_list_box.set_edit_list_entry (0, start_point.time_offset,
+                                                       master_track_timescale,
+                                                       -1, 0,
+                                                       1, 1);
+                    message ("    Created empty edit: " + edit_list_box.string_for_entry (0));
+                    edit_list_box.set_edit_list_entry (1,
+                                                       end_point.time_offset
+                                                        - start_point.time_offset,
+                                                       master_track_timescale,
+                                                       0, master_track_timescale,
+                                                       1, 1);
+                    message ("    Created offset edit: " + edit_list_box.string_for_entry (1));
+                } else {
                     edit_list_box.edit_array = new IsoEditListBox.EditEntry[1];
                     edit_list_box.set_edit_list_entry (0, master_track_duration,
                                                        master_track_timescale,
                                                        0,
                                                        master_track_timescale,
                                                        1, 1);
-                    message ("    Created edit: " + edit_list_box.string_for_entry (0));
-                    edit_list_box.update ();
+                    message ("    Created simple edit: " + edit_list_box.string_for_entry (0));
                 }
+                edit_list_box.update ();
             }
             
             message ("Updating movie box fields...");
@@ -1751,16 +1757,21 @@ public class Rygel.IsoMovieHeaderBox : IsoFullBox {
         var builder = new StringBuilder ("IsoMovieHeaderBox[");
         builder.append (base.to_string ());
         if (this.loaded) {
-            builder.append_printf (",ctime %llu,mtime %llu,tscale %u,duration %llu,rate %0.2f,vol %0.2f",
-                                   this.creation_time, this.modification_time, this.timescale,
-                                   this.duration, this.rate, this.volume);
-            builder.append (",matrix[");
-            foreach (var dword in this.matrix) {
-                builder.append (dword.to_string ());
-                builder.append_c (',');
+            try {
+                builder.append_printf (",ctime %llu,mtime %llu,tscale %u,duration %llu (%0.2fs),rate %0.2f,vol %0.2f",
+                                       this.creation_time, this.modification_time, this.timescale,
+                                       this.duration, get_duration_seconds (), this.rate, this.volume);
+                builder.append (",matrix[");
+                foreach (var dword in this.matrix) {
+                    builder.append (dword.to_string ());
+                    builder.append_c (',');
+                }
+                builder.truncate (builder.len-1);
+                builder.append_printf ("],next_track %u", this.next_track_id);
+            } catch (Error e) {
+                builder.append ("error: ");
+                builder.append (e.message);
             }
-            builder.truncate (builder.len-1);
-            builder.append_printf ("],next_track %u", this.next_track_id);
         } else {
             builder.append (",[unloaded fields]");
         }
@@ -2109,17 +2120,23 @@ public class Rygel.IsoTrackHeaderBox : IsoFullBox {
         var builder = new StringBuilder ("IsoTrackHeaderBox[");
         builder.append (base.to_string ());
         if (this.loaded) {
-            builder.append_printf (",ctime %lld,mtime %lld,track_id %d,duration %lld,layer %d,alt_group %d,vol %0.2f",
-                                   this.creation_time, this.modification_time, this.track_id,
-                                   this.duration, this.layer, this.alternate_group, this.volume,
-                                   this.width, this.height);
-            builder.append (",matrix[");
-            foreach (var dword in this.matrix) {
-                builder.append (dword.to_string ());
-                builder.append_c (',');
+            try {
+                builder.append_printf (",ctime %lld,mtime %lld,track_id %d,duration %lld (%0.2fs),layer %d,alt_group %d,vol %0.2f",
+                                       this.creation_time, this.modification_time, this.track_id,
+                                       this.duration, this.get_duration_seconds (),
+                                       this.layer, this.alternate_group, this.volume,
+                                       this.width, this.height);
+                builder.append (",matrix[");
+                foreach (var dword in this.matrix) {
+                    builder.append (dword.to_string ());
+                    builder.append_c (',');
+                }
+                builder.truncate (builder.len-1);
+                builder.append_printf ("],width %0.2f,height %0.2f", this.width, this.height);
+            } catch (Error e) {
+                builder.append ("error: ");
+                builder.append (e.message);
             }
-            builder.truncate (builder.len-1);
-            builder.append_printf ("],width %0.2f,height %0.2f", this.width, this.height);
         } else {
             builder.append (",[unloaded fields]");
         }
@@ -2388,9 +2405,14 @@ public class Rygel.IsoMediaHeaderBox : IsoFullBox {
         var builder = new StringBuilder ("IsoMediaHeaderBox[");
         builder.append (base.to_string ());
         if (this.loaded) {
-            builder.append_printf (",ctime %lld,mtime %lld,duration %lld,language %s",
-                                   this.creation_time, this.modification_time, this.duration,
-                                   this.language);
+            try {
+                builder.append_printf (",ctime %lld,mtime %lld,duration %lld (%0.2fs),language %s",
+                                       this.creation_time, this.modification_time, this.duration,
+                                       get_duration_seconds (), this.language);
+            } catch (Error e) {
+                builder.append ("error: ");
+                builder.append (e.message);
+            }
         } else {
             builder.append (",[unloaded fields]");
         }
@@ -4674,6 +4696,7 @@ public static int main (string[] args) {
     int MICROS_PER_SEC = 1000000;
 	try {
         bool trim_file = false;
+        bool with_empty_edit = false;
         bool print_infile = false;
         uint64 print_infile_levels = 0;
         bool print_outfile = false;
@@ -4733,6 +4756,12 @@ public static int main (string[] args) {
                             throw new OptionError.BAD_VALUE (option + " requires a parameter");
                         }
                         var range_param = args[++i];
+                        if (range_param[0] == '^') {
+                            with_empty_edit = true;
+                            range_param = range_param.substring (1);
+                        } else {
+                            with_empty_edit = false;
+                        }
                         var range_elems = range_param.split ("-");
                         if (range_elems.length != 2) {
                             throw new OptionError.BAD_VALUE ("Bad range value: " + range_param);
@@ -4869,12 +4898,13 @@ public static int main (string[] args) {
             //
             // Trim the MP4 to the designated time range
             //
-            stdout.printf  ("\nTRIMMING INPUT FILE:\n");
+            stdout.printf  ("\nTRIMMING INPUT FILE: (%s empty edit)\n",
+                            (with_empty_edit ? "with" : "no"));
             stdout.printf  ("  Requested time range: %0.3fs-%0.3fs\n", (float)time_range_start_us/MICROS_PER_SEC,
                                                              (float)time_range_end_us/MICROS_PER_SEC);
             Rygel.IsoSampleTableBox.AccessPoint start_point, end_point;
             file_container_box.trim_to_time_range (ref time_range_start_us, ref time_range_end_us,
-                                                   out start_point, out end_point);
+                                                   out start_point, out end_point, with_empty_edit);
             stdout.printf  ("  Effective time range: %0.3fs-%0.3fs\n", (float)time_range_start_us/MICROS_PER_SEC,
                                                            (float)time_range_end_us/MICROS_PER_SEC);
             stdout.printf  ("  Effective byte range: %llu-%llu (0x%llx-0x%llx) (%llu bytes)\n",
@@ -4900,7 +4930,7 @@ public static int main (string[] args) {
                 var track = track_it.get ();
                 var track_header = track.get_header_box ();
                 var media_header_box = track.get_media_box ().get_header_box ();
-                stdout.printf ("  track %u: movie duration %0.3f seconds, media duration %0.3f seconds\n",
+                stdout.printf ("  track %u: movie duration %0.2f seconds, media duration %0.2f seconds\n",
                                track_header.track_id, track_header.get_duration_seconds (),
                                media_header_box.get_duration_seconds ());
             }
