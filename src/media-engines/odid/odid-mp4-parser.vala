@@ -1268,14 +1268,14 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
                     edit_list_box.set_edit_list_entry (0, start_point.time_offset,
                                                        master_track_timescale,
                                                        -1, 0,
-                                                       1, 1);
+                                                       1, 0);
                     message ("    Created empty edit: " + edit_list_box.string_for_entry (0));
                     edit_list_box.set_edit_list_entry (1,
                                                        end_point.time_offset
                                                         - start_point.time_offset,
                                                        master_track_timescale,
                                                        0, master_track_timescale,
-                                                       1, 1);
+                                                       1, 0);
                     message ("    Created offset edit: " + edit_list_box.string_for_entry (1));
                 } else {
                     edit_list_box.edit_array = new IsoEditListBox.EditEntry[1];
@@ -1283,7 +1283,7 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
                                                        master_track_timescale,
                                                        0,
                                                        master_track_timescale,
-                                                       1, 1);
+                                                       1, 0);
                     message ("    Created simple edit: " + edit_list_box.string_for_entry (0));
                 }
                 edit_list_box.update ();
@@ -4829,7 +4829,8 @@ public static int main (string[] args) {
         } catch (Error e) {
             stderr.printf ("Error: %s\n\n", e.message);
             stderr.printf ("Usage: %s -infile <filename>\n", args[0]);
-            stderr.printf ("\t[-timerange x-y]: Reduce the samples in the MP4 to those falling between time range x-y (decimal seconds)\n");
+            stderr.printf ("\t[-timerange [^]x-y]: Reduce the samples in the MP4 to those falling between time range x-y (decimal seconds)\n");
+            stderr.printf ("\t                     (The caret (^) will cause an empty edit to be inserted into the generated stream)\n");
             stderr.printf ("\t[-print (infile [levels]|outfile|access-points|movie-duration|track-duration)]: Print various details to the standard output\n");
             stderr.printf ("\t[-outfile <filename>]: Write the resulting MP4 to the given filename\n");
             stderr.printf ("\t[-bufoutstream [buffer_size]]: Test running the resulting MP4 through the BufferGeneratingOutputStream\n");
