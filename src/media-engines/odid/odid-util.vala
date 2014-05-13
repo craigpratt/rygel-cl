@@ -163,6 +163,11 @@ public class Rygel.ODIDUtil : Object {
         return time_s;
     }
 
+    internal static int64 file_size (File target_file) throws Error {
+        FileInfo target_info = target_file.query_info (GLib.FileAttribute.STANDARD_SIZE, 0);
+        return target_info.get_size ();
+    }
+
     /**
      * Find time/data keyframe offsets in the associated index file that cover the provided
      * time range (start_time to end_time, in microseconds).
@@ -400,14 +405,15 @@ public class Rygel.ODIDUtil : Object {
                               line.length+1, ODIDIndexEntry.ROW_SIZE, line);
             }
             // Any entry type is ok (not checking the type)
-            // debug ("advance_to_offset: entry at %s (%s) has offset %s",
-            //        extended_time_string, cur_time_offset.to_string(), cur_data_offset);
             int64 cur_data_offset = ODIDIndexEntry.offset_bytes (line);
+            // debug ("advance_to_offset: entry at %s (%0.3f) has offset %llu",
+            //        ODIDIndexEntry.time_field (line),
+            //        (float)ODIDIndexEntry.time_ms (line)/MILLIS_PER_SEC, cur_data_offset);
             if (cur_data_offset >= data_offset) {
                 data_offset = cur_data_offset;
                 int64 time_offset_ms = ODIDIndexEntry.time_ms (line);
                 // debug ("advance_index_to_offset: found offset %lld with time %0.3f",
-                //        data_offset, msec_to_secs (time_offset_ms));
+                //        cur_data_offset, msec_to_secs (time_offset_ms));
                 return (time_offset_ms);
             }
         }

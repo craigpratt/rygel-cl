@@ -82,9 +82,10 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             this.chunk_size = int64.parse (chunk_size_str) * KILOBYTES_TO_BYTES;
         } catch (Error err) {
             debug ("Error reading ODIDMediaEngine property: " + err.message);
-            this.chunk_size = 1536 * KILOBYTES_TO_BYTES;
+            this.chunk_size = 0; // Let the DataSource use a default value
         }
-        message ("chunk size: %lld bytes", this.chunk_size);
+        message ("chunk size: %lld bytes%s", this.chunk_size,
+                 (this.chunk_size <= 0) ? " (DataSource-controlled)" : "");
 
         try {
             this.dtcp_initialized = false;
@@ -505,6 +506,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 res.cleartext_size = res.size; // We'll calculate a new res.size below
 
                 string profile = res.dlna_profile;
+                var est_chunk_size = (this.chunk_size <= 0) ? ODIDDataSource.DEFAULT_CHUNK_SIZE
+                                                            : this.chunk_size;
                 if ((profile.has_prefix ("DTCP_MPEG_PS"))) {
                     // Align the effective data range to VOBU boundaries (one VOBU is one PCP)
                     int64 start_offset = 0;
@@ -514,10 +517,11 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                                              out start_offset, range_offset_list,
                                                              res.size);
                     res.size = ODIDUtil.calculate_dtcp_encrypted_length
-                                            (start_offset, range_offset_list, this.chunk_size);
+                                            (start_offset, range_offset_list, est_chunk_size);
                 } else { // We're encoding as a single PCP
                     // TODO: Think this needs to be TS-aligned...
-                    res.size = (int64) Dtcpip.get_encrypted_length (res.cleartext_size, chunk_size);
+                    res.size = (int64) Dtcpip.get_encrypted_length (res.cleartext_size,
+                                                                    est_chunk_size);
                 }
                 debug ("create_resource: %s: encrypted size: %lld", short_res_path, res.size);
             }

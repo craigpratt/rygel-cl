@@ -36,6 +36,9 @@ using Dtcpip;
 using GUPnP;
 
 internal class Rygel.ODIDDataSource : DataSource, Object {
+    public static const int64 DEFAULT_CHUNK_SIZE = 1536 * KILOBYTES_TO_BYTES;
+    public static const uint LIVE_CHUNKS_PER_SECOND = 2;
+
     protected string resource_uri;
     protected string content_uri;
     protected string index_uri;
@@ -84,7 +87,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     public ODIDDataSource (string resource_uri, MediaResource ? res, int64 chunk_size) {
         this.resource_uri = resource_uri;
         this.res = res;
-        this.chunk_size = chunk_size;
+        this.chunk_size = (chunk_size > 0) ? chunk_size : DEFAULT_CHUNK_SIZE;
     }
 
     public ODIDDataSource.from_live (ODIDLiveSimulator live_sim, MediaResource res,
@@ -243,9 +246,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                            Gee.ArrayList<HTTPResponseElement> response_list)
             throws Error {
         bool perform_cleartext_response;
-        // Get the size for the content file
-        FileInfo content_info = content_file.query_info (GLib.FileAttribute.STANDARD_SIZE, 0);
-        int64 content_size = content_info.get_size ();
+        int64 content_size = ODIDUtil.file_size (content_file);
         debug ("    Total content size is " + content_size.to_string ());
 
         // Process HTTPSeekRequest
@@ -402,9 +403,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                            File index_file,
                                            Gee.ArrayList<HTTPResponseElement> response_list)
             throws Error {
-        // Get the size for the content file
-        FileInfo content_info = content_file.query_info (GLib.FileAttribute.STANDARD_SIZE, 0);
-        int64 content_size = content_info.get_size ();
+        int64 content_size = ODIDUtil.file_size (content_file);
         debug ("    Total content size is " + content_size.to_string ());
         debug ("    prerolling MP4 container file for time-seek (%s)",
                  content_file.get_basename ());
@@ -473,11 +472,23 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                           ("Request to stream live resource without index file: "
                            + resource_uri);
         }
-        // Get the size for the content file
-        FileInfo content_info = content_file.query_info (GLib.FileAttribute.STANDARD_SIZE, 0);
-        int64 content_size = content_info.get_size ();
-        debug ("    Total content size is " + content_size.to_string ());
-        
+        var content_size = ODIDUtil.file_size (content_file);
+        debug ("    Source content size: " + content_size.to_string ());
+        var total_duration_ms = ODIDUtil.duration_from_index_file_ms (index_file);
+        debug ("    Source content duration: %lldms (%0.3fs)",
+               total_duration_ms, (float)total_duration_ms/MILLIS_PER_SEC);
+        var byterate = (content_size * MILLIS_PER_SEC) / total_duration_ms;
+        debug ("    Source content byterate: %lld bytes/second", byterate);
+        if (this.chunk_size > 0) {
+            debug ("    Using config-specified chunk size: %lld bytes", this.chunk_size);
+        } else {
+            this.chunk_size = int64.min (byterate / LIVE_CHUNKS_PER_SECOND, DEFAULT_CHUNK_SIZE);
+            debug ("    Reducing chunk size using %u chunks_per_second: %lld bytes",
+                   LIVE_CHUNKS_PER_SECOND, this.chunk_size);
+        }
+            
+        this.chunk_size = byterate / 2; // use 1/2 second chunk sizes for 
+
         bool is_reverse = (this.playspeed_request == null)
                            ? false : (!playspeed_request.speed.is_positive ());
 
@@ -485,8 +496,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         int64 timelimit_end; // The latest time that can be requested right now
         int64 bytelimit_start; // The earliest byte that can be requested right now
         int64 bytelimit_end; // The latest byte that can be requested right now
-        int64 total_duration = ODIDUtil.duration_from_index_file_ms (index_file)
-                               * MICROS_PER_MILLI;
+        int64 total_duration = total_duration_ms * MICROS_PER_MILLI;
 
         if (this.live_sim.lop_mode == 1) { // We're not constrained by the sim range
             timelimit_start = 0;
