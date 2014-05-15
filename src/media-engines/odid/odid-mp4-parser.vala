@@ -136,7 +136,7 @@ public class Rygel.IsoInputStream : GLib.DataInputStream {
     }
 
     public void seek_to_offset (uint64 offset) throws Error {
-        debug ("IsoInputStream: seek_to_offset: Seeking to " + offset.to_string ());
+        // debug ("IsoInputStream: seek_to_offset: Seeking to " + offset.to_string ());
         if (!can_seek ()) {
             throw new IOError.FAILED ("Stream doesn't support seeking");
         }
@@ -481,7 +481,7 @@ public abstract class Rygel.IsoBox : Object {
             parse_from_stream ();
             this.source_verbatim = false;
             this.loaded = true;
-            debug ("IsoBox(%s): parse: parsed %s", this.type_code, this.to_string ());
+            // debug ("IsoBox(%s): parse: parsed %s", this.type_code, this.to_string ());
         }
     }
 
@@ -501,7 +501,7 @@ public abstract class Rygel.IsoBox : Object {
      * consumed.
      */
     protected virtual uint64 parse_from_stream () throws Error {
-        debug ("IsoBox(%s).parse_from_stream()", this.type_code);
+        // debug ("IsoBox(%s).parse_from_stream()", this.type_code);
         uint64 header_size = ((this.source_size == 1) ? 16 : 8); // 32-bit or 64-bit size
         // No-op - all fields are passed to from_stream() constructor - and we skipped past the
         //  header above
@@ -516,7 +516,7 @@ public abstract class Rygel.IsoBox : Object {
      * changes.
      */
     public virtual void update () throws Error {
-        debug ("IsoBox(%s): update()", this.type_code);
+        // debug ("IsoBox(%s): update()", this.type_code);
         if (this.source_verbatim) {
             throw new IsoBoxError.INVALID_BOX_STATE ("Cannot update a verbatim (unparsed) box");
         }
@@ -552,11 +552,11 @@ public abstract class Rygel.IsoBox : Object {
      */
     public virtual void write_to_stream (IsoOutputStream outstream) throws Error {
         if (this.source_verbatim) {
-            debug ("write_to_stream(%s): Writing %s from the source stream",
+            debug ("write_to_stream(%s): Writing from source stream: %s",
                    this.type_code, this.to_string ());
             this.write_box_from_source (outstream);
         } else {
-            debug ("write_to_stream(%s): Writing %s from fields",
+            debug ("write_to_stream(%s): Writing from fields: %s",
                    this.type_code, this.to_string ());
             write_fields_to_stream (outstream);
         }
@@ -728,7 +728,7 @@ public abstract class Rygel.IsoFullBox : IsoBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoFullBox(%s).parse_from_stream()", this.type_code);
+        // debug ("IsoFullBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream ();
         var dword = this.source_stream.read_uint32 ();
         this.version = (uint8)(dword >> 24);
@@ -878,8 +878,8 @@ public abstract class Rygel.IsoContainerBox : IsoBox {
      * Read list of boxes from the input stream, not reading more than bytes_to_read bytes.
      */
     protected Gee.List<IsoBox> read_boxes (uint64 stream_offset, uint64 bytes_to_read) throws Error {
-        debug ("read_boxes(%s): stream_offset %lld, bytes_to_read %lld",
-               this.type_code, stream_offset, bytes_to_read);
+        // debug ("read_boxes(%s): stream_offset %lld, bytes_to_read %lld",
+        //        this.type_code, stream_offset, bytes_to_read);
         var box_list = new Gee.ArrayList<IsoBox> ();
         uint64 pos = 0;
         do {
@@ -902,7 +902,7 @@ public abstract class Rygel.IsoContainerBox : IsoBox {
      * Read and construct one box from the input stream.
      */
     protected IsoBox read_box (uint64 stream_offset) throws Error {
-        debug ("IsoContainerBox(%s): read_box offset %lld", this.type_code, stream_offset);
+        // debug ("IsoContainerBox(%s): read_box offset %lld", this.type_code, stream_offset);
         var box_size = this.source_stream.read_uint32 ();
         var type_code = this.source_stream.read_4cc ();
         uint64 box_largesize = 0;
@@ -1002,7 +1002,7 @@ public abstract class Rygel.IsoContainerBox : IsoBox {
      */
     public override void load_children (uint levels = 0) throws Error {
         load ();
-        debug ("IsoContainerBox(%s).load_children(%u)", this.type_code, levels);
+        // debug ("IsoContainerBox(%s).load_children(%u)", this.type_code, levels);
         if (levels != 1) {
             if (levels != 0) {
                 levels--;
@@ -1098,7 +1098,7 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoFileContainerBox(%s).parse_from_stream()", this.type_code);
+        // debug ("IsoFileContainerBox(%s).parse_from_stream()", this.type_code);
         // The FileContainerBox doesn't have a base header
         this.source_stream.seek_to_offset (this.source_offset);
         this.children = base.read_boxes (0, this.size);
@@ -1368,7 +1368,7 @@ public class Rygel.IsoGenericBox : IsoBox {
      * Parse the box data from the input stream and set any fields.
      */
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoGenericBox(%s).parse_from_stream()", this.type_code);
+        // debug ("IsoGenericBox(%s).parse_from_stream()", this.type_code);
         var bytes_skipped = base.parse_from_stream ();
         // For the generic box, treat the box as an opaque blob of bytes that we can
         //  reference from the source file if/when needed.
@@ -1423,7 +1423,7 @@ public class Rygel.IsoFileTypeBox : IsoBox {
      * Parse the box data from the input stream and set any fields.
      */
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoFileTypeBox(%s).parse_from_stream()", this.type_code);
+        // debug ("IsoFileTypeBox(%s).parse_from_stream()", this.type_code);
         var instream = this.source_stream;
         
         var bytes_consumed = base.parse_from_stream () + 8;
@@ -1492,7 +1492,7 @@ public class Rygel.IsoMovieBox : IsoContainerBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoMovieBox(%s).parse_from_stream()", this.type_code);
+        // debug ("IsoMovieBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream (); // IsoContainer/IsoBox
         this.children = base.read_boxes (this.source_offset + bytes_consumed,
                                          this.size - bytes_consumed);
@@ -1625,8 +1625,7 @@ public class Rygel.IsoMovieHeaderBox : IsoFullBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoMovieHeaderBox(%s).parse_from_stream()", this.type_code);
-
+        // debug ("IsoMovieHeaderBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream ();
         var instream = this.source_stream;
         switch (this.version) {
@@ -1808,7 +1807,7 @@ public class Rygel.IsoTrackBox : IsoContainerBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoTrackBox(%s).parse_from_stream()", this.type_code);
+        // debug ("IsoTrackBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream (); // IsoContainer/IsoBox
         this.children = base.read_boxes (this.source_offset + bytes_consumed,
                                          this.size - bytes_consumed);
@@ -1975,8 +1974,7 @@ public class Rygel.IsoTrackHeaderBox : IsoFullBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoMovieHeaderBox(%s).parse_from_stream()", this.type_code);
-
+        // debug ("IsoMovieHeaderBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream ();
         var instream = this.source_stream;
         switch (this.version) { // set via IsoFullBox.from_stream
@@ -2174,7 +2172,7 @@ public class Rygel.IsoMediaBox : IsoContainerBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoMediaBox(%s).parse_from_stream()", this.type_code);
+        // debug ("IsoMediaBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream (); // IsoContainer/IsoBox
         this.children = base.read_boxes (this.source_offset + bytes_consumed,
                                          this.size - bytes_consumed);
@@ -2283,8 +2281,7 @@ public class Rygel.IsoMediaHeaderBox : IsoFullBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoMediaHeaderBox(%s).parse_from_stream()", this.type_code);
-
+        // debug ("IsoMediaHeaderBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream ();
         var instream = this.source_stream;
         switch (this.version) {
@@ -2450,8 +2447,7 @@ public class Rygel.IsoHandlerBox : IsoFullBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoHandlerBox(%s).parse_from_stream()", this.type_code);
-
+        // debug ("IsoHandlerBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream ();
         var instream = this.source_stream;
 
@@ -2519,7 +2515,7 @@ public class Rygel.IsoMediaInformationBox : IsoContainerBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoMediaInformationBox(%s).parse_from_stream()", this.type_code);
+        // debug ("IsoMediaInformationBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream (); // IsoContainer/IsoBox
         this.children = base.read_boxes (this.source_offset + bytes_consumed,
                                          this.size - bytes_consumed);
@@ -2576,8 +2572,7 @@ public class Rygel.IsoVideoMediaHeaderBox : IsoFullBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoVideoMediaHeaderBox(%s).parse_from_stream()", this.type_code);
-
+        // debug ("IsoVideoMediaHeaderBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream ();
         var instream = this.source_stream;
 
@@ -2644,8 +2639,7 @@ public class Rygel.IsoSoundMediaHeaderBox : IsoFullBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoSoundMediaHeaderBox(%s).parse_from_stream()", this.type_code);
-
+        // debug ("IsoSoundMediaHeaderBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream ();
         var instream = this.source_stream;
 
@@ -2719,7 +2713,7 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoSampleTableBox(%s).parse_from_stream()", this.type_code);
+        // debug ("IsoSampleTableBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream (); // IsoContainer/IsoBox
         this.children = base.read_boxes (this.source_offset + bytes_consumed,
                                          this.size - bytes_consumed);
@@ -2919,7 +2913,7 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
      *       It will be set the the last sample referenced in the SampleToChunkBox.
      */
     void access_point_offsets_for_sample (ref AccessPoint access_point) throws Error {
-        debug ("access_point_offsets_for_sample(sample %u)",access_point.sample);
+        // debug ("access_point_offsets_for_sample(sample %u)",access_point.sample);
         var sample_to_chunk_box = get_sample_chunk_box ();
         var chunk_offset_box = get_chunk_offset_box ();
         var sample_size_box = get_sample_size_box ();
@@ -2943,9 +2937,9 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
                                              samples_into_chunk);
         access_point.byte_offset = chunk_offset_box.offset_for_chunk (access_point.chunk)
                                    + access_point.bytes_into_chunk;
-        debug ("   sample %u,chunk %u,samples_into_chunk %u,bytes_into_chunk %llu,byte_offset %llu",
-               access_point.sample, access_point.chunk, access_point.samples_into_chunk,
-               access_point.bytes_into_chunk, access_point.byte_offset);
+        // debug ("   sample %u,chunk %u,samples_into_chunk %u,bytes_into_chunk %llu,byte_offset %llu",
+        //        access_point.sample, access_point.chunk, access_point.samples_into_chunk,
+        //        access_point.bytes_into_chunk, access_point.byte_offset);
     }
 
     /**
@@ -3054,8 +3048,8 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
      * This will not set the access point time value.
      */
     void access_point_chunk_for_sample (ref AccessPoint access_point) throws Error {
-        debug ("IsoSampleTableBox.access_point_chunk_for_sample(access_point.sample %u)",
-               access_point.sample);
+        // debug ("IsoSampleTableBox.access_point_chunk_for_sample(access_point.sample %u)",
+        //        access_point.sample);
         var sample_to_chunk_box = get_sample_chunk_box ();
         uint32 samples_into_chunk;
         access_point.chunk = sample_to_chunk_box.chunk_for_sample (access_point.sample,
@@ -3494,8 +3488,7 @@ public class Rygel.IsoSyncSampleBox : IsoFullBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoSyncSampleBox(%s).parse_from_stream()", this.type_code);
-
+        // debug ("IsoSyncSampleBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream ();
         var instream = this.source_stream;
 
@@ -3652,8 +3645,7 @@ public class Rygel.IsoSampleToChunkBox : IsoFullBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoSampleToChunkBox(%s).parse_from_stream()", this.type_code);
-
+        // debug ("IsoSampleToChunkBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream ();
         var instream = this.source_stream;
 
@@ -3968,8 +3960,7 @@ public class Rygel.IsoSampleSizeBox : IsoFullBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoSampleSizeBox(%s).parse_from_stream()", this.type_code);
-
+        // debug ("IsoSampleSizeBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream ();
         var instream = this.source_stream;
 
@@ -4178,8 +4169,7 @@ public class Rygel.IsoChunkOffsetBox : IsoFullBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoChunkOffsetBox(%s).parse_from_stream()", this.type_code);
-
+        // debug ("IsoChunkOffsetBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream ();
         var instream = this.source_stream;
 
@@ -4354,7 +4344,7 @@ public class Rygel.IsoEditBox : IsoContainerBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoEditBox(%s).parse_from_stream()", this.type_code);
+        // debug ("IsoEditBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream (); // IsoContainer/IsoBox
         this.children = base.read_boxes (this.source_offset + bytes_consumed,
                                          this.size - bytes_consumed);
@@ -4452,8 +4442,7 @@ public class Rygel.IsoEditListBox : IsoFullBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoEditListBox(%s).parse_from_stream()", this.type_code);
-
+        // debug ("IsoEditListBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream ();
         var instream = this.source_stream;
 
@@ -4662,7 +4651,7 @@ public class Rygel.IsoDataInformationBox : IsoContainerBox {
     }
 
     public override uint64 parse_from_stream () throws Error {
-        debug ("IsoDataInformationBox(%s).parse_from_stream()", this.type_code);
+        // debug ("IsoDataInformationBox(%s).parse_from_stream()", this.type_code);
         var bytes_consumed = base.parse_from_stream (); // IsoContainer/IsoBox
         this.children = base.read_boxes (this.source_offset + bytes_consumed,
                                          this.size - bytes_consumed);
