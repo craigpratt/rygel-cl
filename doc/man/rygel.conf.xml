@@ -231,6 +231,7 @@ man(1), man(7), http://www.tldp.org/HOWTO/Man-Page/
         </listitem>
       </varlistentry>
     </variablelist>
+    <title>Plugin-specific settings</title>
     <para>Sections for plugins are denoted with <option>[PluginName]</option>
       and can contain options specific to a plugin (see below)  as well these common options:
     </para>

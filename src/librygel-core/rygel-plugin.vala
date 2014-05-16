@@ -210,7 +210,6 @@ public class Rygel.Plugin : GUPnP.ResourceFactory {
                                ICON_SMALL_WIDTH,
                                ICON_SMALL_HEIGHT,
                                ICON_JPG_DEPTH);
-
     }
 
     public void add_resource (ResourceInfo resource_info) {
