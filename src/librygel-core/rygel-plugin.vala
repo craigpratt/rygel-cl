@@ -61,6 +61,8 @@ public enum Rygel.PluginCapabilities {
 
     /* Diagnostics (DIAGE) support */
     DIAGNOSTICS,
+
+    LPE,
 }
 
 /**
@@ -177,6 +179,7 @@ public class Rygel.Plugin : GUPnP.ResourceFactory {
                                                  typeof (EnergyManagement));
                 this.add_resource (resource);
 
+                this.capabilities |= PluginCapabilities.LPE;
             }
         } catch (GLib.Error error) {}
 
