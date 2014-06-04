@@ -46,6 +46,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     protected bool frozen = false;
     protected HTTPSeekRequest seek_request;
     protected PlaySpeedRequest playspeed_request = null;
+    protected bool speed_files_scaled;
     protected MediaResource res;
     protected bool content_protected = false;
     protected int dtcp_session_handle = -1;
@@ -159,22 +160,26 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
         // Process PlaySpeed
         if (this.playspeed_request != null) {
-            int framerate = 0;
-            string framerate_for_speed = ODIDUtil.get_content_property (this.content_uri,
-                                                                        "framerate");
-            if (framerate_for_speed == null) {
-                framerate = PlaySpeedResponse.NO_FRAMERATE;
-            } else {
-                framerate = int.parse ((framerate_for_speed == null)
-                                       ? "" : framerate_for_speed);
-                if (framerate == 0) {
-                    framerate = PlaySpeedResponse.NO_FRAMERATE;
+            string content_scaled_param = ODIDUtil.get_resource_property (this.resource_uri,
+                                                                          "speed-files-scaled");
+            this.speed_files_scaled = (content_scaled_param == "true");
+            debug ( "    Content speed files %s scaled", (this.speed_files_scaled ? "ARE" : "are NOT"));
+            int framerate = PlaySpeedResponse.NO_FRAMERATE;
+            if (!this.speed_files_scaled) { // We're dealing with augmented/decimated streams
+                string framerate_for_speed = ODIDUtil.get_content_property (this.content_uri,
+                                                                            "framerate");
+                if (framerate_for_speed != null) {
+                    framerate = int.parse ((framerate_for_speed == null)
+                                           ? "" : framerate_for_speed);
+                    if (framerate == 0) {
+                        framerate = PlaySpeedResponse.NO_FRAMERATE;
+                    }
                 }
+                debug ( "    Framerate for speed %s: %s",
+                        this.playspeed_request.speed.to_string (),
+                        ( (framerate == PlaySpeedResponse.NO_FRAMERATE) ? "INVALID"
+                          : framerate.to_string () ) );
             }
-            debug ( "    Framerate for speed %s: %s",
-                    this.playspeed_request.speed.to_string (),
-                    ( (framerate == PlaySpeedResponse.NO_FRAMERATE) ? "None"
-                      : framerate.to_string () ) );
             var speed_response
                  = new PlaySpeedResponse.from_speed (this.playspeed_request.speed,
                                                      (framerate > 0) ? framerate
@@ -403,8 +408,10 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                         Gee.ArrayList<HTTPResponseElement> response_list)
             throws Error {
         if (this.playspeed_request != null) {
-            throw new DataSourceError.GENERAL
-                      ("preroll_mp4_time_seek: PlaySpeed not supported for MP4 profiles currently");
+            if (!this.speed_files_scaled) {
+                throw new DataSourceError.GENERAL
+                          ("preroll_mp4_time_seek: PlaySpeed only supported for scaled MP4 profiles currently");
+            }
         }
 
         if (this.seek_request is DTCPCleartextRequest) {
@@ -436,8 +443,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         //message ("preroll_mp4_time_seek: DUMPING PARSED FILE");
         //new_mp4.to_printer ( (line) => {message (line);}, "  ");
 
-        int64 time_offset_start = time_seek.start_time;
-        int64 time_offset_end;
+        uint64 time_offset_start = time_seek.start_time;
+        uint64 time_offset_end;
         bool is_reverse = (this.playspeed_request == null)
                            ? false : (!this.playspeed_request.speed.is_positive ());
         if (time_seek.end_time == HTTPSeekRequest.UNSPECIFIED) {
@@ -449,7 +456,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
         int64 total_duration = (time_seek.total_duration != HTTPSeekRequest.UNSPECIFIED)
                                ? time_seek.total_duration : int64.MAX;
-        debug ("    Total duration is " + total_duration.to_string ());
+        debug ("    Total duration is %llu (%0.3fs)", 
+               total_duration, (float)total_duration/MICROS_PER_SEC);
         debug ("    Processing MP4 time seek (time %0.3fs to %0.3fs)",
                ODIDUtil.usec_to_secs (time_offset_start),
                ODIDUtil.usec_to_secs (time_offset_end));
@@ -459,14 +467,41 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         if ((time_offset_start == 0) && (time_offset_end == int64.MAX)) {
             debug ("    Request is for entire MP4 - no trimming required");
             seek_response = new HTTPTimeSeekResponse
-                                    (time_offset_start, total_duration,
+                                    ((int64)time_offset_start, total_duration,
                                      total_duration,
                                      0, content_size-1, content_size);
         } else {
+            double scale_factor = 0.0;
+            if (this.playspeed_request != null) {
+                // We need to adjust any requested speed into the time range of the scaled file
+                var speed = this.playspeed_request.speed;
+                scale_factor = speed.is_positive () ? speed.to_float () : -speed.to_float ();
+                if (is_reverse) {
+                    time_offset_start = total_duration - time_offset_start;
+                    time_offset_end = total_duration - time_offset_end;
+                }
+                time_offset_start = (int64)(time_offset_start / scale_factor);
+                if (time_offset_end != int64.MAX) {
+                    time_offset_end = (int64)(time_offset_end / scale_factor);
+                }
+                debug ("    Speed-adjusted time range: %0.3fs to %0.3fs",
+                       ODIDUtil.usec_to_secs (time_offset_start),
+                       ODIDUtil.usec_to_secs (time_offset_end));
+            }
             new_mp4.trim_to_time_range (ref time_offset_start, ref time_offset_end,
                                         out start_point, out end_point);
+            if (scale_factor > 0.0) {
+                time_offset_start = (int64)(time_offset_start * scale_factor);
+                if (time_offset_end != int64.MAX) {
+                    time_offset_end = (int64)(time_offset_end * scale_factor);
+                }
+                if (is_reverse) {
+                    time_offset_start = total_duration - time_offset_start;
+                    time_offset_end = total_duration - time_offset_end;
+                }
+            }
             seek_response = new HTTPTimeSeekResponse.with_length
-                                    (time_offset_start, time_offset_end,
+                                    ((int64)time_offset_start, (int64)time_offset_end,
                                      total_duration,
                                      (int64)start_point.byte_offset,
                                      (int64)end_point.byte_offset-1,
@@ -1021,6 +1056,12 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 if (last_buffer) {
                     debug ("mp4_container_source: last buffer received. Total bytes received: %llu",
                            byte_count);
+                    Idle.add ( () => {
+                        message ("mp4_container_source: All requested data sent for %s (%lld bytes) - signaling done()",
+                                 ODIDUtil.short_content_path (this.content_uri), byte_count);
+                        done ();
+                        return false;
+                    }, Priority.HIGH_IDLE);
                 }
             }, true /* paused at start */ );
 
