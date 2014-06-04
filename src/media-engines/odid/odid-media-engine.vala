@@ -472,7 +472,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 debug ("create_resource: %s: duration from index: %lds", short_res_path, res.duration);
             } else if (ODIDUtil.resource_has_mp4_container (res)) {
                 var mp4_file_container = new Rygel.IsoFileContainerBox (normal_content_file);
-                mp4_file_container.load_children (5); // Need to get down to the MediaHeaderBox
+                mp4_file_container.load_children (7); // Need to get down to the SampleSizeBox
                 res.duration = (long)mp4_file_container.get_duration_seconds ();
                 res.dlna_operation |= DLNAOperation.TIMESEEK; // Full time seek (full RADA)
                 debug ("create_resource: %s: duration from mp4 container: %lds",
