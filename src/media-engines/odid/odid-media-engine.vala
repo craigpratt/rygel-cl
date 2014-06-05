@@ -389,8 +389,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 case ODIDLiveSimulator.State.ACTIVE:
                     debug ("create_resource: %s (%s): no size/duration, paced SN increasing",
                            short_res_path, live_sim.get_state_string ());
-                    res.dlna_flags |= DLNAFlags.SN_INCREASE
-                                      | DLNAFlags.SENDER_PACED; // Content will be paced at Sn
+                    res.dlna_flags |= DLNAFlags.SN_INCREASE; // Content will be paced at Sn
                     switch (live_sim.get_mode ()) {
                         case ODIDLiveSimulator.Mode.S0_FIXED:
                             debug ("create_resource: %s: Enabling full seek (s0 fixed)",
@@ -408,7 +407,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                         case ODIDLiveSimulator.Mode.S0_EQUALS_SN:
                             debug ("create_resource: %s: No limited operation modes (S0==SN)",
                                    short_res_path);
-                            res.dlna_flags |= DLNAFlags.S0_INCREASE;
+                            res.dlna_flags |= DLNAFlags.S0_INCREASE
+                                            | DLNAFlags.SENDER_PACED;
                             break;
                         default:
                             throw new ODIDMediaEngineError.CONFIG_ERROR
