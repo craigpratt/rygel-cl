@@ -118,7 +118,7 @@ public class Rygel.HTTPServer : Rygel.StateMachine, GLib.Object {
     public void set_resource_delivery_options (MediaResource res) {
         res.protocol = get_protocol ();
         // Set this just to be safe
-        res.dlna_flags |= DLNAFlags.DLNA_V15 | DLNAFlags.CONNECTION_STALL;
+        res.dlna_flags |= DLNAFlags.DLNA_V15;
         // This server supports all DLNA delivery modes - so leave those flags alone
     }
 

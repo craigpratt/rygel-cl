@@ -409,6 +409,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                    short_res_path);
                             res.dlna_flags |= DLNAFlags.S0_INCREASE
                                             | DLNAFlags.SENDER_PACED;
+                            res.dlna_flags &= ~DLNAFlags.CONNECTION_STALL
+                                            & ~DLNAFlags.BACKGROUND_TRANSFER_MODE;
                             break;
                         default:
                             throw new ODIDMediaEngineError.CONFIG_ERROR
