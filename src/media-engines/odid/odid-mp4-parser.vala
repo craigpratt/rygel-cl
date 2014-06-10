@@ -4338,11 +4338,13 @@ public class Rygel.IsoSampleToChunkBox : IsoFullBox {
                 chunk_run_length = this.chunk_run_array[i+1].first_chunk - cur_entry.first_chunk;
                 chunk_run_samples = chunk_run_length * cur_entry.samples_per_chunk;
             }
+            // debug ("   base_sample %u, base_chunk %u, chunk_run_length %u, chunk_run_samples %u",
+            //        base_sample, base_chunk, chunk_run_length, chunk_run_samples);
             if ((base_sample + chunk_run_samples) > sample_number) { // This is our entry
                 var samples_into_run = sample_number-base_sample;
                 base_chunk += samples_into_run / cur_entry.samples_per_chunk;
                 samples_into_chunk = samples_into_run % cur_entry.samples_per_chunk;
-                // debug ("   base_chunk %u, samples_into_run %u, samples_into_chunk %u",
+                // debug ("   found sample: base_chunk %u, samples_into_run %u, samples_into_chunk %u",
                 //        base_chunk, samples_into_run, samples_into_chunk);
                 return base_chunk;
             }
@@ -4764,7 +4766,7 @@ public class Rygel.IsoSampleSizeBox : IsoFullBox {
      *  in the contained MediaBox.
      */
     public uint32 last_sample_number () {
-        return ((this.sample_size == 0) ? this.entry_size_array.length+1 : this.sample_count);
+        return ((this.sample_size == 0) ? this.entry_size_array.length : this.sample_count);
     }
 
     public bool has_samples () {
