@@ -482,6 +482,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 seek_response = new HTTPTimeSeekResponse
                                         (0, total_duration, total_duration,
                                          0, content_size-1, content_size);
+                response_list.add (seek_response);
             }
         } else {
             double scale_factor = 0.0;
