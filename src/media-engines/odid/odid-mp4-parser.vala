@@ -576,7 +576,7 @@ public abstract class Rygel.IsoBox : Object {
         } else {
             this.size = payload_size + 8;
         }
-        debug ("IsoBox(%s): update_box_fields(): size %llu", this.type_code, this.size);
+        // debug ("IsoBox(%s): update_box_fields(): size %llu", this.type_code, this.size);
     }
 
     /**
@@ -2629,8 +2629,8 @@ public class Rygel.IsoTrackHeaderBox : IsoFullBox {
         builder.append (base.to_string ());
         if (this.loaded) {
             try {
-                builder.append_printf (",ctime %lld,mtime %lld,track_id %d,duration %lld (%0.2fs),layer %d,alt_group %d,vol %0.2f",
-                                       this.creation_time, this.modification_time, this.track_id,
+                builder.append_printf (",track_id %u,ctime %lld,mtime %lld,duration %lld (%0.2fs),layer %d,alt_group %d,vol %0.2f",
+                                       this.track_id,this.creation_time, this.modification_time,
                                        this.duration, this.get_duration_seconds (),
                                        this.layer, this.alternate_group, this.volume,
                                        this.width, this.height);
@@ -3424,7 +3424,8 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
         uint32 chunk;
         uint32 samples_into_chunk;
         uint64 bytes_into_chunk;
-        bool is_at_extent; /** indicates the AccessPoint is an very start or end of the range */
+        bool is_at_start; /** indicates the AccessPoint is an very start of the range */
+        bool is_at_end; /** indicates the AccessPoint is an very end of the range */
     }
 
     public enum Proximity {UNDEFINED, BEFORE, AFTER, WITHIN}
@@ -3441,6 +3442,8 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
                end.time_offset, (float)end.time_offset/get_media_box ().get_header_box ().timescale);
 
         var time_to_sample_box = get_sample_time_box ();
+        var sample_size_box = get_sample_size_box ();
+        var last_sample_number = sample_size_box.last_sample_number ();
 
         { // Start time calculation
             start.sample = time_to_sample_box.sample_for_time (start.time_offset);
@@ -3452,9 +3455,11 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
             } catch (Rygel.IsoBoxError.BOX_NOT_FOUND error) {
                 debug ("   no sync sample box - not aligning the start time");
             }
-            start.is_at_extent = (start.sample == 1);
-            debug ("   start sample for time: %u (%sat start)",
-                   start.sample, (start.is_at_extent ? "" : "not "));
+            start.is_at_start = (start.sample == 1);
+            start.is_at_end = (start.sample == last_sample_number+1);
+            debug ("   start sample for time: %u%s",
+                   start.sample, (start.is_at_start ? " (at start)"
+                                                    : (start.is_at_end ? " (at end)" : "")));
             // Sample-align the start time
             start.time_offset = time_to_sample_box.time_for_sample (start.sample);
             debug ("   effective start time: %llu (%0.3fs)", start.time_offset,
@@ -3462,15 +3467,16 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
             access_point_offsets_for_sample (ref start); // Calculate the chunk/byte offsets
         }
         { // End time calculation
-            var last_sample_number = sample_size_box.last_sample_number ();
             try { // The time offset may be beyond the duration
                 end.sample = time_to_sample_box.sample_for_time (end.time_offset) + 1;
             } catch (Rygel.IsoBoxError.ENTRY_NOT_FOUND error) {
                 end.sample = last_sample_number + 1;
             }
-            end.is_at_extent = (end.sample == last_sample_number+1);
-            debug ("   end sample for time: %u (%sat end)",
-                   end.sample, (end.is_at_extent ? "" : "not "));
+            end.is_at_start = (end.sample == 1);
+            end.is_at_end = (end.sample == last_sample_number+1);
+            debug ("   end sample for time: %u%s",
+                   end.sample, (end.is_at_start ? " (at start)"
+                                                : (end.is_at_end ? " (at end)" : "")));
             end.time_offset = time_to_sample_box.time_for_sample (end.sample);
             debug ("   effective end time: %llu (%0.3fs)", end.time_offset,
                    (float)end.time_offset/get_media_box ().get_header_box ().timescale);
@@ -3480,10 +3486,11 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
 
     /**
      * Calculate the AccessPoint byte_offset, chunk, samples_into_chunk, and bytes_into_chunk
-     * using the access_point sample and the SampleToChunkBox, ChunkOffsetBox, and SampleSizeBox.
+     * using access_point.sample and the SampleToChunkBox, ChunkOffsetBox, and SampleSizeBox.
      *
-     * Note: This will also fence in access_point.sample if it's beyond the sample range.
-     *       It will be set the the last sample referenced in the SampleSizeBox.
+     * Note: If the sample and/or chunk is beyond the number of samples/chunks in the
+     *       SampleTable, the offsets will be set to refer to the point immediately after
+     *       access_point.sample.
      */
     void access_point_offsets_for_sample (ref AccessPoint access_point) throws IsoBoxError {
         // debug ("access_point_offsets_for_sample(sample %u)",access_point.sample);
@@ -3492,42 +3499,31 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
         var sample_size_box = get_sample_size_box ();
         var last_sample_number = sample_size_box.last_sample_number ();
 
-        if (access_point.sample > last_sample_number) {
-            access_point.sample = last_sample_number;
+        if (access_point.sample <= last_sample_number) {
+            uint32 samples_into_chunk;
+            access_point.chunk = sample_to_chunk_box.chunk_for_sample (access_point.sample,
+                                                                       out samples_into_chunk);
+            access_point.samples_into_chunk = samples_into_chunk;
+            access_point.bytes_into_chunk = sample_size_box.sum_samples
+                                                (access_point.sample - samples_into_chunk,
+                                                 samples_into_chunk);
+        } else {
+            // debug ("   sample %u is beyond the total sample count - returning point beyond last sample",
+            //        access_point.sample);
+            access_point.sample = last_sample_number+1;
+            access_point.chunk = chunk_offset_box.last_chunk_number ();
+            uint32 samples_in_chunk;
+            var sample_for_chunk = sample_to_chunk_box.sample_for_chunk (access_point.chunk,
+                                                                         out samples_in_chunk);
+            access_point.samples_into_chunk = samples_in_chunk;
+            access_point.bytes_into_chunk = sample_size_box.sum_samples
+                                                (sample_for_chunk, samples_in_chunk);
         }
-
-        uint32 samples_into_chunk;
-        access_point.chunk = sample_to_chunk_box.chunk_for_sample (access_point.sample,
-                                                                   out samples_into_chunk);
-        access_point.samples_into_chunk = samples_into_chunk;
-        access_point.bytes_into_chunk = sample_size_box.sum_samples
-                                            (access_point.sample - samples_into_chunk,
-                                             samples_into_chunk);
         access_point.byte_offset = chunk_offset_box.offset_for_chunk (access_point.chunk)
                                    + access_point.bytes_into_chunk;
         // debug ("   sample %u,chunk %u,samples_into_chunk %u,bytes_into_chunk %llu,byte_offset %llu",
         //        access_point.sample, access_point.chunk, access_point.samples_into_chunk,
         //        access_point.bytes_into_chunk, access_point.byte_offset);
-    }
-
-    /**
-     * Return the last byte offset referenced
-     */
-    public uint64 last_byte_offset () throws IsoBoxError {
-        var sample_to_chunk_box = get_sample_chunk_box ();
-        var chunk_offset_box = get_chunk_offset_box ();
-        var sample_size_box = get_sample_size_box ();
-
-        var last_chunk = chunk_offset_box.last_chunk_number ();
-        var chunk_byte_offset = chunk_offset_box.offset_for_chunk (last_chunk);
-        uint32 samples_in_chunk;
-        var sample_for_chunk = sample_to_chunk_box.sample_for_chunk (last_chunk,
-                                                                     out samples_in_chunk);
-        var bytes_into_chunk = sample_size_box.sum_samples
-                                            (sample_for_chunk - samples_in_chunk,
-                                             samples_in_chunk);
-        
-        return chunk_byte_offset + bytes_into_chunk;
     }
 
     /**
@@ -3545,6 +3541,7 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
         var chunk_offset_box = get_chunk_offset_box ();
         var sample_to_chunk_box = get_sample_chunk_box ();
         var sample_size_box = get_sample_size_box ();
+        access_point.is_at_end = false;
         try {
             uint64 chunk_byte_offset;
             access_point.chunk = chunk_offset_box.chunk_for_offset
@@ -3571,23 +3568,31 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
             } catch (Rygel.IsoBoxError.ENTRY_NOT_FOUND error) {
                 // The byte offset isn't in the chunk
                 access_point.sample = sample_for_chunk + samples_in_chunk;
-                debug ("   byte offset %llu isn't in chunk %u (next chunk/sample %u/%u is at offset %llu)",
-                       access_point.byte_offset, access_point.chunk, access_point.chunk+1,
-                       access_point.sample, chunk_offset_box.offset_for_chunk (access_point.chunk+1));
+                debug ("   byte offset %llu isn't in chunk %u",
+                       access_point.byte_offset, access_point.chunk);
                 switch (sample_proximity) {
                     case Proximity.BEFORE: // Use the last sample in the chunk
                         // The byte offset isn't within the chunk
                         access_point.sample--; // Just use the last sample of the preceding chunk
                         access_point.bytes_into_chunk = sample_size_box.sum_samples
                                                             (sample_for_chunk, samples_in_chunk-1);
-                        debug ("   Proximity.BEFORE: using last sample in chunk %u: sample %u",
+                        debug ("   Proximity.BEFORE: returning last sample in chunk %u: sample %u",
                                access_point.chunk, access_point.sample);
                         break;
                     case Proximity.AFTER: // Use the first sample of the next chunk
-                        access_point.bytes_into_chunk = 0;
-                        access_point.chunk++;
-                        debug ("   Proximity.AFTER: using next chunk %u, sample: %u",
-                               access_point.chunk, access_point.sample);
+                        var last_chunk_number = chunk_offset_box.last_chunk_number ();
+                        if (access_point.chunk < last_chunk_number) {
+                            access_point.chunk++;
+                            access_point.bytes_into_chunk = 0;
+                            debug ("   Proximity.AFTER: returning next chunk %u, sample %u",
+                                   access_point.chunk, access_point.sample);
+                        } else {
+                            access_point.is_at_end = true;
+                            access_point.bytes_into_chunk = sample_size_box.sum_samples
+                                                              (sample_for_chunk, samples_in_chunk);
+                            debug ("   Proximity.AFTER: beyond last chunk - returning last chunk %u, sample %u",
+                                   access_point.chunk, access_point.sample);
+                        }
                         break;
                     case Proximity.WITHIN:
                         throw new IsoBoxError.ENTRY_NOT_FOUND ("IsoSampleTableBox.access_point_sample_for_byte_offset: byte offset %lld isn't within any chunk of %s (proximity WITHIN)"
@@ -3600,13 +3605,30 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
             }
         } catch (Rygel.IsoBoxError.ENTRY_NOT_FOUND error) {
             // The offset must precede the first chunk
-            access_point.chunk = 1;
-            access_point.sample = 1;
-            access_point.bytes_into_chunk = 0;
-            debug ("   byte offset %llu precedes the first chunk - using chunk %u sample %u",
-                   access_point.byte_offset, access_point.chunk-1, access_point.chunk,
+            switch (sample_proximity) {
+                case Proximity.BEFORE:
+                    access_point.chunk = 0;
+                    access_point.sample = 0;
+                    access_point.bytes_into_chunk = 0;
+                    break;
+                case Proximity.AFTER: // Use the first sample of the first chunk
+                    access_point.chunk = 1;
+                    access_point.sample = 1;
+                    access_point.bytes_into_chunk = 0;
+                    break;
+                case Proximity.WITHIN:
+                    throw new IsoBoxError.ENTRY_NOT_FOUND ("IsoSampleTableBox.access_point_sample_for_byte_offset: byte offset %lld isn't within any chunk of %s (proximity WITHIN)"
+                                                           .printf (access_point.byte_offset,
+                                                                    this.to_string ()));
+                default:
+                    throw new IsoBoxError.ENTRY_NOT_FOUND ("IsoSampleTableBox.access_point_sample_for_byte_offset: Invalid proximity value %d"
+                                                           .printf (sample_proximity));
+            }
+            debug ("   byte offset %llu precedes the first chunk - proximity %d: using chunk %u sample %u",
+                   access_point.byte_offset, sample_proximity, access_point.chunk,
                    access_point.sample);
         }
+        access_point.is_at_start = (access_point.sample == 0);
         debug ("   calculated sample %u for byte offset %llu",
                access_point.sample, access_point.byte_offset);
     }
@@ -3614,17 +3636,39 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
     /**
      * Calculate the access_point chunk and bytes_into_chunk values using the sample.
      * This will not set the access point time value.
+     * 
+     * Note: If the sample and/or chunk is beyond the number of samples/chunks in the
+     *       SampleTable, the offsets will be set to refer to the point immediately after
+     *       access_point.sample.
      */
     void access_point_chunk_for_sample (ref AccessPoint access_point) throws IsoBoxError {
         // debug ("IsoSampleTableBox.access_point_chunk_for_sample(access_point.sample %u)",
         //        access_point.sample);
-        var sample_to_chunk_box = get_sample_chunk_box ();
-        uint32 samples_into_chunk;
-        access_point.chunk = sample_to_chunk_box.chunk_for_sample (access_point.sample,
-                                                                   out samples_into_chunk);
-        access_point.bytes_into_chunk = sample_size_box.sum_samples
-                                            (access_point.sample - samples_into_chunk,
-                                             samples_into_chunk);
+        var sample_size_box = get_sample_size_box ();
+        var last_sample_number = sample_size_box.last_sample_number ();
+        if (access_point.sample <= last_sample_number) {
+            var sample_to_chunk_box = get_sample_chunk_box ();
+            uint32 samples_into_chunk;
+            access_point.chunk = sample_to_chunk_box.chunk_for_sample (access_point.sample,
+                                                                       out samples_into_chunk);
+            access_point.bytes_into_chunk = sample_size_box.sum_samples
+                                                (access_point.sample - samples_into_chunk,
+                                                 samples_into_chunk);
+        } else {
+            // debug ("   sample %u is beyond the total sample count - returning point beyond last chunk",
+            //        access_point.sample);
+            access_point.is_at_end = true;
+            access_point.sample = last_sample_number+1;
+            var chunk_offset_box = get_chunk_offset_box ();
+            access_point.chunk = chunk_offset_box.last_chunk_number ();
+            uint32 samples_in_chunk;
+            var sample_to_chunk_box = get_sample_chunk_box ();
+            var sample_for_chunk = sample_to_chunk_box.sample_for_chunk (access_point.chunk,
+                                                                         out samples_in_chunk);
+            access_point.bytes_into_chunk = sample_size_box.sum_samples
+                                                (sample_for_chunk, samples_in_chunk);
+        }
+        access_point.is_at_start = (access_point.sample == 0);
     }
 
     /**
@@ -3675,7 +3719,7 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
     }
 
     /**
-     * This will remove all sample references that precede the given byte offset.
+     * This will remove all sample references that precede new_start
      *
      * The sample and/or time_offset may not be provided (and will be 0 when omitted) 
      */
@@ -3704,12 +3748,12 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
                    new_start.bytes_into_chunk);
         }
 
-        try {
-            // This may throw since the sample can be beyond the last sample
-            //  (when all refs are removed)
-            access_point_offsets_for_sample (ref new_start);
-            debug ("   cut point for sample %u: %llu", new_start.sample, new_start.byte_offset);
-        } catch (IsoBoxError e) { }
+        debug ("   cut point for sample %u: %llu", new_start.sample, new_start.byte_offset);
+        if (new_start.is_at_start) {
+            debug ("   cut point is at the start - no samples references to remove");
+            return;
+        }
+
         debug ("   removing samples before #%u from TimeToSampleBox",
                new_start.sample);
         var sample_time_box = get_sample_time_box ();
@@ -3736,7 +3780,8 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
         //       (e.g. MovieBox, EditListBox, etc)
         debug ("   sample %u is %llu bytes into chunk",
                new_start.sample, new_start.bytes_into_chunk);
-        if (new_start.bytes_into_chunk > 0) {
+        if ((chunk_offset_box.chunk_offset_array.length > 0)
+            && (new_start.bytes_into_chunk > 0)) {
             chunk_offset_box.chunk_offset_array[0] += new_start.bytes_into_chunk;
             debug ("   adjusting new first chunk offset from %llu to %llu",
                    chunk_offset_box.chunk_offset_array[0] - new_start.bytes_into_chunk,
@@ -3745,12 +3790,12 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
     }
 
     /**
-     * This will remove all sample references that follow the given byte offset.
+     * This will remove the sample reference at new_end and everything that follows
      *
      * The sample and/or time_offset may not be provided (and will be 0 when omitted) 
      */
     public void remove_sample_refs_after_point (ref AccessPoint new_end) throws IsoBoxError {
-        debug ("remove_sample_refs_after_point(new_end.byte_offset %llu,sample %u,time_offset %llu)",
+        debug ("IsoSampleTableBox.remove_sample_refs_after_point(new_end.byte_offset %llu,sample %u,time_offset %llu)",
                new_end.byte_offset, new_end.sample, new_end.time_offset);
         var chunk_offset_box = get_chunk_offset_box ();
         var sample_to_chunk_box = get_sample_chunk_box ();
@@ -3774,12 +3819,13 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
                    new_end.bytes_into_chunk);
         }
 
-        try {
-            // This may throw since the sample can be beyond the last sample
-            //  (when all refs are removed)
-            access_point_offsets_for_sample (ref new_end);
-            debug ("   cut point for sample %u: %llu", new_end.sample, new_end.byte_offset);
-        } catch (IsoBoxError e) { }
+        debug ("   cut point for sample %u: %llu", new_end.sample, new_end.byte_offset);
+        var last_sample_number = sample_size_box.last_sample_number ();
+        if (new_end.is_at_end || new_end.sample == last_sample_number) {
+            debug ("   cut point is at the end - no samples references to remove");
+            return;
+        }
+        
         debug ("   removing samples after #%u from TimeToSampleBox",
                new_end.sample);
         var sample_time_box = get_sample_time_box ();
@@ -3951,20 +3997,23 @@ public class Rygel.IsoTimeToSampleBox : IsoFullBox {
         // debug ("time_for_sample(%u)", sample_number);
         foreach (var cur_entry in this.sample_array) {
             var offset_in_entry = sample_number - base_sample;
-            // debug ("time_for_sample: Entry: sample_count %u, sample_delta %u",
+            // debug ("  Entry: sample_count %u, sample_delta %u",
             //        cur_entry.sample_count, cur_entry.sample_delta);
             if (offset_in_entry <= cur_entry.sample_count) { // This entry is for our sample
                 return (base_time + (offset_in_entry * cur_entry.sample_delta));
             }
             base_sample += cur_entry.sample_count;
             base_time += cur_entry.sample_count * cur_entry.sample_delta;
-            // debug ("time_for_sample: base_sample %u, base_time %llu",
-            //        base_sample, base_time);
+            // debug ("  base_sample %u, base_time %llu",base_sample, base_time);
         }
-
-        throw new IsoBoxError.ENTRY_NOT_FOUND ("IsoTimeToSampleBox.time_for_sample: sample %u not found in %s (total samples %u)"
-                                               .printf (sample_number, this.to_string (),
-                                                        base_sample));
+        if (sample_number == base_sample+1) {
+            debug ("  sample at end - returning total duration %lld",base_time);
+            return base_time;
+        } else {
+            throw new IsoBoxError.ENTRY_NOT_FOUND ("IsoTimeToSampleBox.time_for_sample: sample %u not found in %s (total samples %u)"
+                                                   .printf (sample_number, this.to_string (),
+                                                            base_sample));
+        }
     }
 
     public uint64 total_sample_duration () throws IsoBoxError {
@@ -4289,20 +4338,28 @@ public class Rygel.IsoSampleToChunkBox : IsoFullBox {
                 chunk_run_length = this.chunk_run_array[i+1].first_chunk - cur_entry.first_chunk;
                 chunk_run_samples = chunk_run_length * cur_entry.samples_per_chunk;
             }
+            // debug ("   base_sample %u, base_chunk %u, chunk_run_length %u, chunk_run_samples %u",
+            //        base_sample, base_chunk, chunk_run_length, chunk_run_samples);
             if ((base_sample + chunk_run_samples) > sample_number) { // This is our entry
                 var samples_into_run = sample_number-base_sample;
                 base_chunk += samples_into_run / cur_entry.samples_per_chunk;
                 samples_into_chunk = samples_into_run % cur_entry.samples_per_chunk;
-                // debug ("   base_chunk %u, samples_into_run %u, samples_into_chunk %u",
+                // debug ("   found sample: base_chunk %u, samples_into_run %u, samples_into_chunk %u",
                 //        base_chunk, samples_into_run, samples_into_chunk);
                 return base_chunk;
             }
             base_chunk += chunk_run_length;
             base_sample += chunk_run_samples;
         }
-        throw new IsoBoxError.ENTRY_NOT_FOUND ("IsoSampleToChunkBox.chunk_for_sample: sample index %u not found in %s (total samples %u)"
-                                               .printf (sample_number, this.to_string (),
-                                                        base_sample));
+        if (sample_number == base_sample+1) {
+            // debug ("  sample at end - returning chunk %u",base_chunk);
+            samples_into_chunk = 0;
+            return base_chunk;
+        } else {
+            throw new IsoBoxError.ENTRY_NOT_FOUND ("IsoSampleToChunkBox.chunk_for_sample: sample index %u not found in %s (total samples %u)"
+                                                   .printf (sample_number, this.to_string (),
+                                                            base_sample));
+        }
     }
 
     /**
@@ -4339,9 +4396,15 @@ public class Rygel.IsoSampleToChunkBox : IsoFullBox {
             base_chunk += chunk_run_length;
             base_sample += chunk_run_samples;
         }
-        throw new IsoBoxError.ENTRY_NOT_FOUND ("IsoSampleToChunkBox.sample_for_chunk: chunk index %u not found in %s (total chunks %u)"
-                                               .printf (chunk_index, this.to_string (),
-                                                        base_chunk));
+        if (chunk_index == base_chunk) {
+            // debug ("  chunk at end - returning sample %u",base_sample);
+            samples_in_chunk = 0;
+            return base_sample;
+        } else {
+            throw new IsoBoxError.ENTRY_NOT_FOUND ("IsoSampleToChunkBox.sample_for_chunk: chunk index %u not found in %s (total chunks %u)"
+                                                   .printf (chunk_index, this.to_string (),
+                                                            base_chunk));
+        }
     }
 
     /**
@@ -4425,8 +4488,8 @@ public class Rygel.IsoSampleToChunkBox : IsoFullBox {
 
         if (new_chunk_run_array == null) {
             if (sample_number >= base_sample) {
-                debug ("  sample_number %u is beyond the last sample (%u) - removing all sample refs",
-                       sample_number, base_sample-1);
+                // debug ("  sample_number %u is beyond the last sample (%u) - removing all sample refs",
+                //        sample_number, base_sample-1);
                 new_chunk_run_array = new ChunkRunEntry [0];
             } else {
                 throw new IsoBoxError.ENTRY_NOT_FOUND ("IsoSampleToChunkBox.remove_sample_refs_before: sample %u not found in %s (total samples %u)"
@@ -4703,7 +4766,7 @@ public class Rygel.IsoSampleSizeBox : IsoFullBox {
      *  in the contained MediaBox.
      */
     public uint32 last_sample_number () {
-        return ((this.sample_size == 0) ? this.entry_size_array.length+1 : this.sample_count);
+        return ((this.sample_size == 0) ? this.entry_size_array.length : this.sample_count);
     }
 
     public bool has_samples () {
@@ -4812,8 +4875,9 @@ public class Rygel.IsoChunkOffsetBox : IsoFullBox {
         } else {
             for (uint32 i=0; i<this.chunk_offset_array.length; i++) {
                 if (this.chunk_offset_array[i] > uint32.MAX) {
-                    throw new IsoBoxError.VALUE_TOO_LARGE ("IsoChunkOffsetBox.write_fields_to_stream: offset %llu (entry %u) is too large for stco box"
-                                                           .printf (this.chunk_offset_array[i], i));
+                    throw new IsoBoxError.VALUE_TOO_LARGE ("IsoChunkOffsetBox.write_fields_to_stream: offset %llu (entry %u) is too large for %s"
+                                                           .printf (this.chunk_offset_array[i], i,
+                                                                    this.to_string ()));
                 }
                 outstream.put_uint32 ((uint32)this.chunk_offset_array[i]);
             }
@@ -4826,7 +4890,7 @@ public class Rygel.IsoChunkOffsetBox : IsoFullBox {
 
     public uint64 offset_for_chunk (uint32 chunk_number) throws IsoBoxError {
         if (chunk_number > this.chunk_offset_array.length) {
-            throw new IsoBoxError.ENTRY_NOT_FOUND ("IsoChunkOffsetBox.offset_for_chunk: %s does not have an entry for sample %u"
+            throw new IsoBoxError.ENTRY_NOT_FOUND ("IsoChunkOffsetBox.offset_for_chunk: %s does not have an entry for chunk %u"
                                                    .printf (this.to_string (), chunk_number));
         }
         return (this.chunk_offset_array[chunk_number-1]);
@@ -4836,7 +4900,7 @@ public class Rygel.IsoChunkOffsetBox : IsoFullBox {
      * Remove the chunk references before the given chunk_number
      */
     public void remove_chunk_refs_before (uint32 chunk_number) throws IsoBoxError {
-        if (chunk_number > this.chunk_offset_array.length) {
+        if (chunk_number >= this.chunk_offset_array.length) {
             this.chunk_offset_array = new uint64[0];
         } else {
             // Note that chunk_numbers are 1-based. And Vala slices are start-inclusive
@@ -4871,6 +4935,8 @@ public class Rygel.IsoChunkOffsetBox : IsoFullBox {
     /**
      * Return the chunk number that most immediately precedes the given byte offset and
      * the byte offset of the chunk in chunk_byte_offset.
+     *
+     * If the byte offset precedes the first chunk, throw ENTRY_NOT_FOUND
      *
      * Note that the content at byte_offset may or may not be in the chunk.
      */

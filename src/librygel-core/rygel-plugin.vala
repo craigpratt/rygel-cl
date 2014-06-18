@@ -61,6 +61,8 @@ public enum Rygel.PluginCapabilities {
 
     /* Diagnostics (DIAGE) support */
     DIAGNOSTICS,
+
+    LPE,
 }
 
 /**
@@ -156,9 +158,9 @@ public class Rygel.Plugin : GUPnP.ResourceFactory {
 
         this.resource_infos = new ArrayList<ResourceInfo> ();
 
-        /* Enable BasicManagement service on this device if needed */
         var config = MetaConfig.get_default ();
         try {
+        /* Enable BasicManagement service on this device if needed */
             if (config.get_bool (this.name, "diagnostics")) {
                 var resource = new ResourceInfo (BasicManagement.UPNP_ID,
                                                  BasicManagement.UPNP_TYPE,
@@ -167,6 +169,17 @@ public class Rygel.Plugin : GUPnP.ResourceFactory {
                 this.add_resource (resource);
 
                 this.capabilities |= PluginCapabilities.DIAGNOSTICS;
+            }
+
+        /* Enable EnergyManagement service on this device if needed */
+            if (config.get_bool (this.name, "energy-management")) {
+                var resource = new ResourceInfo (EnergyManagement.UPNP_ID,
+                                                 EnergyManagement.UPNP_TYPE,
+                                                 EnergyManagement.DESCRIPTION_PATH,
+                                                 typeof (EnergyManagement));
+                this.add_resource (resource);
+
+                this.capabilities |= PluginCapabilities.LPE;
             }
         } catch (GLib.Error error) {}
 

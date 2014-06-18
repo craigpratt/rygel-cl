@@ -414,13 +414,9 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             }
         }
 
-        if (this.seek_request is DTCPCleartextRequest) {
-            throw new DataSourceError.GENERAL
-                      ("preroll_mp4_time_seek: DTCPCleartextRequest not supported for MP4 profiles currently");
-        }
-
         if ((this.seek_request == null)
-            || (this.seek_request is HTTPByteSeekRequest)) {
+            || (this.seek_request is HTTPByteSeekRequest)
+            || (this.seek_request is DTCPCleartextRequest)) {
             debug ("    No time-seek request received - delegating to preroll_static_resource");
             // Note: The upstream code assumes the entire binary will be sent (res@size)
             preroll_static_resource (content_file,index_file,response_list);
@@ -466,10 +462,28 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         HTTPTimeSeekResponse seek_response;
         if ((time_offset_start == 0) && (time_offset_end == int64.MAX)) {
             debug ("    Request is for entire MP4 - no trimming required");
-            seek_response = new HTTPTimeSeekResponse
-                                    ((int64)time_offset_start, total_duration,
-                                     total_duration,
-                                     0, content_size-1, content_size);
+            if (this.content_protected) {
+                seek_response
+                    = new HTTPTimeSeekResponse.time_only (0, total_duration, total_duration );
+                debug ("Time range for time seek response: 0.000s through %0.3fs",
+                       ODIDUtil.usec_to_secs (total_duration));
+
+                this.range_offset_list.add (content_size);
+                int64 encrypted_length = ODIDUtil.calculate_dtcp_encrypted_length
+                                                    (0, this.range_offset_list, this.chunk_size);
+                debug ("encrypted_length: %lld", encrypted_length);
+                var range_end = content_size - 1;
+                var seek_response_cleartext = new DTCPCleartextResponse (0, range_end,
+                                                                         content_size,
+                                                                         encrypted_length);
+                response_list.add (seek_response);
+                response_list.add (seek_response_cleartext);
+            } else {
+                seek_response = new HTTPTimeSeekResponse
+                                        (0, total_duration, total_duration,
+                                         0, content_size-1, content_size);
+                response_list.add (seek_response);
+            }
         } else {
             double scale_factor = 0.0;
             if (this.playspeed_request != null) {
@@ -500,20 +514,44 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                     time_offset_end = total_duration - time_offset_end;
                 }
             }
-            seek_response = new HTTPTimeSeekResponse.with_length
-                                    ((int64)time_offset_start, (int64)time_offset_end,
-                                     total_duration,
-                                     (int64)start_point.byte_offset,
-                                     (int64)end_point.byte_offset-1,
-                                     content_size,
-                                     (int64)new_mp4.size);
+
+            if (this.content_protected) {
+                seek_response = new HTTPTimeSeekResponse.time_only ((int64)time_offset_start,
+                                                                    (int64)time_offset_end,
+                                                                    total_duration );
+                debug ("Time range for time seek response: %0.3fs through %0.3fs",
+                       ODIDUtil.usec_to_secs (time_offset_start),
+                       ODIDUtil.usec_to_secs (time_offset_end));
+                response_list.add (seek_response);
+                var range_offsets = new Gee.ArrayList<int64?> ();
+                range_offsets.add ((int64)new_mp4.size);
+                int64 encrypted_length = ODIDUtil.calculate_dtcp_encrypted_length
+                                                    (0, range_offsets, this.chunk_size);
+                debug ("encrypted_length: %lld", encrypted_length);
+                var seek_response_cleartext = new DTCPCleartextResponse ((int64)start_point.byte_offset,
+                                                                         (int64)end_point.byte_offset,
+                                                                         content_size,
+                                                                         encrypted_length);
+                message ("Byte range for dtcp cleartext response: bytes %lld through %lld",
+                       seek_response.start_byte, seek_response.end_byte );
+                response_list.add (seek_response_cleartext);
+
+            } else {
+                seek_response = new HTTPTimeSeekResponse.with_length
+                                        ((int64)time_offset_start, (int64)time_offset_end,
+                                         total_duration,
+                                         (int64)start_point.byte_offset,
+                                         (int64)end_point.byte_offset,
+                                         content_size,
+                                         (int64)new_mp4.size);
+                message ("Time range for time seek response: %0.3fs through %0.3fs",
+                       ODIDUtil.usec_to_secs (seek_response.start_time),
+                       ODIDUtil.usec_to_secs (seek_response.end_time));
+                message ("Byte range for time seek response: bytes %lld through %lld",
+                       seek_response.start_byte, seek_response.end_byte );
+                response_list.add (seek_response);
+            }
         }
-        debug ("Time range for time seek response: %0.3fs through %0.3fs",
-               ODIDUtil.usec_to_secs (seek_response.start_time),
-               ODIDUtil.usec_to_secs (seek_response.end_time));
-        debug ("Byte range for time seek response: bytes %lld through %lld",
-               seek_response.start_byte, seek_response.end_byte );
-        response_list.add (seek_response);
 
         this.mp4_container_source = new_mp4;
     }
@@ -1049,7 +1087,31 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                     Idle.add ( () => {
                         var bytes_ref = bytes; // maintain a reference
                         // This should be the last reference to "bytes" when it's executed
-                        data_available (bytes_ref.get_data ());
+                        if (this.dtcp_session_handle == -1) {
+                            data_available (bytes_ref.get_data ());
+                        } else {
+                            // Encrypted data has to be unowned as the reference will be passed
+                            // to DTCP libraries to perform the cleanup, else vala will be
+                            //performing the cleanup by default.
+                            unowned uint8[] encrypted_data = null;
+                            uchar cci = 0x3; // TODO: Put the CCI bits in resource.info
+
+                            // Encrypt the data
+                            int return_value = Dtcpip.server_dtcp_encrypt
+                                              ( this.dtcp_session_handle, cci,
+                                                (uint8[])bytes_ref.get_data (),
+                                                out encrypted_data );
+
+                            message ("Encryption returned: %d and the encryption size : %s",
+                                   return_value, (encrypted_data == null)
+                                                 ? "NULL" : encrypted_data.length.to_string ());
+
+                            // Call event to send buffer to client
+                            data_available (encrypted_data);
+
+                            int ret_free = Dtcpip.server_dtcp_free (encrypted_data);
+                            debug ("DTCP-IP data reference freed : %d", ret_free);
+                        }
                         return false;
                     }, Priority.HIGH_IDLE);
                 }
@@ -1251,12 +1313,12 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         message ("stop(): " + ODIDUtil.short_content_path (this.content_uri));
     }
 
-	public bool on_paced_data_ready () {
+    public bool on_paced_data_ready () {
         // A buffer's worth of data is ready
         this.pacing_timer = 0;
         initiate_reading ();
         return false; // Don't repeat - this is a one-shot
-	}
+    }
 
     public void clear_dtcp_session () {
         if (this.dtcp_session_handle != -1) {

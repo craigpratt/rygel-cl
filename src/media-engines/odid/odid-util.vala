@@ -592,12 +592,16 @@ public class Rygel.ODIDUtil : Object {
     internal static int64 get_dtcp_aligned_end (int64 start_byte, int64 end_byte,
                                                 int64 packet_size) {
         int64 temp_end;
-        if (end_byte > 0) {
+        if ((end_byte > 0) && (end_byte != int64.MAX)) {
             // Check if the total length falls between the packet size.
             // Else add bytes to complete packet size.
             int64 req_length = end_byte - start_byte;
             int64 add_bytes = (packet_size - (req_length % packet_size)) % packet_size;
-            temp_end = end_byte + add_bytes;
+            if ((end_byte + add_bytes) > int64.MAX) {
+                temp_end = int64.MAX; // This is an error - but at least don't overflow
+            } else {
+                temp_end = end_byte + add_bytes;
+            }
         } else {
             temp_end = end_byte;
         }
