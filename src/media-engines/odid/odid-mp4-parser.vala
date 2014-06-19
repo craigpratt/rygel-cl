@@ -589,12 +589,12 @@ public abstract class Rygel.IsoBox : Object {
      */
     public virtual void write_to_stream (IsoOutputStream outstream) throws Error {
         if (this.source_verbatim) {
-            debug ("write_to_stream(%s): Writing from source stream: %s",
-                   this.type_code, this.to_string ());
+            // debug ("write_to_stream(%s): Writing from source stream: %s",
+            //        this.type_code, this.to_string ());
             this.write_box_from_source (outstream);
         } else {
-            debug ("write_to_stream(%s): Writing from fields: %s",
-                   this.type_code, this.to_string ());
+            // debug ("write_to_stream(%s): Writing from fields: %s",
+            //        this.type_code, this.to_string ());
             write_fields_to_stream (outstream);
         }
     }
@@ -1037,8 +1037,8 @@ public abstract class Rygel.IsoContainerBox : IsoBox {
     protected IsoBox make_box_for_type (string type_code, uint64 stream_offset, 
                                         uint32 box_size, uint64 box_largesize)
             throws Error {
-        debug ("IsoContainerBox(%s).make_box_for_type(type_code %s,stream_offset %lld,box_size %u,largesize %llu)",
-               this.type_code, type_code, stream_offset, box_size, box_largesize);
+        // debug ("IsoContainerBox(%s).make_box_for_type(type_code %s,stream_offset %lld,box_size %u,largesize %llu)",
+        //        this.type_code, type_code, stream_offset, box_size, box_largesize);
         switch (type_code) {
             case "ftyp":
                 return new IsoFileTypeBox.from_stream (this, type_code, this.source_stream,
@@ -1168,7 +1168,7 @@ public abstract class Rygel.IsoContainerBox : IsoBox {
      * and then update the parent.
      */
     public void update_children (uint levels = 0) throws IsoBoxError {
-        debug ("IsoContainerBox(%s).update_children(%u)", this.type_code, levels);
+        // debug ("IsoContainerBox(%s).update_children(%u)", this.type_code, levels);
         // First go down
         if (levels != 1) {
             if (levels != 0) {
