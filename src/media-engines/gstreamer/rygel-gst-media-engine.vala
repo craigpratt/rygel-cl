@@ -141,6 +141,9 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
         // The GstMediaEngine only supports byte-based seek on the primary resource currently
         primary_res.dlna_operation = DLNAOperation.RANGE;
 
+        // The GstMediaEngine supports connection stalling on the primary resource
+        primary_res.dlna_flags |= DLNAFlags.CONNECTION_STALL;
+
         // Add a resource for http consumption
         MediaResource http_res = new MediaResource.from_resource ("primary_http",
                                                                   primary_res);
