@@ -328,12 +328,60 @@ public class Rygel.MediaResource : GLib.Object {
         strbuf.append ("dlna_profile ")
               .append (this.dlna_profile == null ? "null" : this.dlna_profile)
               .append_unichar (',');
-        strbuf.append_printf ("dlna_flags %.8X,", this.dlna_flags);
+        strbuf.append_printf ("dlna_flags %.8X [", this.dlna_flags);
+        if (is_dlna_protocol_flag_set (DLNAFlags.SENDER_PACED)) {
+            strbuf.append ("sp-flag ");
+        }
+        if (is_dlna_protocol_flag_set (DLNAFlags.TIME_BASED_SEEK)) {
+            strbuf.append ("lop-time ");
+        }
+        if (is_dlna_protocol_flag_set (DLNAFlags.BYTE_BASED_SEEK)) {
+            strbuf.append ("lop-byte ");
+        }
+        if (is_dlna_protocol_flag_set (DLNAFlags.S0_INCREASE)) {
+            strbuf.append ("s0-increase ");
+        }
+        if (is_dlna_protocol_flag_set (DLNAFlags.SN_INCREASE)) {
+            strbuf.append ("sn-increase ");
+        }
+        if (is_dlna_protocol_flag_set (DLNAFlags.STREAMING_TRANSFER_MODE)) {
+            strbuf.append ("streaming ");
+        }
+        if (is_dlna_protocol_flag_set (DLNAFlags.INTERACTIVE_TRANSFER_MODE)) {
+            strbuf.append ("interactive ");
+        }
+        if (is_dlna_protocol_flag_set (DLNAFlags.BACKGROUND_TRANSFER_MODE)) {
+            strbuf.append ("background ");
+        }
+        if (is_dlna_protocol_flag_set (DLNAFlags.CONNECTION_STALL)) {
+            strbuf.append ("stall ");
+        }
+        if (is_dlna_protocol_flag_set (DLNAFlags.DLNA_V15)) {
+            strbuf.append ("v1.5 ");
+        }
+        if (is_dlna_protocol_flag_set (DLNAFlags.LINK_PROTECTED_CONTENT)) {
+            strbuf.append ("link-protected ");
+        }
+        if (is_dlna_protocol_flag_set (DLNAFlags.CLEARTEXT_BYTESEEK_FULL)) {
+            strbuf.append ("cleartext-full ");
+        }
+        if (is_dlna_protocol_flag_set (DLNAFlags.LOP_CLEARTEXT_BYTESEEK)) {
+            strbuf.append ("cleartext-lop ");
+        }
+        strbuf.overwrite (strbuf.len-1,"],"); // Replace space
+ 
         if (this.dlna_conversion != DLNAConversion.NONE) {
             strbuf.append_printf ("dlna_conversion %1d,", this.dlna_conversion);
         }
         if (this.dlna_operation != DLNAOperation.NONE) {
-            strbuf.append_printf ("dlna_operation %.2X,", this.dlna_operation);
+            strbuf.append_printf ("dlna_operation %.2X [", this.dlna_operation);
+            if (is_dlna_operation_mode_set (DLNAOperation.RANGE)) {
+                strbuf.append ("byte-seek ");
+            }
+            if (is_dlna_operation_mode_set (DLNAOperation.TIMESEEK)) {
+                strbuf.append ("time-seek ");
+            }
+            strbuf.overwrite (strbuf.len-1,"],"); // Replace space
         }
         if (this.play_speeds != null) {
             strbuf.append ("play_speeds [");
