@@ -1138,26 +1138,26 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         this.mp4_container_thread = new Thread<void*> ( generator_name, () => {
             debug (generator_name + " started");
             Rygel.IsoOutputStream out_stream;
+            string container_source_name = (this.mp4_container_source == null)
+                                           ? "null"
+                                           : this.mp4_container_source.iso_file.get_basename ();
             try {
                 debug (generator_name + ": Starting write of mp4 box tree from %s (%llu bytes)",
-                       this.mp4_container_source.iso_file.get_basename (),
-                       this.mp4_container_source.size);
+                       container_source_name, this.mp4_container_source.size);
                 out_stream = new Rygel.IsoOutputStream (this.mp4_container_stream);
                 this.mp4_container_source.write_to_stream (out_stream);
                 debug (generator_name + ": Completed writing mp4 box tree from %s (%llu bytes written)",
-                       this.mp4_container_source.iso_file.get_basename (), byte_count);
+                       container_source_name, byte_count);
             } catch (Error err) {
                 message (generator_name + ": Error during write of mp4 box tree from %s (%llu bytes written): %s",
-                       this.mp4_container_source.iso_file.get_basename (), byte_count,
-                       err.message);
+                         container_source_name, byte_count, err.message);
             }
             if (out_stream != null) {
                 try {
                     out_stream.close ();
                 } catch (Error err) {
                 message (generator_name + ": Error closing mp4 box tree stream from %s (%llu bytes written): %s",
-                       this.mp4_container_source.iso_file.get_basename (), byte_count,
-                       err.message);
+                       container_source_name, byte_count, err.message);
                 }
             }
             debug (generator_name + " done/exiting");
@@ -1166,7 +1166,6 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
         this.mp4_container_stream.resume ();
     }
-
 
     // Creates a channel to read data from a command's stdout through a pipe.
     private IOChannel channel_from_pipe (File file) throws IOChannelError {
