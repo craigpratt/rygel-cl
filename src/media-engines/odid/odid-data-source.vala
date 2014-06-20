@@ -181,9 +181,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                           : framerate.to_string () ) );
             }
             var speed_response
-                 = new PlaySpeedResponse.from_speed (this.playspeed_request.speed,
-                                                     (framerate > 0) ? framerate
-                                                     : PlaySpeedResponse.NO_FRAMERATE);
+                 = new PlaySpeedResponse.from_speed (this.playspeed_request.speed, framerate);
             response_list.add (speed_response);
         }
 
@@ -458,7 +456,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                ODIDUtil.usec_to_secs (time_offset_start),
                ODIDUtil.usec_to_secs (time_offset_end));
 
-        Rygel.IsoSampleTableBox.AccessPoint start_point, end_point;
+        Rygel.IsoAccessPoint start_point, end_point;
         HTTPTimeSeekResponse seek_response;
         if ((time_offset_start == 0) && (time_offset_end == int64.MAX)) {
             debug ("    Request is for entire MP4 - no trimming required");
@@ -482,17 +480,22 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 seek_response = new HTTPTimeSeekResponse
                                         (0, total_duration, total_duration,
                                          0, content_size-1, content_size);
+                debug ("    generated response: " + seek_response.to_string());
                 response_list.add (seek_response);
             }
         } else {
             double scale_factor = 0.0;
             if (this.playspeed_request != null) {
                 // We need to adjust any requested speed into the time range of the scaled file
+                // Note: We only support scaled-rate (restamped) mp4s currently
                 var speed = this.playspeed_request.speed;
                 scale_factor = speed.is_positive () ? speed.to_float () : -speed.to_float ();
                 if (is_reverse) {
                     time_offset_start = total_duration - time_offset_start;
                     time_offset_end = total_duration - time_offset_end;
+                    debug ("    Negative-rate-adjusted time range: %0.3fs to %0.3fs",
+                           ODIDUtil.usec_to_secs (time_offset_start),
+                           ODIDUtil.usec_to_secs (time_offset_end));
                 }
                 time_offset_start = (int64)(time_offset_start / scale_factor);
                 if (time_offset_end != int64.MAX) {
@@ -502,9 +505,16 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                        ODIDUtil.usec_to_secs (time_offset_start),
                        ODIDUtil.usec_to_secs (time_offset_end));
             }
-            new_mp4.trim_to_time_range (ref time_offset_start, ref time_offset_end,
+            new_mp4.trim_to_time_range (time_offset_start, time_offset_end,
                                         out start_point, out end_point);
-            if (scale_factor > 0.0) {
+            time_offset_start = start_point.time_offset * MICROS_PER_SEC
+                                / start_point.get_timescale ();
+            time_offset_end = end_point.time_offset  * MICROS_PER_SEC
+                                / end_point.get_timescale ();
+            if (this.playspeed_request != null) {
+                debug ("    Speed-adjusted effective time range: %0.3fs to %0.3fs",
+                       ODIDUtil.usec_to_secs (time_offset_start),
+                       ODIDUtil.usec_to_secs (time_offset_end));
                 time_offset_start = (int64)(time_offset_start * scale_factor);
                 if (time_offset_end != int64.MAX) {
                     time_offset_end = (int64)(time_offset_end * scale_factor);
@@ -535,7 +545,6 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 message ("Byte range for dtcp cleartext response: bytes %lld through %lld",
                        seek_response.start_byte, seek_response.end_byte );
                 response_list.add (seek_response_cleartext);
-
             } else {
                 seek_response = new HTTPTimeSeekResponse.with_length
                                         ((int64)time_offset_start, (int64)time_offset_end,
@@ -982,6 +991,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         } else {
             start_mp4_container_source ();
         }
+        message ("start(): " + ODIDUtil.short_content_path (this.content_uri));
     }
 
     /**

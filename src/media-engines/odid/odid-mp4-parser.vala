@@ -38,7 +38,8 @@ public errordomain Rygel.IsoBoxError {
     ENTRY_NOT_FOUND,
     BOX_NOT_FOUND,
     VALUE_TOO_LARGE,
-    NOT_LOADED
+    NOT_LOADED,
+    NOT_SUPPORTED
 }
 
 public class Rygel.IsoInputStream : GLib.DataInputStream {
@@ -279,7 +280,7 @@ public class BufferGeneratingOutputStream : OutputStream {
             try {
                 this.state_mutex.lock ();
                 if (this.stopped) {
-                    throw new IOError.NO_SPACE ("The BufferGeneratingOutputStream is stopped");
+                    throw new IOError.NO_SPACE ("The BufferGeneratingOutputStream is stopped (before wait)");
                 }
                 if (this.current_buffer == null) {
                     this.current_buffer = new ByteArray.sized ((uint32)buffer_target_size);
@@ -297,7 +298,7 @@ public class BufferGeneratingOutputStream : OutputStream {
                         this.unpaused.wait (state_mutex);
                         // debug ("BufferGeneratingOutputStream.write: done waiting");
                         if (this.stopped) {
-                            throw new IOError.NO_SPACE ("The BufferGeneratingOutputStream is stopped");
+                            throw new IOError.NO_SPACE ("The BufferGeneratingOutputStream is stopped (post wait)");
                         }
                         if (this.current_buffer == null) {
                             // Buffer was handled out from under us (e.g. flushed)
@@ -707,7 +708,7 @@ public abstract class Rygel.IsoBox : Object {
             }
             cur_box = cur_box.parent_box;
         }
-        if (cur_box.get_type () != expected_box_class) {
+        if (!cur_box.get_type ().is_a (expected_box_class)) {
             throw new IsoBoxError.INVALID_BOX_TYPE
                                   (cur_box.to_string() + " is not the expected type "
                                    + expected_box_class.name ());
@@ -728,7 +729,7 @@ public abstract class Rygel.IsoBox : Object {
             throw new IsoBoxError.BOX_NOT_FOUND
                                   (this.to_string() + " does not have a parent");
         }
-        if (this.parent_box.get_type () != expected_parent_class) {
+        if (!this.parent_box.get_type ().is_a (expected_parent_class)) {
             throw new IsoBoxError.INVALID_BOX_TYPE
                                   ("parent of %s is not of the expected type %s (found %s)"
                                    .printf (this.to_string (),
@@ -746,7 +747,7 @@ public abstract class Rygel.IsoBox : Object {
     public IsoBox get_ancestor_by_class (Type box_class) throws IsoBoxError {
         IsoBox cur_box = this.parent_box;
         while (cur_box != null) {
-            if (cur_box.get_type () == box_class) {
+            if (cur_box.get_type ().is_a (box_class)) {
                 return cur_box;
             }
             cur_box = cur_box.parent_box;
@@ -772,6 +773,46 @@ public abstract class Rygel.IsoBox : Object {
         throw new IsoBoxError.BOX_NOT_FOUND
                               (this.to_string() + " does not have an ancestor with type code "
                               + type_code);
+    }
+
+    /**
+     * Return true if other_box precedes this box in the box's parent container
+     *
+     * Throws IsoBoxError.BOX_NOT_FOUND if other_box is not in the same container as this box
+     */
+    public bool precedes (IsoBox other_box) throws IsoBoxError {
+        var parent_container = get_parent_box (typeof (IsoContainerBox)) as IsoContainerBox;
+        return parent_container.is_box_before_box (this, other_box);
+    }
+
+    /**
+     * Return true if other_box follows this box in the box's parent container
+     *
+     * Throws IsoBoxError.BOX_NOT_FOUND if other_box is not in the same container as this box
+     */
+    public bool follows (IsoBox other_box) throws IsoBoxError {
+        var parent_container = get_parent_box (typeof (IsoContainerBox)) as IsoContainerBox;
+        return parent_container.is_box_before_box (other_box, this);
+    }
+
+    /**
+     * Return true if other_box immediately precedes this box in the box's parent container
+     *
+     * Throws IsoBoxError.BOX_NOT_FOUND if other_box is not in the same container as this box
+     */
+    public bool immediately_precedes (IsoBox other_box) throws IsoBoxError  {
+        var parent_container = get_parent_box (typeof (IsoContainerBox)) as IsoContainerBox;
+        return parent_container.is_box_immediately_before_box (this, other_box);
+    }
+
+    /**
+     * Return true if other_box precedes this box in the box's parent container
+     *
+     * Throws IsoBoxError.BOX_NOT_FOUND if other_box is not in the same container as this box
+     */
+    public bool immediately_follows (IsoBox other_box) throws IsoBoxError {
+        var parent_container = get_parent_box (typeof (IsoContainerBox)) as IsoContainerBox;
+        return parent_container.is_box_immediately_before_box (other_box, this);
     }
 
     /**
@@ -887,7 +928,7 @@ public abstract class Rygel.IsoContainerBox : IsoBox {
         check_loaded ("IsoContainerBox.get_boxes_by_class", box_class.name ());
         var box_list = new Gee.ArrayList<IsoBox> ();
         foreach (var box in this.children) {
-            if (box.get_type () == box_class) {
+            if (box.get_type ().is_a (box_class)) {
                 box_list.add (box);
             }
         }
@@ -908,7 +949,7 @@ public abstract class Rygel.IsoContainerBox : IsoBox {
     public IsoBox first_box_of_class (Type box_class) throws IsoBoxError {
         check_loaded ("IsoContainerBox.first_box_of_class", box_class.name ());
         foreach (var box in this.children) {
-            if (box.get_type () == box_class) {
+            if (box.get_type ().is_a (box_class)) {
                 return box;
             }
         }
@@ -929,11 +970,49 @@ public abstract class Rygel.IsoContainerBox : IsoBox {
     public bool has_box_of_class (Type box_class) throws Rygel.IsoBoxError {
         check_loaded ("IsoContainerBox.has_box_of_class", box_class.name ());
         foreach (var box in this.children) {
-            if (box.get_type () == box_class) {
+            if (box.get_type ().is_a (box_class)) {
                 return true;
             }
         }
         return false;
+    }
+
+    public bool is_box_before_box (IsoBox box_a, IsoBox box_b) throws Rygel.IsoBoxError {
+        check_loaded ("IsoContainerBox.is_box_before_box");
+        bool found_a = false;
+        foreach (var box in this.children) {
+            if (box == box_a) {
+                found_a = true;
+            } else if (box == box_b) {
+                return found_a;
+            }
+        }
+        if (found_a) {
+            throw new IsoBoxError.BOX_NOT_FOUND
+                                  ("IsoContainerBox.is_box_before_box(): "
+                                   + this.to_string() + " does not contain "
+                                   + box_b.to_string ());
+        } else {
+            throw new IsoBoxError.BOX_NOT_FOUND
+                                  ("IsoContainerBox.is_box_before_box(): "
+                                   + this.to_string() + " does not contain "
+                                   + box_a.to_string () + " or " + box_b.to_string ());
+        }
+    }
+
+    public bool is_box_immediately_before_box (IsoBox box_a, IsoBox box_b) throws Rygel.IsoBoxError {
+        check_loaded ("IsoContainerBox.is_box_immediately_before_box");
+        bool found_a = false;
+        foreach (var box in this.children) {
+            if (box == box_b) {
+                return found_a;
+            }
+            found_a = (box == box_a);
+        }
+        throw new IsoBoxError.BOX_NOT_FOUND
+                              ("IsoContainerBox.is_box_immediately_before_box(): "
+                               + this.to_string() + " does not contain "
+                               + box_b.to_string ());
     }
 
     public IsoBox get_descendant_by_class_list (Type [] box_class_array) throws Rygel.IsoBoxError {
@@ -971,7 +1050,7 @@ public abstract class Rygel.IsoContainerBox : IsoBox {
         uint remove_count = 0;
         for (var box_it = this.children.iterator (); box_it.next ();) {
             var box = box_it.get ();
-            if (box.get_type () == box_class) {
+            if (box.get_type ().is_a (box_class)) {
                 box_it.remove ();
                 remove_count++;
                 if ((num_to_remove != 0) && (remove_count == num_to_remove)) {
@@ -995,8 +1074,8 @@ public abstract class Rygel.IsoContainerBox : IsoBox {
             var box = read_box (stream_offset + pos);
             if (box.size > bytes_to_read) {
                 throw new IsoBoxError.FRAGMENTED_BOX
-                              ("Found box size of %lld with only %lld bytes remaining",
-                               box.size, bytes_to_read);
+                              ("Found box size of %lld with only %lld bytes remaining at offset %llu",
+                               box.size, bytes_to_read, stream_offset);
             }
             box_list.add (box);
             // debug ("Offset %lld: Found box type %s with size %lld",
@@ -1231,6 +1310,60 @@ public abstract class Rygel.IsoContainerBox : IsoBox {
 } // END class IsoContainerBox
 
 /**
+ * The AccessPoint (abstract) class defines a generic concept of an AccessPoint within an
+ * content container track.
+ *
+ * Which fields are to be set at what point are context-specific.
+ */
+public abstract class Rygel.IsoAccessPoint {
+    public Rygel.IsoSampleTableBox sample_table_box;
+    public uint64 time_offset; /** Time offset within the content container */
+    public uint64 byte_offset; /** Byte offset within the content container */
+    public uint32 sample; /** Sample number within the content container */
+
+    public IsoAccessPoint (Rygel.IsoSampleTableBox ? sample_table_box,
+                           uint64 time_offset, uint64 byte_offset,
+                           uint32 sample_number) {
+        this.sample_table_box = sample_table_box;
+        this.time_offset = time_offset;
+        this.byte_offset = byte_offset;
+        this.sample = sample_number;
+    }
+
+    public virtual uint32 get_timescale () throws Rygel.IsoBoxError {
+        if (this.sample_table_box == null) {
+            throw new Rygel.IsoBoxError.BOX_NOT_FOUND ("IsoAccessPoint.get_timescale(): no sample_table_box set for "
+                                                       + this.to_string ());
+        }
+        return this.sample_table_box.get_media_box ().get_header_box ().timescale;
+    }
+
+    public virtual uint32 get_track_id () throws Rygel.IsoBoxError {
+        if (this.sample_table_box == null) {
+            throw new Rygel.IsoBoxError.BOX_NOT_FOUND ("IsoAccessPoint.get_track_id(): no sample_table_box set for "
+                                                       + this.to_string ());
+        }
+        return this.sample_table_box.get_track_box ().get_header_box ().track_id;
+    }
+
+    public virtual string to_string () {
+        if (this.sample_table_box == null) {
+            return "track na,time_offset %llu,byte_offset %llu,sample_number %u"
+                   .printf (this.time_offset, this.byte_offset, this.sample);
+        } else {
+            try {
+                return "track %u,time_offset %llu (%0.3fs),byte_offset %llu,sample_number %u"
+                       .printf (get_track_id (), this.time_offset,
+                                (float)this.time_offset/get_timescale (),
+                                this.byte_offset, this.sample);
+            } catch (Rygel.IsoBoxError e) {
+                return "[" + e.message + "]";
+            }
+        }
+    }
+}
+
+/**
  * The file container box is the top-level box for a MP4/ISO BMFF file.
  * It can only contain boxes (no fields)
  */
@@ -1320,6 +1453,126 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
     }
 
     /**
+     * Get the random access point times and associated offsets
+     */
+    public Gee.List<IsoAccessPoint> get_random_access_points () throws IsoBoxError {
+        // debug ("IsoFileContainerBox.get_random_access_points()");
+        var movie_box = get_movie_box ();
+        var primary_track = movie_box.get_primary_media_track ();
+        var primary_track_id = primary_track.get_header_box ().track_id;
+        var sample_table_box = primary_track.get_sample_table_box ();
+        Gee.List<IsoAccessPoint> access_points = null;
+        uint32 sample_number = 0;
+        uint64 sample_time = 0;
+        access_points = sample_table_box.get_random_access_points (access_points,
+                                                                   ref sample_number,
+                                                                   ref sample_time);
+        if (movie_box.is_fragmented ()) {
+            var track_fragments = get_track_fragments_for_id (primary_track_id);
+            // Walk all the track fragments and have them add their access points to the list
+            foreach (var track_frag_box in track_fragments) {
+                access_points = track_frag_box.get_random_access_points (access_points,
+                                                                         ref sample_number,
+                                                                         ref sample_time);
+            }
+        }
+        return access_points;
+    }
+
+    public IsoAccessPoint get_random_access_point_for_time (uint64 target_time_us,
+                                                            bool sample_after_time,
+                                                            bool use_edit_list=false)
+            throws IsoBoxError {
+        debug ("IsoFileContainerBox.get_random_access_point_for_time(%lluus)",target_time_us);
+
+        var access_points = get_random_access_points ();
+        if (access_points.is_empty) {
+            throw new IsoBoxError.VALUE_TOO_LARGE ("IsoFileContainerBox.get_random_access_point_for_time: No access points found");
+        }
+
+        // All access points must be from the same track (and share the same SampleTable)
+        var master_sample_table = access_points.first ().sample_table_box;
+        var master_media_header = master_sample_table.get_media_box ().get_header_box ();
+        // Convert the requested time now, to simplify comparison
+        var target_time = master_media_header.to_media_time_from (target_time_us, MICROS_PER_SEC);
+
+        if (use_edit_list) {
+            // TODO: Convert target_time based on edit list
+        }
+
+        debug ("  target time in media timescale: %llu (%0.3fs)",
+                 target_time,(float)target_time/master_media_header.timescale);
+        var last_access_point = access_points.first ();
+        bool return_next_sample = false;
+        foreach (var access_point in access_points) {
+            if (access_point.time_offset > target_time) {
+                if (!sample_after_time || return_next_sample) {
+                    break;
+                } else {
+                    return_next_sample = true;
+                }
+            }
+            last_access_point = access_point;
+        }
+
+        debug ("  found " + last_access_point.to_string ());
+        return last_access_point;
+    }
+
+    public class FileEndAccessPoint : IsoAccessPoint {
+        public FileEndAccessPoint (IsoSampleTableBox ? sample_table,
+                                   uint64 time_offset, uint64 byte_offset, uint32 sample_number) {
+            base (sample_table, time_offset, byte_offset, sample_number);
+        }
+        public override string to_string () {
+            return "IsoFileContainerBox.FileEndAccessPoint[%s]".printf (base.to_string ());
+        }
+    }
+
+    public IsoAccessPoint ? get_access_point_for_time (uint64 target_time_us,
+                                                       bool sample_after_time,
+                                                       bool use_edit_list=false)
+            throws IsoBoxError {
+        debug ("IsoFileContainerBox.get_access_point_for_time(%lluus,sample_after %s)",
+               target_time_us, sample_after_time ? "true" : "false");
+
+        var movie_box = get_movie_box ();
+        var primary_track = movie_box.get_primary_media_track ();
+        var primary_track_id = primary_track.get_header_box ().track_id;
+        var sample_table_box = primary_track.get_sample_table_box ();
+        var media_header = sample_table_box.get_media_box ().get_header_box ();
+        var target_time = media_header.to_media_time_from (target_time_us, MICROS_PER_SEC);
+
+        if (use_edit_list) {
+            // TODO: Convert target_time based on edit list
+        }
+
+        uint32 sample_number = 0;
+        uint64 sample_time = 0;
+        IsoAccessPoint access_point;
+        access_point = sample_table_box.access_point_for_time (target_time, sample_after_time,
+                                                               ref sample_number,
+                                                               ref sample_time);
+        if (access_point != null) {
+            return access_point;
+        }
+        if (movie_box.is_fragmented ()) {
+            var track_fragments = get_track_fragments_for_id (primary_track_id);
+            // Walk all the track fragments to find the target time
+            foreach (var track_frag_box in track_fragments) {
+                access_point = track_frag_box.access_point_for_time (target_time,
+                                                                     sample_after_time,
+                                                                     ref sample_number,
+                                                                     ref sample_time);
+                if (access_point != null) {
+                    return access_point;
+                }
+            }
+        }
+        return new FileEndAccessPoint (sample_table_box,sample_time,this.size,sample_number);
+    }
+
+    /**
      * This will get the movie duration, in seconds, accounting for movie fragments.
      * 
      * EditListBoxes will be used if directed - providing the duration based on the
@@ -1335,7 +1588,7 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
      * This will get a List containing all TrackFragments for the given track_id in the order
      * they appear in the IsoFileContainerBox
      */
-    public Gee.List<IsoTrackFragmentBox> get_tracks_fragments_for_id (uint track_id)
+    public Gee.List<IsoTrackFragmentBox> get_track_fragments_for_id (uint track_id)
             throws IsoBoxError {
         var box_list = new Gee.ArrayList<IsoBox> ();
         foreach (var cur_box in this.children) {
@@ -1407,66 +1660,55 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
         return (float)get_track_duration (track_id, use_edit_list) / timescale;
     }
 
-    public IsoGenericBox get_mdat_for_offset (uint64 file_offset) throws IsoBoxError {
-        foreach (var cur_box in this.children) {
-            if (cur_box.type_code == "mdat") {
-                if ((file_offset >= cur_box.source_offset)
-                    && (file_offset < cur_box.source_offset+cur_box.size)) {
-                    return cur_box as IsoGenericBox;
-                }
-            }
-        }
-        throw new IsoBoxError.BOX_NOT_FOUND (this.to_string()
-                                             + " does not have a mdat box for offset "
-                                             + file_offset.to_string ());
-    }
-
     /**
-     * This will return the primary track's IsoTrackBox or IsoTrackFragmentBox that contains
-     * the sample description for the given target_time.
+     * This will return an IsoTrackBox or IsoTrackFragmentBox that contains the sample
+     * description for the given target_time, in the track's timescale. time_offset
+     * will be set to the time offset into the track box for the target_time (the
+     * difference between the track box's start time and the target time)
      *
      * EditListBoxes will be used if directed - providing the duration based on the
      * durations of the edit entries.
      * 
-     * If the target_time is not contained in the primary track, IsoBoxError.BOX_NOT_FOUND
+     * If the target_time is not contained in the track, IsoBoxError.BOX_NOT_FOUND
      * will be thrown.
      */
-    public IsoBox get_track_box_for_time (uint64 target_time, bool use_edit_list=false)
+    public IsoBox get_track_box_for_time (uint track_id, uint64 target_time,
+                                          out uint64 time_offset)
             throws IsoBoxError {
         var movie_box = get_movie_box ();
-        var timescale = movie_box.get_header_box ().timescale;
-        // debug ("IsoFileContainerBox.get_box_for_time(%llu (%0.2fs), use_edit_list=%s)",
-        //        target_time, (float)target_time/timescale,
-        //        (use_edit_list ? "true": "false"));
-        var primary_track = movie_box.get_primary_media_track ();
+        var track_box = movie_box.get_track_for_id (track_id);
+        var timescale = track_box.get_media_box ().get_header_box ().timescale;
+        debug ("IsoFileContainerBox.get_box_for_time(track %u, time %llu (%0.2fs))",
+               track_id, target_time, (float)target_time/timescale);
 
-        if (use_edit_list) {
-            // TODO: Convert target_time based on edit list
-        }
-
-        var track_duration = primary_track.get_header_box ().get_media_duration ();
-        if (target_time <= track_duration) {
-            // debug ("  returning " + primary_track.to_string ());
-            return primary_track; // The target time in the MovieBox samples
+        var total_track_duration = track_box.get_header_box ().get_media_duration ();
+        if (target_time <= total_track_duration) {
+            time_offset = target_time;
+            debug ("  returning box covering range 0-%llu (offset %llu): %s",
+                   total_track_duration, time_offset, track_box.to_string ());
+            return track_box; // The target time in the MovieBox samples
         }
 
         if (is_fragmented ()) {
-            var track_id = primary_track.get_header_box ().track_id;
             foreach (var cur_box in this.children) {
                 if (cur_box is IsoMovieFragmentBox) {
                     var movie_fragment = cur_box as IsoMovieFragmentBox;
                     try {
                         var track_fragment = movie_fragment.get_track_fragment (track_id);
-                        var track_fragment_duration = track_fragment.get_duration (timescale);
-                        track_duration += track_fragment_duration;
+                        var track_duration = track_fragment.get_duration ();
                         // debug ("  track fragment %s duration: %llu (%0.3fs). total: %llu (%0.3fs)",
                         //        track_fragment.to_string (), track_fragment_duration,
                         //        (float)track_fragment_duration/timescale,
-                        //        track_duration, (float)track_duration/timescale);
-                        if (target_time <= track_duration) {
-                            // debug ("  returning " + track_fragment.to_string ());
+                        //        total_track_duration,
+                        //        (float)total_track_duration/primary_media_header.timescale);
+                        if (target_time <= total_track_duration + track_duration) {
+                            time_offset = target_time - total_track_duration;
+                            debug ("  returning box covering range %llu-%llu (offset %llu): %s",
+                                   total_track_duration, total_track_duration+track_duration,
+                                   time_offset, track_fragment.to_string ());
                             return track_fragment;
                         }
+                        total_track_duration += track_duration;
                     } catch (IsoBoxError.BOX_NOT_FOUND err) {
                         // debug ("  %s doesn't have track fragment for track id %u",
                         //        movie_fragment.to_string (), track_id);
@@ -1479,178 +1721,309 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
                                                       (float)target_time/timescale));
     }
 
-    public void trim_to_time_range (ref uint64 start_time_us, ref uint64 end_time_us,
-                                    out IsoSampleTableBox.AccessPoint start_point,
-                                    out IsoSampleTableBox.AccessPoint end_point,
+    /**
+     * This will trim the IsoFileContainerBox to only contain samples between
+     * start/end time with all metadata updated accordingly.
+     *
+     * The start_point/end_point will be resolved to the nearest preceding/following
+     * samples on the primary track and all sample references outside the sample/byte range
+     * will be removed.
+     *
+     * Samples with no tracks will be removed if the file is non-segmented and empty tracks
+     * retained when the file is segmented.
+     */
+    public void trim_to_time_range (uint64 start_time_us, uint64 end_time_us,
+                                    out IsoAccessPoint start_point,
+                                    out IsoAccessPoint end_point,
                                     bool insert_empty_edit = false)
                 throws IsoBoxError {
-        message ("IsoFileContainerBox.trim_to_time_range(start %lluus, end %lluus)",
-                 start_time_us, end_time_us);
+        message ("IsoFileContainerBox.trim_to_time_range(start %0.3fs, end %0.3fs)",
+                 (float)start_time_us/MICROS_PER_SEC, (float)end_time_us/MICROS_PER_SEC);
+        //
+        // Find the start and end points for the time range
+        //
+        start_point = get_random_access_point_for_time (start_time_us, false);
+        message ("  found start box: ");
+        message ("    " + (start_point == null ? "null" : start_point.to_string ()));
+        if (start_point == null) {
+            throw new IsoBoxError.VALUE_TOO_LARGE
+                      ("IsoFileContainerBox.trim_to_time_range: start time "
+                       + start_time_us.to_string () + "us is too large for "
+                       + this.to_string ());
+        }
+
+        end_point = get_access_point_for_time (end_time_us, true); // Get point just after end time
+        message ("  found end box: ");
+        message ("     " + (end_point == null ? "null" : end_point.to_string ()));
+
+        //
+        // trim
+        //
+        uint64 bytes_removed;
+        var file_box_it = this.children.iterator ();
+
+        bytes_removed = trim_movie_box (start_point, end_point, file_box_it);
+        if (start_point is IsoTrackRunBox.AccessPoint) {
+            bytes_removed += trim_segment_start (start_point as IsoTrackRunBox.AccessPoint,
+                                             file_box_it);
+        }
+        if (!(end_point is IsoSampleTableBox.AccessPoint)) {
+            bytes_removed += trim_segment_end (end_point, bytes_removed, file_box_it);
+        }
+        bytes_removed += remove_remaining_boxes (file_box_it);
+        update (); // propagate dependent field changes
+    }
+
+    /**
+     * This will trim the MovieBox samples, advance file_box_iterator just past the MovieBox
+     * or MovieBox mdat, and return the number of byte (references) removed in the process.
+     */
+    protected uint64 trim_movie_box (IsoAccessPoint start_point, IsoAccessPoint end_point,
+                                  Gee.Iterator<IsoBox> file_box_iterator)
+                throws IsoBoxError {
+        message ("IsoFileContainerBox.trim_movie_box(start %s, end %s)",
+                 start_point.to_string (), end_point.to_string ());
         var movie_box = this.get_movie_box ();
-        IsoTrackBox master_track = movie_box.get_primary_media_track ();
-        var master_track_id = master_track.get_header_box ().track_id;
-        message ("  Using track %u for time range calculation", master_track_id);
+        var moov_mdat = movie_box.get_referenced_mdats () [0];
+        uint64 bytes_removed = 0;
+        bool moov_before_mdat = movie_box.precedes (moov_mdat);
 
-        //
-        // Establish the time range
-        //
-        start_point = {0,0,0};
-        end_point = {0,0,0};
-        var master_track_timescale = master_track.get_media_timescale ();
-        start_point.time_offset = start_time_us * master_track_timescale / MICROS_PER_SEC;
-        end_point.time_offset = end_time_us * master_track_timescale / MICROS_PER_SEC;
-        message ("  Finding video access points for time range %0.3f to %0.3f:",
-                       (float)start_point.time_offset/master_track_timescale,
-                       (float)end_point.time_offset/master_track_timescale);
-        var sample_table_box = master_track.get_sample_table_box ();
-        // Note: This will resolve all the start_point/end_point fields to align
-        //       to appropriate samples points
-        sample_table_box.get_access_points_for_range (ref start_point, ref end_point);
+        var old_moov_size = movie_box.size;
 
-        start_time_us = start_point.time_offset * MICROS_PER_SEC / master_track_timescale;
-        message ("   Range start: time %llu (%0.3f), sample %u, byte_offset %llu",
-                 start_point.time_offset, (float)start_point.time_offset/master_track_timescale,
-                 start_point.sample, start_point.byte_offset);
-
-        end_time_us = end_point.time_offset * MICROS_PER_SEC / master_track_timescale;
-        if (end_point.sample != 0) {
-            message ("   Range end: time %llu (%0.3f), sample %u, byte_offset %llu",
-                     end_point.time_offset, (float)end_point.time_offset/master_track_timescale,
-                     end_point.sample, end_point.byte_offset);
-        } else {
-            message ("   Range end not provided (end time %llu)", end_point.time_offset);
-        }
-
-        var range_duration = end_point.time_offset - start_point.time_offset;
-
-        var movie_box_header = movie_box.get_header_box ();
-        // Master track duration needs to account for an empty edit
-        var master_track_duration = insert_empty_edit ? end_point.time_offset : range_duration;
-
-        movie_box_header.set_duration (master_track_duration, master_track_timescale);
-        message ("   Range duration: %llu (%0.2fs)", range_duration,
-                 (float)range_duration/master_track_timescale);
-
-        //
-        // Adjusting chunk/sample offsets
-        //
-        {
-            var mdat_with_offset = this.get_mdat_for_offset (start_point.byte_offset);
-            uint64 mdat_start_bytes_to_cut = start_point.byte_offset
-                                             - mdat_with_offset.source_payload_offset
-                                             - mdat_with_offset.source_offset;
-            uint64 mdat_end_bytes_to_cut;
-            if (end_point.sample == 0) {
-                mdat_end_bytes_to_cut = 0;
-            } else {
-                mdat_end_bytes_to_cut = mdat_with_offset.source_offset + mdat_with_offset.size 
-                                        - end_point.byte_offset;
-            }
-            var old_header_size = this.get_file_type_box ().size + movie_box.size;
-            var track_list = movie_box.get_tracks ();
-            message ("  Removing samples outside byte range %llu-%llu for %d tracks",
-                     start_point.byte_offset, end_point.byte_offset, track_list.size);
-            // var track_duration = end_point.time_offset - start_point.time_offset;
-            for (var track_it = track_list.iterator (); track_it.next ();) {
-                var track = track_it.get ();
-                var track_header = track.get_header_box ();
-                message ("  Trimming track %u", track_header.track_id);
-                Rygel.IsoSampleTableBox.AccessPoint start_cut_point, end_cut_point;
-                if (track_header.track_id == master_track_id) {
-                    start_cut_point = start_point;
-                    end_cut_point = end_point;
-                    message ("    Removing samples on sync track before sample %u and after sample %u",
-                             start_cut_point.sample, end_cut_point.sample);
-                } else {
-                    start_cut_point = {0, start_point.byte_offset, 0, 0, 0};
-                    end_cut_point = {0, end_point.byte_offset, 0, 0, 0};
-                    message ("    Removing samples on non-sync track before byte %llu and after byte %llu",
-                             start_cut_point.byte_offset, end_cut_point.byte_offset);
-                }
-                // Remove the end first (cutting the end doesn't change the sample/index numbers)
-                sample_table_box = track.get_sample_table_box ();
-                if (end_point.sample != 0) {
-                    sample_table_box.remove_sample_refs_after_point (ref end_cut_point);
-                }
-                sample_table_box.remove_sample_refs_before_point (ref start_cut_point);
-
-                if (!sample_table_box.has_samples ()) {
-                    // There aren't any samples left in the track - delete it
-                    message ("    Track %u doesn't have samples - deleting it",
-                             track_header.track_id);
-                    track_it.remove ();
-                    continue;
-                }
-                // Adjust track time metadata
-                var media_header_box = track.get_media_box ().get_header_box ();
-                media_header_box.set_duration (range_duration, master_track_timescale);
-                message ("    set track media duration to %llu (%0.2fs)",
-                         media_header_box.duration, media_header_box.get_duration_seconds ());
-                track_header.set_duration (master_track_duration, master_track_timescale);
-                // Note: This is assuming the EditListBox is 1-for-1 with the track media
-                message ("    set track movie duration to %llu (%0.2fs)",
-                         track_header.duration, track_header.get_duration_seconds ());
-
-                // Create/replace the EditListBox
-                var edit_list_box = track.create_edit_box ().get_edit_list_box ();
-                if (insert_empty_edit) {
-                    edit_list_box.edit_array = new IsoEditListBox.EditEntry[2];
-                    edit_list_box.set_edit_list_entry (0, start_point.time_offset,
-                                                       master_track_timescale,
-                                                       -1, 0,
-                                                       1, 0);
-                    message ("    Created empty edit: " + edit_list_box.string_for_entry (0));
-                    edit_list_box.set_edit_list_entry (1,
-                                                       end_point.time_offset
-                                                        - start_point.time_offset,
-                                                       master_track_timescale,
-                                                       0, master_track_timescale,
-                                                       1, 0);
-                    message ("    Created offset edit: " + edit_list_box.string_for_entry (1));
-                } else {
-                    edit_list_box.edit_array = new IsoEditListBox.EditEntry[1];
-                    edit_list_box.set_edit_list_entry (0, master_track_duration,
-                                                       master_track_timescale,
-                                                       0,
-                                                       master_track_timescale,
-                                                       1, 0);
-                    message ("    Created simple edit: " + edit_list_box.string_for_entry (0));
-                }
-                edit_list_box.update ();
-            }
-            
-            message ("Updating movie box fields...");
-            movie_box.update_children (100); // Recurse all the way down
+        if (!(start_point is IsoSampleTableBox.AccessPoint)) {
+            message ("  the start point is not within the MovieBox - removing all MovieBox samples");
+            movie_box.remove_all_sample_refs ();
+            movie_box.update_children (100); // propagate dependent field changes 
             movie_box.update ();
+            // Remove the MovieBox mdat
+            while (file_box_iterator.next ()) {
+                var cur_box = file_box_iterator.get ();
+                if (cur_box == moov_mdat) {
+                    message ("    removing " + cur_box.to_string ());
+                    file_box_iterator.remove ();
+                    bytes_removed += cur_box.size;
+                    break;
+                }
+                message ("    skipping : " + cur_box.to_string ());
+            }
+            if (!moov_before_mdat) {
+                // Advance iterator to the movie box
+                while (file_box_iterator.next ()) {
+                    var cur_box = file_box_iterator.get ();
+                    message ("    skipping : " + cur_box.to_string ());
+                    if (cur_box == movie_box) {
+                        break;
+                    }
+                }
+            }
+            bytes_removed += old_moov_size - movie_box.size;
+        } else {
+            //
+            // Update the MovieBox and the MovieBox's mdat
+            //
+            int64 chunk_offset_adjustment = 0;
+            var movie_start_point = start_point as IsoSampleTableBox.AccessPoint;
+            if (end_point is IsoSampleTableBox.AccessPoint) {
+                message ("  the end point is within the movie box samples - trimming MovieBox end");
+                movie_box.remove_samples_after_point (end_point as IsoSampleTableBox.AccessPoint);
+                uint64 mdat_end_bytes_to_cut;
+                mdat_end_bytes_to_cut = moov_mdat.source_offset + moov_mdat.size 
+                                        - end_point.byte_offset;
+                message ("mdat bytes to cut from end: %llu", mdat_end_bytes_to_cut);
+                moov_mdat.source_payload_size -= mdat_end_bytes_to_cut;
+                moov_mdat.update ();
+                bytes_removed += mdat_end_bytes_to_cut;
+            }
 
-            var new_header_size = this.get_file_type_box ().size + movie_box.size;
-            message ("  Old header size: %llu bytes", old_header_size);
-            message ("  New header size: %llu bytes", new_header_size);
+            if (movie_start_point.is_at_start) { // Nothing to remove from the start
+                message ("  the start point is at the MovieBox start - nothing to trim");
+            } else {
+                message ("  the start point is within the MovieBox samples - trimming MovieBox start");
+                movie_box.remove_samples_before_point (movie_start_point);
+                uint64 mdat_start_bytes_to_cut = start_point.byte_offset
+                                                 - moov_mdat.source_payload_offset
+                                                 - moov_mdat.source_offset;
+                message ("mdat bytes to cut from start: %llu", mdat_start_bytes_to_cut);
+                // Adjust the mdat's offset to not include the cut data
+                moov_mdat.source_payload_offset += mdat_start_bytes_to_cut;
+                moov_mdat.source_payload_size -= mdat_start_bytes_to_cut;
+                moov_mdat.update ();
+                chunk_offset_adjustment -= (int64)mdat_start_bytes_to_cut;
+                // TODO: Remove all mdats before the target and adjust any other mdats offsets
+            }
 
-            // Adjust the mdat's offset to not include the cut data
-            message ("mdat bytes to cut from start: %llu", mdat_start_bytes_to_cut);
-            message ("mdat bytes to cut from end: %llu", mdat_end_bytes_to_cut);
-            message ("  mdat before: %s", mdat_with_offset.to_string ());
-            mdat_with_offset.source_payload_offset += mdat_start_bytes_to_cut;
-            mdat_with_offset.source_payload_size -= mdat_start_bytes_to_cut + mdat_end_bytes_to_cut;
-            mdat_with_offset.update ();
-            // TODO: Remove all mdats before the target and adjust any other mdats offsets
-            message ("  mdat after: %s", mdat_with_offset.to_string ());
+            // Calculate the reduced movie size
+            movie_box.update_children (100); // propagate dependent field changes 
+            movie_box.update ();
+            var movie_size_reduction = (int64)old_moov_size - (int64)movie_box.size;
+            message ("  moov size reduction: %lld bytes (was %llu, now %llu)",
+                     movie_size_reduction, old_moov_size, movie_box.size);
+            bytes_removed += movie_size_reduction;
 
-            // Fixup all chunk offset tables now that the header size has been established
-            int64 chunk_offset_fixup = (int64)mdat_start_bytes_to_cut
-                                       + ((int64)old_header_size - (int64)new_header_size);
-            message ("Chunk offset fixup: %s", chunk_offset_fixup.to_string ());
-            foreach (var track in track_list) {
-                message ("  Adjusting track %u offsets by %llu",
-                               track.get_header_box ().track_id, chunk_offset_fixup);
-                var chunk_offset_box = track.get_sample_table_box ().get_chunk_offset_box ();
-                // chunk_offset_box.to_printer ( (l) => {debug (l);}, "  PRE-ADJUST: ");
-                chunk_offset_box.adjust_offsets (-chunk_offset_fixup);
-                chunk_offset_box.update ();
-                // chunk_offset_box.to_printer ( (l) => {debug (l);}, "  ADJUSTED: ");
+            if (moov_before_mdat) {
+                chunk_offset_adjustment -= movie_size_reduction;
+            }
+            message ("  chunk offset adjustment: %lld bytes", chunk_offset_adjustment);
+
+            if (chunk_offset_adjustment != 0) {
+                movie_box.adjust_track_chunk_offsets (chunk_offset_adjustment); // No size change
+            }
+
+            if (moov_before_mdat) {
+                // Advance iterator to the mdat (after the movie box)
+                while (file_box_iterator.next ()) {
+                    var cur_box = file_box_iterator.get ();
+                    message ("  skipping : " + cur_box.to_string ());
+                    if (cur_box == moov_mdat) {
+                        break;
+                    }
+                }
+            } else {
+                // Advance iterator to the moov (after the mdat box)
+                while (file_box_iterator.next ()) {
+                    var cur_box = file_box_iterator.get ();
+                    message ("  skipping : " + cur_box.to_string ());
+                    if (cur_box == movie_box) {
+                        break;
+                    }
+                }
             }
         }
+
+        message ("  trim_movie_box removed %llu bytes", bytes_removed);
+        return bytes_removed;
+    }
+
+    /**
+     * This will remove sample references from MovieFragments up the the start point,
+     * move the file_box_iterator to the MovieFragment referenced by start_point, and
+     * return the number of byte (references) removed.
+     */
+    protected uint64 trim_segment_start (IsoTrackRunBox.AccessPoint start_point,
+                                         Gee.Iterator<IsoBox> file_box_iterator)
+                throws IsoBoxError {
+        message ("IsoFileContainerBox.trim_segment_start(%s)", start_point.to_string ());
+
+        var start_track_fragment = start_point.track_run_box.get_track_fragment_box ();
+        var start_movie_fragment = start_track_fragment.get_movie_fragment_box ();
+        message ("  removing fragments before " + start_movie_fragment.to_string ());
+
+        uint64 bytes_removed = 0;
+        while (file_box_iterator.next ()) {
+            var cur_box = file_box_iterator.get ();
+            if (cur_box.type_code == "mdat") {
+                bytes_removed += cur_box.size;
+                message ("    removing " + cur_box.to_string ());
+                file_box_iterator.remove ();
+            } else if (cur_box is IsoMovieFragmentBox) {
+                if (cur_box == start_movie_fragment) {
+                    break; // We're done removing
+                }
+                bytes_removed += cur_box.size;
+                message ("    removing " + cur_box.to_string ());
+                file_box_iterator.remove ();
+            } else { // unexpected box
+                message ("    skipping UNEXPECTED box: " + cur_box.to_string ());
+            }
+        }
+        message ("    removed %llu bytes of fragments", bytes_removed);
+        message ("    adjusting " + start_movie_fragment.to_string ());
+        // start_movie_fragment.to_printer ( (l) => {message (l);}, "  PRE-ADJUST: ");
+        var old_moof_size = start_movie_fragment.size;
+        uint64 mdat_bytes_removed;
+        message ("    removing samples before " + start_point.to_string ());
+        start_movie_fragment.remove_samples_before_point (start_point,
+                                                          out mdat_bytes_removed);
+        start_movie_fragment.update_children (100); // propagate dependent field changes 
+        start_movie_fragment.update ();
+        // start_movie_fragment.to_printer ( (l) => {message (l);}, "  POST-ADJUST: ");
+        message ("    start moof reduced by %llu bytes (old moof size %llu, new moof size %llu)",
+                 old_moof_size - start_movie_fragment.size,start_movie_fragment.size,
+                 mdat_bytes_removed);
+        bytes_removed += old_moof_size - start_movie_fragment.size;
+        message ("    start mdat reduced by %llu bytes",mdat_bytes_removed);
+        bytes_removed += mdat_bytes_removed;
+        message ("  trim_segment_start removed %llu bytes", bytes_removed);
+
+        return bytes_removed;
+    }
+
+    /**
+     * This will adjust any MovieFragments by preceding_bytes_removed starting at the
+     * position of the file_box_iterator, trim the MovieFragment referenced by the
+     * end_point (if any), advance the file_box_iterator to the last trimmed MovieFragment
+     * (if any), and return the number of bytes trimmed from the MovieFragment.
+     */
+    protected uint64 trim_segment_end (IsoAccessPoint end_point,
+                                    uint64 preceding_bytes_removed,
+                                    Gee.Iterator<IsoBox> file_box_iterator)
+                throws IsoBoxError {
+        message ("IsoFileContainerBox.trim_segment_end(%s, preceding_bytes_removed %llu)",
+                 end_point.to_string (), preceding_bytes_removed);
+
+        IsoMovieFragmentBox end_movie_fragment = null;
+        if (end_point is IsoTrackRunBox.AccessPoint) {
+            var segment_end_point = end_point as IsoTrackRunBox.AccessPoint;
+            var end_track_fragment = segment_end_point.track_run_box
+                                                       .get_track_fragment_box ();
+            end_movie_fragment = end_track_fragment.get_movie_fragment_box ();
+        }
+
+        // Adjust everything up to the end
+        do {
+            var cur_box = file_box_iterator.get ();
+            if (cur_box is IsoMovieFragmentBox) {
+                var movie_fragment_box = cur_box as IsoMovieFragmentBox;
+                if (movie_fragment_box == end_movie_fragment) {
+                    break;
+                }
+                message ("    adjusting (%lld bytes) %s",
+                         -preceding_bytes_removed,movie_fragment_box.to_string ());
+                movie_fragment_box.adjust_offsets (-(int64)preceding_bytes_removed);
+                movie_fragment_box.update_children (100); // propagate field changes
+                movie_fragment_box.update ();
+            }
+        } while (file_box_iterator.next ());
+
+        uint64 bytes_removed = 0;
+        if (end_point is IsoTrackRunBox.AccessPoint) {
+            message ("  the end point is in a fragment - removing fragments after: ");
+            message ("    " + end_movie_fragment.to_string ());
+            // Trim the end fragment
+            var old_moof_size = end_movie_fragment.size;
+            uint64 mdat_bytes_removed;
+            end_movie_fragment.remove_samples_after_point (end_point as IsoTrackRunBox.AccessPoint,
+                                                           out mdat_bytes_removed);
+            end_movie_fragment.update_children (100); // propagate dependent field changes 
+            end_movie_fragment.update ();
+            uint64 end_frag_bytes_trimmed = end_movie_fragment.size + mdat_bytes_removed
+                                            - old_moof_size;
+            bytes_removed += end_frag_bytes_trimmed;
+            message ("    removed %llu bytes for end: %s",
+                     end_frag_bytes_trimmed,end_movie_fragment.to_string ());
+            // Move iterator past MovieFragment
+            file_box_iterator.next ();
+        }
+        message ("  trim_segment_end removed %llu bytes", bytes_removed);
+
+        return bytes_removed;
+    }
+
+    /**
+     * This will remove all boxes starting at file_box_iterator until there are no more
+     * boxes to remove and return the number of byte (references) removed in the process.
+     */
+    protected uint64 remove_remaining_boxes (Gee.Iterator<IsoBox> file_box_iterator) {
+        uint64 bytes_removed = 0;
+        while (file_box_iterator.next ()) {
+            var cur_box = file_box_iterator.get ();
+            bytes_removed += cur_box.size;
+            message ("  removing " + cur_box.to_string ());
+            file_box_iterator.remove ();
+        }
+        message ("  remove_remaining_boxes removed %llu bytes", bytes_removed);
+
+        return bytes_removed;
     }
 
     public override string to_string () {
@@ -2039,6 +2412,204 @@ public class Rygel.IsoMovieBox : IsoContainerBox {
         return (get_extends_box () != null);
     }
 
+    /**
+     * This will remove all sample references before the target_point on the
+     * target_point's track and samples on all other tracks that fall after the target_point
+     * byte offset.
+     *
+     * Track and movie durations will be updated accordingly.
+     *
+     * Any tracks with no samples remaining will be removed if fragmentation is not indicated.
+     */
+    public void remove_samples_before_point (IsoSampleTableBox.AccessPoint target_point)
+                throws IsoBoxError {
+        message ("IsoMovieBox.remove_samples_before_point(%s)",target_point.to_string ());
+
+        var movie_box_header = get_header_box ();
+        var master_track = target_point.sample_table_box.get_track_box ();
+        var master_track_id = master_track.get_header_box ().track_id;
+
+        // Walk the tracks and remove samples before the target_point
+        var track_list = get_tracks ();
+        var is_fragmented = is_fragmented ();
+        message ("  Removing samples before byte offset %llu for %d tracks",
+                 target_point.byte_offset, track_list.size);
+        // var track_duration = end_point.time_offset - start_point.time_offset;
+        for (var track_it = track_list.iterator (); track_it.next ();) {
+            var track = track_it.get ();
+            var track_header = track.get_header_box ();
+            message ("  Removing sample references on track %u", track_header.track_id);
+            Rygel.IsoSampleTableBox.AccessPoint cut_point;
+            if (track_header.track_id == master_track_id) {
+                cut_point = target_point;
+                message ("    Removing sample refs on sync track before sample %u",
+                         cut_point.sample);
+            } else {
+                cut_point = new IsoSampleTableBox.AccessPoint.byte_offset_only
+                                                                    (target_point.byte_offset);
+                message ("    Removing sample refs on non-sync track before byte %llu",
+                         cut_point.byte_offset);
+            }
+            var sample_table_box = track.get_sample_table_box ();
+            sample_table_box.remove_sample_refs_before_point (ref cut_point);
+
+            if (!is_fragmented && !sample_table_box.has_samples ()) {
+                // There aren't any samples left in the track - delete it
+                message ("    Track %u doesn't have sample refs - deleting it",
+                         track_header.track_id);
+                track_it.remove ();
+                continue;
+            }
+            // Adjust track time metadata
+            var media_header_box = track.get_media_box ().get_header_box ();
+            media_header_box.duration -= cut_point.time_offset;
+            message ("    set track media duration to %llu (%0.2fs)",
+                     media_header_box.duration, media_header_box.get_duration_seconds ());
+            track_header.set_duration (media_header_box.duration, media_header_box.timescale);
+            message ("    set track movie duration to %llu (%0.2fs)",
+                     track_header.duration, track_header.get_duration_seconds ());
+        }
+        var master_track_header = master_track.get_header_box ();
+        movie_box_header.duration = master_track_header.duration;
+        message ("  set movie duration to %llu (%0.2fs)",
+                 movie_box_header.duration, movie_box_header.get_duration_seconds ());
+    }
+
+    /**
+     * This will remove all sample references after, and including, the target_point on the
+     * target_point's track and samples on all other tracks that fall after the target_point
+     * byte offset.
+     *
+     * Track and movie durations will be updated accordingly.
+     *
+     * Any tracks with no samples remaining will be removed if fragmentation is not indicated.
+     */
+    public void remove_samples_after_point (IsoSampleTableBox.AccessPoint target_point)
+                throws IsoBoxError {
+        message ("IsoMovieBox.remove_samples_after_point(%s)",target_point.to_string ());
+        var movie_box_header = get_header_box ();
+        var master_track = target_point.sample_table_box.get_track_box ();
+        var master_track_id = master_track.get_header_box ().track_id;
+
+        // Walk the tracks and remove samples after the target_point
+        var track_list = get_tracks ();
+        var is_fragmented = is_fragmented ();
+        message ("  Removing samples after byte offset %llu for %d tracks",
+                 target_point.byte_offset, track_list.size);
+        // var track_duration = end_point.time_offset - start_point.time_offset;
+        for (var track_it = track_list.iterator (); track_it.next ();) {
+            var track = track_it.get ();
+            var track_header = track.get_header_box ();
+            message ("  Removing sample references on track %u", track_header.track_id);
+            Rygel.IsoSampleTableBox.AccessPoint cut_point;
+            if (track_header.track_id == master_track_id) {
+                cut_point = target_point;
+                message ("    Removing sample refs on sync track after sample %u",
+                         cut_point.sample);
+            } else {
+                cut_point = new IsoSampleTableBox.AccessPoint.byte_offset_only
+                                                                    (target_point.byte_offset);
+                message ("    Removing sample refs on non-sync track after byte %llu",
+                         cut_point.byte_offset);
+            }
+            var sample_table_box = track.get_sample_table_box ();
+            sample_table_box.remove_sample_refs_after_point (ref cut_point);
+
+            if (!is_fragmented && !sample_table_box.has_samples ()) {
+                // There aren't any samples left in the track - delete it
+                message ("    Track %u doesn't have sample refs - deleting it",
+                         track_header.track_id);
+                track_it.remove ();
+                continue;
+            }
+            // Adjust track time metadata
+            var media_header_box = track.get_media_box ().get_header_box ();
+            media_header_box.duration -= (media_header_box.duration - cut_point.time_offset);
+            message ("    set track media duration to %llu (%0.2fs)",
+                     media_header_box.duration, media_header_box.get_duration_seconds ());
+            track_header.set_duration (media_header_box.duration, media_header_box.timescale);
+            message ("    set track movie duration to %llu (%0.2fs)",
+                     track_header.duration, track_header.get_duration_seconds ());
+        }
+        var master_track_header = master_track.get_header_box ();
+        movie_box_header.duration = master_track_header.duration;
+        message ("  set movie duration to %llu (%0.2fs)",
+                 movie_box_header.duration, movie_box_header.get_duration_seconds ());
+    }
+
+    /**
+     * This will remove all sample references from all tracks.
+     *
+     * Track and movie durations will be updated to 0. And any tracks with no samples
+     * remaining will be removed if fragmentation is not indicated.
+     *
+     * EditListBoxes will be removed from all tracks.
+     */
+    public void remove_all_sample_refs () throws IsoBoxError {
+        message ("IsoMovieBox.remove_all_sample_refs()");
+        var movie_box_header = get_header_box ();
+        movie_box_header.duration = 0;
+
+        var track_list = get_tracks ();
+        var is_fragmented = is_fragmented ();
+        message ("  movie is %sfragmented", (is_fragmented ? "" : "not "));
+        for (var track_it = track_list.iterator (); track_it.next ();) {
+            var track = track_it.get ();
+            var track_header = track.get_header_box ();
+            if (is_fragmented) {
+                message ("  Removing all sample references on track %u", track_header.track_id);
+                var sample_table_box = track.get_sample_table_box ();
+                sample_table_box.remove_all_sample_refs ();
+                var media_header = track.get_media_box ().get_header_box ();
+                media_header.duration = 0;
+                track_header.duration = 0;
+                track.remove_edit_box ();
+            } else {
+                message ("  Removing track %u", track_header.track_id);
+                track_it.remove ();
+            }
+        }
+    }
+
+    public void adjust_track_chunk_offsets (int64 chunk_offset_adjustment) throws IsoBoxError {
+        message ("IsoMovieBox.adjust_track_chunk_offsets(%lld)", chunk_offset_adjustment);
+        var track_list = get_tracks ();
+        foreach (var track in track_list) {
+            message ("  Adjusting track %u offsets by %lld",
+                     track.get_header_box ().track_id, chunk_offset_adjustment);
+            var chunk_offset_box = track.get_sample_table_box ().get_chunk_offset_box ();
+            // chunk_offset_box.to_printer ( (l) => {debug (l);}, "  PRE-ADJUST: ");
+            chunk_offset_box.adjust_offsets (chunk_offset_adjustment);
+            chunk_offset_box.update ();
+            // chunk_offset_box.to_printer ( (l) => {debug (l);}, "  ADJUSTED: ");
+        }
+    }
+
+    public Gee.List<IsoGenericBox> get_referenced_mdats () throws IsoBoxError {
+        var mdats = new Gee.ArrayList<IsoGenericBox> ();
+        var track_list = get_tracks ();
+        uint64 target_offset = 0;
+        foreach (var track in track_list) {
+            var chunk_offset_box = track.get_sample_table_box ().get_chunk_offset_box ();
+            if (chunk_offset_box.chunk_offset_array.length > 0) {
+                target_offset = chunk_offset_box.chunk_offset_array[0];
+            }
+        }
+        foreach (var cur_box in this.parent_box.children) {
+            if (cur_box.type_code == "mdat") {
+                if ((target_offset >= cur_box.source_offset)
+                    && (target_offset < cur_box.source_offset+cur_box.size)) {
+                    mdats.add (cur_box as IsoGenericBox);
+                    return mdats;
+                }
+            }
+        }
+        throw new IsoBoxError.BOX_NOT_FOUND ("IsoMovieBox.get_referenced_mdats: "
+                                             + this.to_string()
+                                             + " does not have a mdat box for offset "
+                                             + target_offset.to_string ());
+    }
+
     public override string to_string () {
         return "IsoMovieBox[" + base.to_string () + "," + base.children_to_string () + "]";
     }
@@ -2391,6 +2962,15 @@ public class Rygel.IsoTrackBox : IsoContainerBox {
         this.edit_box.create_edit_list_box ();
         this.children.insert (0, this.edit_box);
         return this.edit_box;
+    }
+
+    /**
+     * Remove the EditBox from the track.
+     */
+    public bool remove_edit_box () throws IsoBoxError {
+        bool removed = (remove_boxes_by_class (typeof (IsoEditBox)) > 0);
+        this.edit_box = null;
+        return removed;
     }
 
     public bool is_media_type (IsoMediaBox.MediaType media_type) throws IsoBoxError {
@@ -2864,7 +3444,7 @@ public class Rygel.IsoMediaHeaderBox : IsoFullBox {
             return timeval;
         } else { // Convert
             if (timeval > uint32.MAX) {
-                return (uint64)((double)this.timescale/target_timescale) * timeval;
+                return (uint64)(((double)this.timescale/target_timescale) * timeval);
             } else { // Can use integer math
                 return (timeval * this.timescale) / target_timescale;
             }
@@ -2883,7 +3463,7 @@ public class Rygel.IsoMediaHeaderBox : IsoFullBox {
             return mediatime;
         } else { // Convert
             if (mediatime > uint32.MAX) {
-                return (uint64)((double)target_timescale/this.timescale) * mediatime;
+                return (uint64)(((double)target_timescale/this.timescale) * mediatime);
             } else { // Can use integer math
                 return (mediatime * target_timescale) / this.timescale;
             }
@@ -3417,73 +3997,53 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
         return this.chunk_offset_box;
     }
 
-    public struct AccessPoint {
-        uint64 time_offset; /** in the timescale of the track */
-        uint64 byte_offset;
-        uint32 sample;
-        uint32 chunk;
-        uint32 samples_into_chunk;
-        uint64 bytes_into_chunk;
-        bool is_at_start; /** indicates the AccessPoint is an very start of the range */
-        bool is_at_end; /** indicates the AccessPoint is an very end of the range */
+    public class AccessPoint : IsoAccessPoint {
+        public uint32 chunk;
+        public uint32 samples_into_chunk;
+        public uint64 bytes_into_chunk;
+        public bool is_at_start;
+        public bool is_at_end;
+
+        public AccessPoint (IsoSampleTableBox ? sample_table, uint64 time_offset, uint64 byte_offset,
+                            uint32 sample_number, uint32 chunk_number, uint32 samples_into_chunk,
+                            uint64 bytes_into_chunk, bool at_start, bool at_end) {
+            base (sample_table, time_offset, byte_offset, sample_number);
+            this.chunk = chunk_number;
+            this.samples_into_chunk = samples_into_chunk;
+            this.bytes_into_chunk = bytes_into_chunk;
+            this.is_at_start = at_start;
+            this.is_at_end = at_end;
+        }
+        public AccessPoint.time_only (uint64 time_offset) {
+            this (null, time_offset, 0, 0, 0, 0, 0, false, false);
+        }
+        public AccessPoint.time_and_sample (IsoSampleTableBox ? sample_table,
+                                            uint64 time_offset, uint32 sample_number) {
+            this (sample_table, time_offset, 0, sample_number, 0, 0, 0, sample_number==1, false);
+        }
+
+        public AccessPoint.byte_offset_only (uint64 byte_offset) {
+            this (null, 0, byte_offset, 0, 0, 0, 0, false, false);
+        }
+        public override string to_string () {
+            return "IsoSampleTableBox.AccessPoint[%s,chunk %u,samples_into_chunk %u,bytes_into_chunk %llu,%sat_start,%sat_end]"
+                   .printf (base.to_string (),
+                            this.chunk,this.samples_into_chunk,this.bytes_into_chunk,
+                            (this.is_at_start ? "" : "not "),(this.is_at_end ? "" : "not "));
+        }
     }
 
     public enum Proximity {UNDEFINED, BEFORE, AFTER, WITHIN}
 
     /**
-     * Currently this assumes start/end.time_offset is set, aligns the start to the nearest
-     * (preceding) sync point, and aligns the end to the nearest sample containing the end
-     * time offset.
+     * Get the number of the last sample in the SampleTable.
+     *
+     * This is also the number of samples in the SampleTable (since samples are 1-based)
      */
-    public void get_access_points_for_range (ref AccessPoint start, ref AccessPoint end)
-            throws IsoBoxError {
-        debug ("get_access_points_for_range: start time %llu (%0.3fs), end time %llu (%0.3fs)",
-               start.time_offset, (float)start.time_offset/get_media_box ().get_header_box ().timescale,
-               end.time_offset, (float)end.time_offset/get_media_box ().get_header_box ().timescale);
-
-        var time_to_sample_box = get_sample_time_box ();
-        var sample_size_box = get_sample_size_box ();
-        var last_sample_number = sample_size_box.last_sample_number ();
-
-        { // Start time calculation
-            start.sample = time_to_sample_box.sample_for_time (start.time_offset);
-            try {
-                var sync_sample_box = first_box_of_class (typeof (IsoSyncSampleBox))
-                                      as IsoSyncSampleBox;
-                // Adjust the start sample to the nearest sync sample
-                start.sample = sync_sample_box.sync_sample_before_sample (start.sample);
-            } catch (Rygel.IsoBoxError.BOX_NOT_FOUND error) {
-                debug ("   no sync sample box - not aligning the start time");
-            }
-            start.is_at_start = (start.sample == 1);
-            start.is_at_end = (start.sample == last_sample_number+1);
-            debug ("   start sample for time: %u%s",
-                   start.sample, (start.is_at_start ? " (at start)"
-                                                    : (start.is_at_end ? " (at end)" : "")));
-            // Sample-align the start time
-            start.time_offset = time_to_sample_box.time_for_sample (start.sample);
-            debug ("   effective start time: %llu (%0.3fs)", start.time_offset,
-                   (float)start.time_offset/get_media_box ().get_header_box ().timescale);
-            access_point_offsets_for_sample (ref start); // Calculate the chunk/byte offsets
-        }
-        { // End time calculation
-            try { // The time offset may be beyond the duration
-                end.sample = time_to_sample_box.sample_for_time (end.time_offset) + 1;
-            } catch (Rygel.IsoBoxError.ENTRY_NOT_FOUND error) {
-                end.sample = last_sample_number + 1;
-            }
-            end.is_at_start = (end.sample == 1);
-            end.is_at_end = (end.sample == last_sample_number+1);
-            debug ("   end sample for time: %u%s",
-                   end.sample, (end.is_at_start ? " (at start)"
-                                                : (end.is_at_end ? " (at end)" : "")));
-            end.time_offset = time_to_sample_box.time_for_sample (end.sample);
-            debug ("   effective end time: %llu (%0.3fs)", end.time_offset,
-                   (float)end.time_offset/get_media_box ().get_header_box ().timescale);
-            access_point_offsets_for_sample (ref end); // Calculate the chunk/byte offsets
-        }
+    public uint32 get_last_sample_number () throws IsoBoxError {
+        return (get_sample_size_box ().last_sample_number ());
     }
-
+ 
     /**
      * Calculate the AccessPoint byte_offset, chunk, samples_into_chunk, and bytes_into_chunk
      * using access_point.sample and the SampleToChunkBox, ChunkOffsetBox, and SampleSizeBox.
@@ -3507,10 +4067,10 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
             access_point.bytes_into_chunk = sample_size_box.sum_samples
                                                 (access_point.sample - samples_into_chunk,
                                                  samples_into_chunk);
-        } else {
-            // debug ("   sample %u is beyond the total sample count - returning point beyond last sample",
+        } else if (access_point.sample == last_sample_number+1) {
+            // debug ("   sample %u is 1 beyond the total sample count - returning point beyond last sample",
             //        access_point.sample);
-            access_point.sample = last_sample_number+1;
+            access_point.is_at_end = true;
             access_point.chunk = chunk_offset_box.last_chunk_number ();
             uint32 samples_in_chunk;
             var sample_for_chunk = sample_to_chunk_box.sample_for_chunk (access_point.chunk,
@@ -3518,6 +4078,10 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
             access_point.samples_into_chunk = samples_in_chunk;
             access_point.bytes_into_chunk = sample_size_box.sum_samples
                                                 (sample_for_chunk, samples_in_chunk);
+        } else {
+            throw new IsoBoxError.ENTRY_NOT_FOUND ("IsoSampleTableBox.access_point_offsets_for_sample: sample %u is too large for %s"
+                                                   .printf (access_point.sample,
+                                                            this.to_string( )));
         }
         access_point.byte_offset = chunk_offset_box.offset_for_chunk (access_point.chunk)
                                    + access_point.bytes_into_chunk;
@@ -3628,7 +4192,14 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
                    access_point.byte_offset, sample_proximity, access_point.chunk,
                    access_point.sample);
         }
-        access_point.is_at_start = (access_point.sample == 0);
+
+        if (access_point.sample == 0) {
+            access_point.is_at_start = true;
+            access_point.time_offset = 0;
+        } else {
+            access_point.is_at_start = false;
+            access_point.time_offset = get_sample_time_box ().time_for_sample (access_point.sample);
+        }
         debug ("   calculated sample %u for byte offset %llu",
                access_point.sample, access_point.byte_offset);
     }
@@ -3674,7 +4245,13 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
     /**
      * Get the random access point times and associated offsets
      */
-    public AccessPoint[] get_random_access_points (uint32 timescale) throws IsoBoxError {
+    public Gee.List<IsoAccessPoint> get_random_access_points
+                                     (Gee.List<IsoAccessPoint> ? access_point_list,
+                                      ref uint32 sample_number,
+                                      ref uint64 sample_time)
+            throws IsoBoxError {
+        // debug ("IsoSampleTableBox.get_random_access_points(sample_number %u,sample_time %llu)",
+        //        sample_number, sample_time);
         IsoSyncSampleBox sync_sample_box;
         try {
             sync_sample_box = first_box_of_class (typeof (IsoSyncSampleBox)) as IsoSyncSampleBox;
@@ -3682,40 +4259,74 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
             sync_sample_box = null; // If SyncSampleBox is not present, all samples are sync points
         }
 
+        var sample_size_box = get_sample_size_box ();
         var time_to_sample_box = get_sample_time_box ();
-        var media_header_box = get_media_box ().get_header_box ();
 
-        AccessPoint [] access_points;
+        var access_points = access_point_list;
+        if (access_points == null) {
+            access_points = new Gee.ArrayList<AccessPoint> ();
+            sample_number = 1;
+            sample_time = 0;
+        }
         if (sync_sample_box == null) {
             // debug ("get_random_access_points: no SyncSampleBox - using TimeToSampleBox entries");
-            access_points = new AccessPoint[time_to_sample_box.get_total_samples ()];
-            for (uint i=0; i<access_points.length; i++) {
-                access_points[i].sample = i+1;
-                access_points[i].time_offset = media_header_box.from_media_time_to
-                                                (time_to_sample_box.time_for_sample (i+1),
-                                                 timescale);
-                time_to_sample_box.time_for_sample (i+1);
-                access_point_offsets_for_sample (ref access_points[i]);
+            var total_samples = time_to_sample_box.get_total_samples ();
+            for (uint i=0; i<total_samples; i++) {
+                var time_offset = time_to_sample_box.time_for_sample (i+1);
+                var access_point = new AccessPoint.time_and_sample (this, time_offset, i+1);
+                access_point_offsets_for_sample (ref access_point);
                 // debug ("get_random_access_points: sample %u: time %0.3f, offset %llu",
                 //        i+1, access_points[i].time_offset, access_points[i].byte_offset);
+                access_points.add (access_point);
             }
         } else {
             // debug ("get_random_access_points: using SyncSampleBox");
-            access_points = new AccessPoint[sync_sample_box.sample_number_array.length];
-            uint32 i=0;
             foreach (var sample in sync_sample_box.sample_number_array) {
-                access_points[i].sample = sample;
-                access_points[i].time_offset = media_header_box.from_media_time_to
-                                                (time_to_sample_box.time_for_sample (sample),
-                                                 timescale);
-                access_point_offsets_for_sample (ref access_points[i]);
+                var time_offset = time_to_sample_box.time_for_sample (sample);
+                var access_point = new AccessPoint.time_and_sample (this, time_offset, sample);
+                access_point_offsets_for_sample (ref access_point);
                 // debug ("get_random_access_points: sample %u: time %0.3f, offset %llu",
                 //        sample, access_points[i].time_offset, access_points[i].byte_offset);
-                i++;
+                access_points.add (access_point);
             }
         }
+        sample_number += sample_size_box.last_sample_number ();
+        sample_time += time_to_sample_box.get_total_duration ();
 
         return access_points;
+    }
+
+    /**
+     * This will return an AccessPoint for the corresponding (relative) time within the
+     * SampleTableBox, updating sample_number and sample_time as it progresses.
+     *
+     * sample_number, sample_time, and sample_byte_offset will be incremented while walking
+     * the track run, allowing this function to be used across multiple TrackRunBoxes
+     * 
+     * If a sample for the time is not found in the sample list, null is returned.
+     */
+    public AccessPoint ? access_point_for_time (uint64 target_time, bool sample_after_time,
+                                                ref uint32 sample_number,
+                                                ref uint64 sample_time)
+            throws IsoBoxError {
+        // debug ("IsoSampleTableBox.access_point_for_time(target_time %llu,sample_after %s,sample_number %u,sample_time %llu)",
+        //        target_time,sample_after_time ? "true" : "false",sample_number,sample_time);
+        var time_to_sample_box = get_sample_time_box ();
+        try {
+            var sample = time_to_sample_box.sample_for_time (target_time);
+            if (sample_after_time) {
+                sample++;
+            }
+            var time_offset = time_to_sample_box.time_for_sample (sample);
+            var access_point = new AccessPoint.time_and_sample (this, time_offset, sample);
+            access_point_offsets_for_sample (ref access_point);
+            return access_point;
+        } catch (IsoBoxError.ENTRY_NOT_FOUND e) {
+            var sample_size_box = get_sample_size_box ();
+            sample_number += sample_size_box.last_sample_number ();
+            sample_time += time_to_sample_box.get_total_duration ();
+            return null;
+        }
     }
 
     /**
@@ -3850,6 +4461,35 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
         }
         // Note: Chunk references will be updated after we know the size of the preceding boxes
         //       (e.g. MovieBox, EditListBox, etc)
+    }
+
+    /**
+     * This will remove all sample references from the table
+     *
+     */
+    public void remove_all_sample_refs () throws IsoBoxError {
+        debug ("IsoSampleTableBox.remove_all_sample_refs()");
+        var chunk_offset_box = get_chunk_offset_box ();
+        var sample_to_chunk_box = get_sample_chunk_box ();
+        var sample_size_box = get_sample_size_box ();
+
+        debug ("   removing all samples from TimeToSampleBox");
+        var sample_time_box = get_sample_time_box ();
+        sample_time_box.remove_sample_refs_after (0);
+
+        debug ("   removing all samples from SampleSizeBox");
+        sample_size_box.remove_sample_refs_after (0);
+
+        debug ("   removing all samples from SampleToChunkBox");
+        sample_to_chunk_box.remove_sample_refs_after (0);
+
+        debug ("   removing all chunks from ChunkOffsetBox");
+        chunk_offset_box.remove_chunk_refs_after (0);
+
+        try {
+            debug ("   removing all sync points from SyncSampleBox");
+            get_sample_sync_box ().remove_sample_refs_after (0);
+        } catch (Rygel.IsoBoxError.BOX_NOT_FOUND error) { /* it's an optional box */}
     }
 
     /**
@@ -5831,6 +6471,51 @@ public class Rygel.IsoMovieFragmentBox : IsoContainerBox {
                                + track_id.to_string ());
     }
 
+    /**
+     * Remove sample references before the designated AccessPoint and adjust the referenced
+     * mdat(s) to exclude the sample data.
+     *
+     * Note: the size of the updated MovieBox won't reflect the box changed until
+     * update_children() & update() are called.
+     *
+     * The number of bytes removed from the mdat(s) is returned in mdat_bytes_removed.
+     */
+    public void remove_samples_before_point (IsoTrackRunBox.AccessPoint target_point,
+                                            out uint64 mdat_bytes_removed)
+            throws IsoBoxError {
+        // TODO: Implement me
+        mdat_bytes_removed = 0;
+    }
+
+    /**
+     * Remove sample references after the designated AccessPoint and adjust the referenced
+     * mdat(s) to exclude the sample data.
+     *
+     * Note: the size of the updated MovieBox won't reflect the box changed until
+     * update_children() & update() are called.
+     *
+     * The number of bytes removed from the mdat(s) is returned in mdat_bytes_removed
+     */
+    public void remove_samples_after_point (IsoTrackRunBox.AccessPoint target_point,
+                                            out uint64 mdat_bytes_removed)
+            throws IsoBoxError {
+        // TODO: Implement me
+        mdat_bytes_removed = 0;
+    }
+
+    /**
+     * Adjust all offset references by byte_adjustment
+     */
+    public void adjust_offsets (int64 byte_adjustment) throws IsoBoxError {
+        check_loaded ("IsoMovieFragmentBox.adjust_offsets",byte_adjustment.to_string ());
+        foreach (var cur_box in this.children) {
+            if (cur_box is IsoTrackFragmentBox) {
+                var track_fragment_box = cur_box as IsoTrackFragmentBox;
+                track_fragment_box.adjust_offsets (byte_adjustment);
+            }
+        }
+    }
+
     public override string to_string () {
         return "IsoMovieFragmentBox[" + base.to_string () + "," + base.children_to_string () + "]";
     }
@@ -5877,6 +6562,10 @@ public class Rygel.IsoMovieFragmentHeaderBox : IsoFullBox {
                            .printf(this.type_code, bytes_consumed, this.size));
         }
         return this.size;
+    }
+
+    protected override void update_box_fields (uint64 payload_size = 0) throws IsoBoxError {
+        base.update_box_fields (payload_size+4);
     }
 
     public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
@@ -6010,9 +6699,11 @@ public class Rygel.IsoTrackFragmentBox : IsoContainerBox {
         check_loaded ("IsoTrackFragmentBox.get_duration");
         if (!this.total_duration_cached) {
             this.total_duration = 0;
-            var track_run_boxes = get_boxes_by_class (typeof (IsoTrackRunBox));
-            foreach (var box in track_run_boxes) {
-                this.total_duration += (box as IsoTrackRunBox).get_total_sample_duration ();
+            if (!get_header_box ().flag_set (IsoTrackFragmentHeaderBox.DURATION_IS_EMPTY_FLAG)) {
+                var track_run_boxes = get_boxes_by_class (typeof (IsoTrackRunBox));
+                foreach (var box in track_run_boxes) {
+                    this.total_duration += (box as IsoTrackRunBox).get_total_sample_duration ();
+                }
             }
             this.total_duration_cached = true;
         }
@@ -6047,9 +6738,9 @@ public class Rygel.IsoTrackFragmentBox : IsoContainerBox {
      * track_time_offset will be incremented according to the duration of all samples in
      * the track fragment
      */
-    public Gee.List<IsoTrackRunBox.AccessPoint> get_random_access_points
-            (Gee.List<IsoTrackRunBox.AccessPoint> ? access_point_list,
-             uint32 timescale, ref uint64 track_time_offset)
+    public Gee.List<IsoAccessPoint> get_random_access_points
+            (Gee.List<IsoAccessPoint> ? access_point_list,
+             ref uint32 sample_number, ref uint64 track_time_offset)
                 throws IsoBoxError {
         check_loaded ("IsoTrackFragmentBox.get_random_access_points");
         var parent_movie_fragment = get_movie_fragment_box ();
@@ -6076,10 +6767,64 @@ public class Rygel.IsoTrackFragmentBox : IsoContainerBox {
             if (track_run.flag_set (IsoTrackRunBox.DATA_OFFSET_PRESENT_FLAG)) {
                 file_byte_offset = base_fragment_offset + track_run.data_offset;
             }
-            track_run.get_random_access_points (access_points, timescale,
-                                                ref track_time_offset, ref file_byte_offset);
+            track_run.get_random_access_points (access_points,
+                                                ref sample_number,
+                                                ref track_time_offset,
+                                                ref file_byte_offset);
         }
         return access_points;
+    }
+
+    public IsoAccessPoint ? access_point_for_time (uint64 target_time, bool sample_after,
+                                                   ref uint32 sample_number,
+                                                   ref uint64 track_time_offset)
+                throws IsoBoxError {
+        check_loaded ("IsoTrackFragmentBox.access_point_for_time");
+        var parent_movie_fragment = get_movie_fragment_box ();
+        var track_header = get_header_box ();
+
+        if (track_header.flag_set (IsoTrackFragmentHeaderBox.DURATION_IS_EMPTY_FLAG)) {
+            throw new IsoBoxError.VALUE_TOO_LARGE ("IsoTrackFragmentBox.access_point_for_time: DURATION_IS_EMPTY_FLAG is set for "
+                                                   + this.to_string ());
+        }
+        // Calculate the base position for the runs in the track fragment
+        uint64 base_fragment_offset;
+        if (track_header.flag_set (IsoTrackFragmentHeaderBox.BASE_DATA_OFFSET_PRESENT_FLAG)) {
+            base_fragment_offset = track_header.base_data_offset;
+        } else if (track_header.flag_set (IsoTrackFragmentHeaderBox.DEFAULT_BASE_IS_MOOF_FLAG)) {
+            base_fragment_offset = parent_movie_fragment.source_offset;
+        } else {
+            base_fragment_offset = parent_movie_fragment.source_offset + parent_movie_fragment.size;
+        }
+        // Walk the track runs
+        uint64 file_byte_offset = base_fragment_offset;
+        var track_run_boxes = get_boxes_by_class (typeof (IsoTrackRunBox));
+        foreach (var box in track_run_boxes) {
+            var track_run = box as IsoTrackRunBox;
+            if (track_run.flag_set (IsoTrackRunBox.DATA_OFFSET_PRESENT_FLAG)) {
+                file_byte_offset = base_fragment_offset + track_run.data_offset;
+            }
+            var run_access_point = track_run.access_point_for_time (target_time, sample_after,
+                                                                    ref sample_number,
+                                                                    ref track_time_offset,
+                                                                    ref file_byte_offset);
+            if (run_access_point != null) {
+                return run_access_point;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Adjust all offset references by byte_adjustment
+     */
+    public void adjust_offsets (int64 byte_adjustment) throws IsoBoxError {
+        check_loaded ("IsoTrackFragmentBox.adjust_offsets",byte_adjustment.to_string ());
+        var track_header = get_header_box ();
+        if (track_header.flag_set (IsoTrackFragmentHeaderBox.BASE_DATA_OFFSET_PRESENT_FLAG)) {
+            track_header.base_data_offset += byte_adjustment;
+        }
+        // Nothing to do in other cases - the track run offsets are anchored to the MovieFragment
     }
 
     public override string to_string () {
@@ -6221,6 +6966,15 @@ public class Rygel.IsoTrackFragmentHeaderBox : IsoFullBox {
                                    this.source_offset));
         }
         return this.size;
+    }
+
+    protected override void update_box_fields (uint64 payload_size = 0) throws IsoBoxError {
+        payload_size += 4 + (flag_set (BASE_DATA_OFFSET_PRESENT_FLAG) ? 8 : 0)
+                        + (flag_set (SAMPLE_DESCRIPTION_INDEX_PRESENT_FLAG) ? 4 : 0)
+                        + (flag_set (DEFAULT_SAMPLE_DURATION_PRESENT_FLAG) ? 4 : 0)
+                        + (flag_set (DEFAULT_SAMPLE_SIZE_PRESENT_FLAG) ? 4 : 0)
+                        + (flag_set (DEFAULT_SAMPLE_FLAGS_PRESENT_FLAG) ? 4 : 0);
+        base.update_box_fields (payload_size);
     }
 
     /**
@@ -6425,25 +7179,32 @@ public class Rygel.IsoTrackRunBox : IsoFullBox {
 
     public uint64 first_sample_offset = 0; // 0 == undefined
 
-    public class AccessPoint {
-        public AccessPoint (IsoTrackRunBox track_run_box, uint64 time_offset, uint64 byte_offset,
-                            uint32 sample_index, IsoSampleFlags sample_flags) {
-            this.track_run_box = track_run_box;
-            this.time_offset = time_offset;
-            this.byte_offset = byte_offset;
-            this.sample_index = sample_index;
-            this.sample_flags = sample_flags;
-        }
+    public class AccessPoint : IsoAccessPoint {
         public IsoTrackRunBox track_run_box;
-        public uint64 time_offset; /** Relative to the segment */
-        public uint64 byte_offset; /** Relative to the file container */
-        public uint32 sample_index; /** The sample index within the track run (0-based) */
+        public uint32 sample_run_index; /** The sample index within the track run (0-based) */
         public IsoSampleFlags sample_flags; /** effective sample flags for the */
 
-        public string to_string () {
-            return "IsoTrackRunBox.AccessPoint[%s,time_offset %llu,byte_offset %llu,sample_index %u,%s]"
-                   .printf (this.track_run_box.to_string(),this.time_offset,this.byte_offset,
-                            this.sample_index,this.sample_flags.to_string());
+        public AccessPoint (IsoTrackRunBox track_run_box, uint64 time_offset, uint64 byte_offset,
+                            uint32 sample_number, uint32 sample_run_index, IsoSampleFlags sample_flags) {
+            IsoSampleTableBox sample_table = null;
+            if (track_run_box != null) {
+                try { // to extract the track box
+                    sample_table = track_run_box.get_track_fragment_box ()
+                                                 .get_track_extends_box ()
+                                                  .get_track_box ()
+                                                   .get_sample_table_box ();
+                } catch (IsoBoxError e) {}
+            }
+            base (sample_table, time_offset, byte_offset, sample_number);
+            this.track_run_box = track_run_box;
+            this.sample_run_index = sample_run_index;
+            this.sample_flags = sample_flags;
+        }
+        public override string to_string () {
+            return "IsoTrackRunBox.AccessPoint[%s,sample_run_index %u,%s,%s]"
+                   .printf (base.to_string (),this.sample_run_index,
+                            this.track_run_box.to_string(),
+                            this.sample_flags.to_string());
         }
     }
 
@@ -6525,12 +7286,9 @@ public class Rygel.IsoTrackRunBox : IsoFullBox {
     }
 
     protected override void update_box_fields (uint64 payload_size = 0) throws IsoBoxError {
-        if (flag_set (DATA_OFFSET_PRESENT_FLAG)) {
-            payload_size += 4;
-        }
-        if (flag_set (FIRST_SAMPLE_FLAGS_PRESENT_FLAG)) {
-            payload_size += 4;
-        }
+
+        payload_size += 4 + (flag_set (DATA_OFFSET_PRESENT_FLAG) ? 4 : 0)
+                        + (flag_set (FIRST_SAMPLE_FLAGS_PRESENT_FLAG) ? 4 : 0);
         uint8 bytes_per_sample_entry = (flag_set (SAMPLE_DURATION_PRESENT_FLAG) ? 4 : 0)
                                        + (flag_set (SAMPLE_SIZE_PRESENT_FLAG) ? 4 : 0)
                                        + (flag_set (SAMPLE_FLAGS_PRESENT_FLAG) ? 4 : 0)
@@ -6604,10 +7362,10 @@ public class Rygel.IsoTrackRunBox : IsoFullBox {
     }
 
     /**
-     * Get the random access point times (in timescale units) and associated
-     * byte offsets for the track run
+     * Get the random access point times and associated byte offsets for the track run
      *
-     * sample_time will be incremented by the duration of the track run
+     * sample_number, sample_time, and sample_byte_offset will be incremented while walking
+     * the track run, allowing this function to be used across multiple TrackRunBoxes
      * 
      * sample_byte_offset should be set to the byte of the run start (the TrackFragment's
      * base offset or the byte after the preceding run in the fragment). It will be advanced
@@ -6615,14 +7373,14 @@ public class Rygel.IsoTrackRunBox : IsoFullBox {
      *
      * note: the sample_byte_offset will be cached within the IsoTrackRunBox
      */
-    public Gee.List<AccessPoint> get_random_access_points
-                                     (Gee.List<IsoTrackRunBox.AccessPoint> ? access_point_list,
-                                      uint32 timescale,
+    public Gee.List<IsoAccessPoint> get_random_access_points
+                                     (Gee.List<IsoAccessPoint> ? access_point_list,
+                                      ref uint32 sample_number,
                                       ref uint64 sample_time, 
                                       ref uint64 sample_byte_offset)
             throws IsoBoxError {
-        // debug ("IsoTrackRunBox.get_random_access_points(timescale %u, sample_time %llu, sample_byte_offset %llu",
-        //        timescale,sample_time,sample_byte_offset);
+        // debug ("IsoTrackRunBox.get_random_access_points(sample_number %u,sample_time %llu,sample_byte_offset %llu)",
+        //        sample_number,sample_time,sample_byte_offset);
 
         check_loaded ("IsoTrackRunBox.get_random_access_points");
 
@@ -6643,23 +7401,20 @@ public class Rygel.IsoTrackRunBox : IsoFullBox {
 
         this.first_sample_offset = sample_byte_offset; // cache it
 
-        var media_header = get_track_fragment_box ().get_track_extends_box ()
-                            .get_track_box ().get_media_box ().get_header_box ();
         uint32 cur_index = 0;
         if (flag_set (FIRST_SAMPLE_FLAGS_PRESENT_FLAG)) {
             if (!this.first_sample_flags.sample_is_non_sync_sample) {
-                var access_time = media_header.from_media_time_to (sample_time, timescale);
                 var first_access_point = new AccessPoint
                                              (this,
-                                              access_time,
+                                              sample_time,
                                               sample_byte_offset,
-                                              cur_index,
-                                              flag_set (FIRST_SAMPLE_FLAGS_PRESENT_FLAG)
-                                               ? this.first_sample_flags
-                                               : default_sample_flags);
+                                              sample_number,
+                                              cur_index, 
+                                              this.first_sample_flags);
                 // debug ("  created " + access_point.to_string ());
                 access_points.add (first_access_point);
             }
+            sample_number ++;
             sample_time += sample_duration_present ? this.sample_entry_array[0].sample_duration
                                                    : default_sample_duration;
             sample_byte_offset += sample_size_present ? this.sample_entry_array[0].sample_size
@@ -6678,11 +7433,13 @@ public class Rygel.IsoTrackRunBox : IsoFullBox {
                 var access_point = new AccessPoint (this,
                                                     sample_time,
                                                     sample_byte_offset,
+                                                    sample_number,
                                                     cur_index,
                                                     cur_sample_flags);
                 // debug ("  created " + access_point.to_string ());
                 access_points.add (access_point);
             }
+            sample_number ++;
             sample_time += sample_duration_present ? cur_entry.sample_duration
                                                    : default_sample_duration;
             sample_byte_offset += sample_size_present ? cur_entry.sample_size
@@ -6690,6 +7447,74 @@ public class Rygel.IsoTrackRunBox : IsoFullBox {
             cur_index ++;
         }
         return access_points;
+    }
+
+    /**
+     * This will return an AccessPoint for the corresponding (relative) time within the
+     * TrackRunBox, updating sample_number, sample_time, and sample_byte_offset as it
+     * progresses.
+     *
+     * sample_number, sample_time, and sample_byte_offset will be incremented while walking
+     * the track run, allowing this function to be used across multiple TrackRunBoxes
+     * 
+     * sample_byte_offset should be set to the byte of the run start (the TrackFragment's
+     * base offset or the byte after the preceding run in the fragment). It will be advanced
+     * to the byte position 1 beyond the last sample in the run
+     *
+     * note: the sample_byte_offset will be cached within the IsoTrackRunBox
+     *
+     * If a sample for the time is not found in the sample list, null is returned.
+     */
+    public AccessPoint ? access_point_for_time (uint64 target_time, bool sample_after_time,
+                                                ref uint32 sample_number,
+                                                ref uint64 sample_time, 
+                                                ref uint64 sample_byte_offset)
+            throws IsoBoxError {
+        check_loaded ("IsoTrackRunBox.access_point_for_time");
+        // debug ("IsoTrackRunBox.access_point_for_time(target_time %llu,sample_number %u,sample_time %llu,sample_byte_offset %llu)",
+        //        target_time,sample_number,sample_time,sample_byte_offset);
+        var track_frag_header = get_track_fragment_box ().get_header_box ();
+        var default_sample_flags = track_frag_header.get_default_sample_flags ();
+        var default_sample_size = track_frag_header.get_default_sample_size ();
+        var default_sample_duration = track_frag_header.get_default_sample_duration ();
+
+        var sample_duration_present = flag_set_loaded (SAMPLE_DURATION_PRESENT_FLAG);
+        var sample_size_present = flag_set_loaded (SAMPLE_SIZE_PRESENT_FLAG);
+        var sample_flags_present = flag_set_loaded (SAMPLE_FLAGS_PRESENT_FLAG);
+
+        // Walk the samples looking for the time
+        this.first_sample_offset = sample_byte_offset; // cache it
+
+        uint32 cur_index = 0;
+        IsoSampleFlags cur_sample_flags = default_sample_flags;
+        bool return_next_sample = false;
+        while (cur_index < this.sample_entry_array.length) {
+            var cur_entry = this.sample_entry_array[cur_index];
+            if (sample_flags_present) {
+                cur_sample_flags = cur_entry.sample_flags;
+            }
+            var sample_duration = sample_duration_present ? cur_entry.sample_duration
+                                                          : default_sample_duration;
+            var sample_size = sample_size_present ? cur_entry.sample_size
+                                                  : default_sample_size;
+            if (target_time < sample_time + sample_duration) {
+                if (!sample_after_time || return_next_sample) {
+                    return new AccessPoint (this,
+                                            sample_time,
+                                            sample_byte_offset,
+                                            sample_number,
+                                            cur_index,
+                                            cur_sample_flags);
+                } else {
+                    return_next_sample = true;
+                }
+            }
+            sample_number ++;
+            sample_time += sample_duration;
+            sample_byte_offset += sample_size;
+            cur_index ++;
+        }
+        return null;
     }
 
     public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
@@ -6993,49 +7818,19 @@ public static int main (string[] args) {
             stdout.flush ();
         }
 
-        // debug ("updating box...");
-        // file_container_box.update ();
-
         if (print_access_points) {
             //
             // Enumerating track sync points
             //
             // Fully load/parse the input file (0 indicates full depth)
             file_container_box.load_children (0);
-            var movie_box = file_container_box.get_movie_box ();
-            var primary_track = movie_box.get_primary_media_track ();
-            var timescale = primary_track.get_media_timescale ();
-            var primary_track_id = primary_track.get_header_box ().track_id;
-            stdout.printf ("\nRANDOM ACCESS POINTS FOR TRACK %u {\n", primary_track_id);
-
-            var sample_table_box = primary_track.get_sample_table_box ();
-            var sync_times = sample_table_box.get_random_access_points (timescale);
-            foreach (var sync_point in sync_times) {
-                stdout.printf ("  time val %9llu:%9.3f seconds, byte offset %12llu\n",
-                               sync_point.time_offset, sync_point.time_offset/(float)timescale,
-                               sync_point.byte_offset);
-            }
-            if (movie_box.is_fragmented ()) {
-                uint64 sample_time = primary_track.get_media_box ().get_header_box ()
-                                     .get_media_duration (timescale);
-                var track_fragments = file_container_box.get_tracks_fragments_for_id
-                                                          (primary_track_id);
-                Gee.List<Rygel.IsoTrackRunBox.AccessPoint> access_points = null;
-                // Walk all the track fragments and have them add their access points to the list
-                foreach (var track_frag_box in track_fragments) {
-                    access_points = track_frag_box.get_random_access_points (access_points,
-                                                                             timescale,
-                                                                             ref sample_time);
-                }
-                foreach (var access_point in access_points) {
-                    stdout.printf ("  time val %9llu:%9.3f seconds, byte offset %12llu\n",
-                                   access_point.time_offset,
-                                   access_point.time_offset/(float)timescale,
-                                   access_point.byte_offset);
-                }
-                    
-                stdout.flush ();
-            } else {
+            var access_points = file_container_box.get_random_access_points ();
+            foreach (var access_point in access_points) {
+                stdout.printf ("  time val %9llu:%9.3f seconds, byte offset %12llu, sample %u\n",
+                               access_point.time_offset,
+                               (float)access_point.time_offset/access_point.get_timescale (),
+                               access_point.byte_offset, access_point.sample);
+                // stdout.printf ("   %s\n", access_point.to_string ());
             }
             stdout.printf ("}\n");
             stdout.flush ();
@@ -7072,13 +7867,15 @@ public static int main (string[] args) {
             //
             stdout.printf  ("\nTRIMMING INPUT FILE: (%s empty edit)\n",
                             (with_empty_edit ? "with" : "no"));
-            stdout.printf  ("  Requested time range: %0.3fs-%0.3fs\n", (float)time_range_start_us/MICROS_PER_SEC,
-                                                             (float)time_range_end_us/MICROS_PER_SEC);
-            Rygel.IsoSampleTableBox.AccessPoint start_point, end_point;
-            file_container_box.trim_to_time_range (ref time_range_start_us, ref time_range_end_us,
+            stdout.printf  ("  Requested time range: %0.3fs-%0.3fs\n",
+                            (float)time_range_start_us/MICROS_PER_SEC,
+                            (float)time_range_end_us/MICROS_PER_SEC);
+            Rygel.IsoAccessPoint start_point, end_point;
+            file_container_box.trim_to_time_range (time_range_start_us, time_range_end_us,
                                                    out start_point, out end_point, with_empty_edit);
-            stdout.printf  ("  Effective time range: %0.3fs-%0.3fs\n", (float)time_range_start_us/MICROS_PER_SEC,
-                                                           (float)time_range_end_us/MICROS_PER_SEC);
+            stdout.printf  ("  Effective time range: %0.3fs-%0.3fs\n",
+                            (float)start_point.time_offset/start_point.get_timescale (),
+                            (float)end_point.time_offset/end_point.get_timescale ());
             stdout.printf  ("  Effective byte range: %llu-%llu (0x%llx-0x%llx) (%llu bytes)\n",
                      start_point.byte_offset, end_point.byte_offset,
                      start_point.byte_offset, end_point.byte_offset,
@@ -7127,12 +7924,22 @@ public static int main (string[] args) {
         }
 
         if (print_track_box_for_time) {
-            stdout.printf ("\nTRACK FOR TIME %0.3fs:\n", time_for_track);
             file_container_box.load_children (7); // need to get down to the SampleSizeBox
             var movie_box = file_container_box.get_movie_box ();
-            uint64 movie_time = (uint64)(time_for_track * movie_box.get_header_box ().timescale);
-            var track_box = file_container_box.get_track_box_for_time (movie_time);
-            track_box.to_printer ( (l) => {stdout.puts (l); stdout.putc ('\n');}, "  ");
+            var track_box = movie_box.get_primary_media_track ();
+            var track_header = track_box.get_header_box ();
+            var media_box_header = track_box.get_media_box ().get_header_box ();
+            var track_media_time = media_box_header.to_media_time_from
+                                      ((uint64)(time_for_track*MICROS_PER_SEC), MICROS_PER_SEC); 
+            stdout.printf ("\nTRACK FOR TIME %0.3fs (media time %llu):\n",
+                           time_for_track, track_media_time);
+            uint64 box_time_offset;
+            var found_box = file_container_box.get_track_box_for_time (track_header.track_id,
+                                                                       track_media_time,
+                                                                       out box_time_offset);
+            found_box.to_printer ( (l) => {stdout.puts (l); stdout.putc ('\n');}, "  ");
+            stdout.printf ("  Time offset into box: %llu (%0.3fs)\n",
+                           box_time_offset,(float)box_time_offset/media_box_header.timescale);
             stdout.flush ();
         }
 
