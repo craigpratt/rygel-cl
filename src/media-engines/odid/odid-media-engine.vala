@@ -468,6 +468,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             res.size = content_info.get_size ();
             debug ("create_resource: %s: size: %s", short_res_path, res.size.to_string ());
             byteseek_operations |= DLNAOperation.RANGE; // Full byte seek (full RADA)
+            res.dlna_flags |= DLNAFlags.BACKGROUND_TRANSFER_MODE
+                              | DLNAFlags.CONNECTION_STALL;
             if (normal_content_index_file.query_exists ()) {
                 res.duration = ODIDUtil.duration_from_index_file_s (normal_content_index_file);
                 res.dlna_operation |= DLNAOperation.TIMESEEK; // Full time seek (full RADA)
