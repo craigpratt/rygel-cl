@@ -230,17 +230,17 @@ public class Rygel.ODIDUtil : Object {
                         debug ("offsets_covering_time_range: found start of range (%s): time %lld, offset %lld",
                                (is_reverse ? "reverse" : "forward"),
                                start_time, start_offset);
-                } else { // start offset found (note that start and end can't be the same)
-                    if ((is_reverse && (cur_time_offset < end_time))
-                        || (!is_reverse && (cur_time_offset > end_time)) ) {
-                        end_time = cur_time_offset;
-                        end_offset = int64.parse (strip_leading_zeros (cur_data_offset));
-                        end_offset_found = true;
-                        debug ("offsets_covering_time_range: found end of range (%s): time %lld, offset %lld",
-                               (is_reverse ? "reverse" : "forward"),
-                               end_time, end_offset);
-                        break; // We're done
-                    }
+                }
+                if (start_offset_found
+                    && (is_reverse && (cur_time_offset <= end_time))
+                        || (!is_reverse && (cur_time_offset >= end_time)) ) {
+                    end_time = cur_time_offset;
+                    end_offset = int64.parse (strip_leading_zeros (cur_data_offset));
+                    end_offset_found = true;
+                    debug ("offsets_covering_time_range: found end of range (%s): time %lld, offset %lld",
+                           (is_reverse ? "reverse" : "forward"),
+                           end_time, end_offset);
+                    break; // We're done
                 }
                 last_time_offset = cur_time_offset;
                 last_data_offset = cur_data_offset;
