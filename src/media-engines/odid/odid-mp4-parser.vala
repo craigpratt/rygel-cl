@@ -266,7 +266,7 @@ public class BufferGeneratingOutputStream : OutputStream {
         this.current_buffer = null;
         this.paused = paused;
         this.stopped = false;
-        this.flush_partial_buffer = false;
+        this.flush_partial_buffer = true;
     }
 
     public override ssize_t write (uint8[] buffer, Cancellable? cancellable = null)
@@ -280,7 +280,7 @@ public class BufferGeneratingOutputStream : OutputStream {
             try {
                 this.state_mutex.lock ();
                 if (this.stopped) {
-                    throw new IOError.NO_SPACE ("The BufferGeneratingOutputStream is stopped (before wait)");
+                    throw new IOError.NO_SPACE ("The BufferGeneratingOutputStream is stopped (pre-wait)");
                 }
                 if (this.current_buffer == null) {
                     this.current_buffer = new ByteArray.sized ((uint32)buffer_target_size);
@@ -298,7 +298,7 @@ public class BufferGeneratingOutputStream : OutputStream {
                         this.unpaused.wait (state_mutex);
                         // debug ("BufferGeneratingOutputStream.write: done waiting");
                         if (this.stopped) {
-                            throw new IOError.NO_SPACE ("The BufferGeneratingOutputStream is stopped (post wait)");
+                            throw new IOError.NO_SPACE ("The BufferGeneratingOutputStream is stopped (post-wait)");
                         }
                         if (this.current_buffer == null) {
                             // Buffer was handled out from under us (e.g. flushed)
@@ -326,7 +326,7 @@ public class BufferGeneratingOutputStream : OutputStream {
         try {
             this.state_mutex.lock ();
             if (this.stopped) {
-                return true;
+                return false;
             }
             // Bit of a policy conflict here. We want to generate fixed-sized buffers. But
             //  we were asked to flush...
@@ -338,7 +338,7 @@ public class BufferGeneratingOutputStream : OutputStream {
 
             // Re-check, since the mutex isn't held in wait
             if (this.stopped) {
-                return true;
+                return false;
             }
             if (this.flush_partial_buffer && (this.current_buffer != null)) {
                 buffer_to_pass = ByteArray.free_to_bytes (this.current_buffer);
@@ -357,33 +357,27 @@ public class BufferGeneratingOutputStream : OutputStream {
     public override bool close (Cancellable? cancellable = null)
             throws IOError {
         debug ("BufferGeneratingOutputStream.close()");
-        Bytes buffer_to_pass = null;
+
         try {
             this.state_mutex.lock ();
             if (this.stopped) {
-                return true;
-            }
-            if ((this.current_buffer != null) && this.paused) {
-                this.unpaused.wait (state_mutex);
-            }
-
-            // Re-check, since the mutex isn't held in wait
-            if (this.stopped) {
-                return true;
+                return false;
             }
             if (this.current_buffer != null) {
-                buffer_to_pass = ByteArray.free_to_bytes (this.current_buffer);
                 this.current_buffer = null;
             }
+            this.stopped = true;
+            this.unpaused.broadcast ();
+            // No one should be waiting now
         } finally {
             this.state_mutex.unlock ();
         }
-
-        // Call the delegate without holding the lock
-        this.buffer_sink (buffer_to_pass, true);
         return true;
     }
 
+    /**
+     * Resume/start issuing buffers on the BufferReady delegate.
+     */
     public void resume () {
         debug ("BufferGeneratingOutputStream.resume()");
         try {
@@ -395,6 +389,10 @@ public class BufferGeneratingOutputStream : OutputStream {
         }
     }
 
+    /**
+     * Stop issuing buffers on the BufferReady delegate and block writes until resume() or
+     *  stop() is called.
+     */
     public void pause () {
         debug ("BufferGeneratingOutputStream.pause()");
         try {
@@ -405,16 +403,19 @@ public class BufferGeneratingOutputStream : OutputStream {
         }
     }
 
+    /**
+     * Stop issuing buffers on the BufferReady delegate and fail/disallow IO operations
+     *  (write(), flush(), etc). The BufferReady delegate will not be called once stop()
+     *  returns.
+     */
     public void stop () {
         debug ("BufferGeneratingOutputStream.stop()");
-        Bytes buffer_to_pass = null;
         if (this.stopped) { // We never unset stopped - so this is a safe check
             return;
         }
         try {
             this.state_mutex.lock ();
             if (this.current_buffer != null) {
-                buffer_to_pass = ByteArray.free_to_bytes (this.current_buffer);
                 this.current_buffer = null;
             }
             this.stopped = true;
@@ -423,10 +424,9 @@ public class BufferGeneratingOutputStream : OutputStream {
         } finally {
             this.state_mutex.unlock ();
         }
-        // Notify outside the lock
-        this.buffer_sink (buffer_to_pass, true);
     }
 }
+
 /**
  * The IsoBox is the top-level class for all ISO/MP4 Box classes defined here
  *

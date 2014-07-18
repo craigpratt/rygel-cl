@@ -44,6 +44,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     protected string index_uri;
     protected int64 range_start = 0;
     protected bool frozen = false;
+    protected bool stopped = false;
     protected HTTPSeekRequest seek_request;
     protected PlaySpeedRequest playspeed_request = null;
     protected bool speed_files_scaled;
@@ -1079,63 +1080,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
      * (e.g. a MP4 generated in response to a time-seek request)
      */
     protected void start_mp4_container_source () throws Error {
-        uint64 byte_count = 0;
         debug ("start_mp4_container_source: Using buffer/chunk size %llu (0x%llx)",
                this.chunk_size, this.chunk_size);
         // This BufferGeneratingOutputStream.BufferReady delegate will invoke data_available()
-        //  for each buffer returned. 
+        //  for each buffer returned. It will not be invoked after stop() returns.
         this.mp4_container_stream = new BufferGeneratingOutputStream ((uint32)this.chunk_size,
-                                                                      (bytes, last_buffer) =>
-            {
-                if (bytes != null) {
-                    var buffer = bytes.get_data ();
-                    debug ("mp4_container_source: received %u bytes (%02x %02x %02x %02x %02x %02x) - offset %llu (0x%llx)",
-                           buffer.length, buffer[0], buffer[1], buffer[2],
-                           buffer[3], buffer[4], buffer[5], byte_count, byte_count);
-                    byte_count += buffer.length;
-                    // Run this through the glib queue to ensure non-reentrance to Rygel/Soup
-                    Idle.add ( () => {
-                        var bytes_ref = bytes; // maintain a reference
-                        // This should be the last reference to "bytes" when it's executed
-                        if (this.dtcp_session_handle == -1) {
-                            data_available (bytes_ref.get_data ());
-                        } else {
-                            // Encrypted data has to be unowned as the reference will be passed
-                            // to DTCP libraries to perform the cleanup, else vala will be
-                            //performing the cleanup by default.
-                            unowned uint8[] encrypted_data = null;
-                            uchar cci = 0x3; // TODO: Put the CCI bits in resource.info
-
-                            // Encrypt the data
-                            int return_value = Dtcpip.server_dtcp_encrypt
-                                              ( this.dtcp_session_handle, cci,
-                                                (uint8[])bytes_ref.get_data (),
-                                                out encrypted_data );
-
-                            message ("Encryption returned: %d and the encryption size : %s",
-                                   return_value, (encrypted_data == null)
-                                                 ? "NULL" : encrypted_data.length.to_string ());
-
-                            // Call event to send buffer to client
-                            data_available (encrypted_data);
-
-                            int ret_free = Dtcpip.server_dtcp_free (encrypted_data);
-                            debug ("DTCP-IP data reference freed : %d", ret_free);
-                        }
-                        return false;
-                    }, Priority.HIGH_IDLE);
-                }
-                if (last_buffer) {
-                    debug ("mp4_container_source: last buffer received. Total bytes received: %llu",
-                           byte_count);
-                    Idle.add ( () => {
-                        message ("mp4_container_source: All requested data sent for %s (%lld bytes) - signaling done()",
-                                 ODIDUtil.short_content_path (this.content_uri), byte_count);
-                        done ();
-                        return false;
-                    }, Priority.HIGH_IDLE);
-                }
-            }, true /* paused at start */ );
+                                                                      on_mp4_data_ready,
+                                                                      true /* paused at start */);
 
         // Start a thread that will serialize the MP4/ISO representation - inducing buffer
         //  generation via the BufferGeneratingOutputStream created above. The thread will
@@ -1143,6 +1094,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         //  throws an error (which should necessarily occur if/when
         //  BufferGeneratingOutputStream.stop() is called).
         generator_count = (generator_count+1) % uint32.MAX;
+        this.total_bytes_read = 0;
         string generator_name = "mp4 time-seek generator " + generator_count.to_string ();
         debug ("mp4_container_source: starting " + generator_name);
         this.mp4_container_thread = new Thread<void*> ( generator_name, () => {
@@ -1157,23 +1109,24 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                 out_stream = new Rygel.IsoOutputStream (this.mp4_container_stream);
                 this.mp4_container_source.write_to_stream (out_stream);
                 debug (generator_name + ": Completed writing mp4 box tree from %s (%llu bytes written)",
-                       container_source_name, byte_count);
+                       container_source_name, this.total_bytes_read);
             } catch (Error err) {
                 message (generator_name + ": Error during write of mp4 box tree from %s (%llu bytes written): %s",
-                         container_source_name, byte_count, err.message);
+                         container_source_name, this.total_bytes_read, err.message);
             }
             if (out_stream != null) {
                 try {
                     out_stream.close ();
                 } catch (Error err) {
                 message (generator_name + ": Error closing mp4 box tree stream from %s (%llu bytes written): %s",
-                       container_source_name, byte_count, err.message);
+                       container_source_name, this.total_bytes_read, err.message);
                 }
             }
             debug (generator_name + " done/exiting");
             return null;
         } );
 
+        // The stream starts out paused. Now let it run...
         this.mp4_container_stream.resume ();
     }
 
@@ -1306,6 +1259,9 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
     public void stop () {
         debug ("Stopping data source for %s", ODIDUtil.short_content_path (this.content_uri));
+        if (this.stopped) {
+            return; // Shouldn't happen
+        }
         if (this.mp4_container_stream == null) {
             // If pipe used, reap child otherwise shut down channel.
             if ((int)this.child_pid != 0) {
@@ -1319,6 +1275,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             this.mp4_container_stream = null;
             this.mp4_container_source = null;
         }
+        this.stopped = true;
         message ("stop(): " + ODIDUtil.short_content_path (this.content_uri));
     }
 
@@ -1345,6 +1302,10 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             message ("Received " + condition.to_string () + "for "
                      + ODIDUtil.short_content_path (this.content_uri) + " - signaling done()");
             done ();
+            return false;
+        }
+
+        if (this.stopped) {
             return false;
         }
 
@@ -1443,5 +1404,57 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
         // Keep reading from channel if data left and not frozen or not
         return !this.frozen && !all_data_read && !pace;
+    }
+
+    /**
+     * Called by the MP4 BufferGeneratingOutputStream whenever a buffer of data is ready.
+     */
+    private void on_mp4_data_ready (Bytes ? new_buffer, bool last_buffer) {
+        if (this.stopped) {
+            return;
+        }
+        if (new_buffer != null) {
+            var buffer = new_buffer.get_data ();
+            debug ("on_mp4_data_ready: received %u bytes (%02x %02x %02x %02x %02x %02x) - offset %llu (0x%llx)",
+                   buffer.length, buffer[0], buffer[1], buffer[2],
+                   buffer[3], buffer[4], buffer[5], this.total_bytes_read, this.total_bytes_read);
+            this.total_bytes_read += buffer.length;
+            // Run this through the glib queue to ensure non-reentrance to Rygel/Soup
+            if (this.dtcp_session_handle == -1) {
+                Idle.add ( () => {
+                    data_available (buffer);
+                    return false;
+                }, Priority.HIGH_IDLE);
+            } else {
+                // Encrypted data has to be unowned as the reference will be passed
+                // to DTCP libraries to perform the cleanup, else vala will be
+                // performing the cleanup by default.
+                unowned uint8[] encrypted_data = null;
+                uchar cci = 0x3; // TODO: Put the CCI bits in resource.info
+
+                int return_value = Dtcpip.server_dtcp_encrypt ( this.dtcp_session_handle, cci,
+                                                                (uint8[])buffer,
+                                                                out encrypted_data );
+                message ("on_mp4_data_ready: Encryption returned %d, encrypted size %s",
+                         return_value, (encrypted_data == null)
+                                       ? "n/a" : encrypted_data.length.to_string ());
+                Idle.add ( () => {
+                    data_available (encrypted_data);
+                    int ret_free = Dtcpip.server_dtcp_free (encrypted_data);
+                    debug ("on_mp4_data_ready: server_dtcp_free returned %d", ret_free);
+                    return false;
+                }, Priority.HIGH_IDLE);
+            }
+        }
+        if (last_buffer) {
+            debug ("on_mp4_data_ready: last buffer received. Total bytes received: %llu",
+                   this.total_bytes_read);
+            Idle.add ( () => {
+                message ("on_mp4_data_ready: All requested data sent for %s (%lld bytes) - signaling done()",
+                         ODIDUtil.short_content_path (this.content_uri), this.total_bytes_read);
+                done ();
+                return false;
+            }, Priority.HIGH_IDLE);
+        }
     }
 }
