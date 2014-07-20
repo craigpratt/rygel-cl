@@ -161,23 +161,26 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
         // Process PlaySpeed
         if (this.playspeed_request != null) {
-            string content_scaled_param = ODIDUtil.get_resource_property (this.resource_uri,
-                                                                          "speed-files-scaled");
-            this.speed_files_scaled = (content_scaled_param == "true");
-            debug ( "    Content speed files %s scaled", (this.speed_files_scaled ? "ARE" : "are NOT"));
+            debug ( "    Content speed requested: %s", this.playspeed_request.speed.to_string ());
             int framerate = PlaySpeedResponse.NO_FRAMERATE;
-            if (!this.speed_files_scaled) { // We're dealing with augmented/decimated streams
-                string framerate_for_speed = ODIDUtil.get_content_property (this.content_uri,
-                                                                            "framerate");
-                if (framerate_for_speed != null) {
-                    framerate = int.parse ((framerate_for_speed == null)
-                                           ? "" : framerate_for_speed);
-                    if (framerate == 0) {
-                        framerate = PlaySpeedResponse.NO_FRAMERATE;
-                    }
+            string framerate_for_speed = ODIDUtil.get_content_property (this.content_uri,
+                                                                        "framerate");
+            this.speed_files_scaled = true;
+            if (framerate_for_speed != null) {
+                framerate = int.parse ((framerate_for_speed == null)
+                                       ? "" : framerate_for_speed);
+                if (framerate == 0) {
+                    throw new DataSourceError.GENERAL
+                                  ("Invalid framerate value '%s' for %s"
+                                   .printf (framerate_for_speed, this.content_uri));
                 }
-                debug ( "    Framerate for speed %s: %s",
-                        this.playspeed_request.speed.to_string (),
+                // The stream is decimated (not scaled)
+                this.speed_files_scaled = false;
+            }
+            if (this.speed_files_scaled) {
+                debug ( "    Content files for this speed are scaled (not decimated)");
+            } else {
+                debug ( "    Content files for this speed are decimated (framerate %s)",
                         ( (framerate == PlaySpeedResponse.NO_FRAMERATE) ? "INVALID"
                           : framerate.to_string () ) );
             }
