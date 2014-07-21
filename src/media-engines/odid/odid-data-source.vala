@@ -298,6 +298,11 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                                   total_duration,
                                                   out this.range_start, out range_end,
                                                   content_size);
+            if (range_end <= this.range_start) {
+                throw new DataSourceError.SEEK_FAILED ("Effective TimeSeekRange byte range end (%lld) is before/at effective range start (%lld)",
+                                                       range_end, this.range_start);
+            }
+            
             this.range_offset_list.add (range_end);
             if (this.content_protected) {
                 // We don't currently support Range on link-protected binaries. So leave out
