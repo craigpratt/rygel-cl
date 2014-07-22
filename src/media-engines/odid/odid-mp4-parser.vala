@@ -1444,12 +1444,20 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
     public uint64 get_duration (bool use_edit_list=false) throws IsoBoxError {
         // debug ("IsoFileContainerBox.get_duration(use_edit_list=%s)",
         //        (use_edit_list ? "true": "false"));
+        // Return the duration of the longest track
+        uint64 longest_track_duration = 0;
         var movie_box = get_movie_box ();
-        var primary_track = movie_box.get_primary_media_track ();
-        var primary_track_id = primary_track.get_header_box ().track_id;
-        // debug ("Using track %u for duration calculation", master_track_id);
-
-        return get_track_duration (primary_track_id, use_edit_list);
+        var track_list = movie_box.get_tracks ();
+        for (var track_it = track_list.iterator (); track_it.next ();) {
+            var track_box = track_it.get ();
+            var track_id = track_box.get_header_box ().track_id;
+            var track_media_duration = get_track_duration (track_id, use_edit_list);
+            if (track_media_duration > longest_track_duration) {
+                longest_track_duration = track_media_duration;
+            }
+            // debug ("  calculation duration for track %u: %llu", track_id, track_duration);
+        }
+        return longest_track_duration;
     }
 
     /**
@@ -1644,7 +1652,8 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
                 }
             }
         }
-        // debug ("  total duration for %s: %llu",this.to_string (),track_duration);
+        // debug ("  total duration for track %u of %s: %llu",
+        //        track_id, this.to_string (), track_duration);
         return track_duration;
     }
                 
@@ -2255,7 +2264,12 @@ public class Rygel.IsoMovieBox : IsoContainerBox {
         try {
             return get_first_track_of_type (Rygel.IsoMediaBox.MediaType.VIDEO);
         } catch (IsoBoxError.BOX_NOT_FOUND err) {
-            return get_first_track_of_type (Rygel.IsoMediaBox.MediaType.AUDIO);
+            try {
+                return get_first_track_of_type (Rygel.IsoMediaBox.MediaType.AUDIO);
+            } catch (IsoBoxError.BOX_NOT_FOUND err) {
+                throw new IsoBoxError.BOX_NOT_FOUND ("no video or audio track found in "
+                                                     + this.to_string ());
+            }
         }
     }
 
@@ -2269,7 +2283,8 @@ public class Rygel.IsoMovieBox : IsoContainerBox {
             }
         }
         throw new IsoBoxError.BOX_NOT_FOUND
-                              (this.to_string() + " does not have a track of type %d");
+                              (this.to_string() + " does not have a track of type "
+                               + media_type.to_string ());
     }
 
     public Gee.List<IsoTrackBox> get_tracks_of_type (IsoMediaBox.MediaType media_type)
@@ -7322,11 +7337,13 @@ public class Rygel.IsoTrackRunBox : IsoFullBox {
         if (!this.total_duration_cached) {
             var entry_count = this.sample_entry_array.length;
             if (flag_set (SAMPLE_DURATION_PRESENT_FLAG)) {
+                // debug ("IsoTrackRunBox.get_total_sample_duration: Adding sample durations...");
                 this.total_duration = 0;
                 for (uint32 i=0; i<entry_count; i++) {
                     this.total_duration += this.sample_entry_array[i].sample_duration;
                 }
             } else {
+                // debug ("IsoTrackRunBox.get_total_sample_duration: Calculating total sample duration...");
                 var track_fragment_header = get_track_fragment_box ().get_header_box ();
                 this.total_duration = track_fragment_header.get_default_sample_duration ()
                                       * entry_count;
