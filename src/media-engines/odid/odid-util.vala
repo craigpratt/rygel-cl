@@ -421,7 +421,7 @@ public class Rygel.ODIDUtil : Object {
     }
 
     /**
-     * Find the vobu data offsets that cover the provided time range start_time to end_time.
+     * Find the vobu data offsets that cover the provided data range (start-end)
      */
     internal static void vobu_aligned_offsets_for_range (File index_file, 
                                                          int64 start, int64 end,
@@ -429,7 +429,7 @@ public class Rygel.ODIDUtil : Object {
                                                          Gee.ArrayList<int64?> aligned_range_list,
                                                          int64 total_size)
          throws Error {
-        debug ("vobu_offsets_for_range: %s\n", index_file.get_basename () );
+        debug ("vobu_aligned_offsets_for_range: %s\n", index_file.get_basename () );
         bool start_offset_found = false;
         bool end_offset_found = false;
 
@@ -463,7 +463,7 @@ public class Rygel.ODIDUtil : Object {
                     if (aligned_offset >= start) {
                         start_offset = last_aligned_offset;
                         start_offset_found = true;
-                        debug ("vobu_offsets_for_range: found start of range %lld, aligned_start %lld",
+                        debug ("vobu_aligned_offsets_for_range: found start of range %lld, aligned_start %lld",
                                start, start_offset);
                     }
                 }
@@ -475,7 +475,7 @@ public class Rygel.ODIDUtil : Object {
                     // 8.9.5.3.2 (For content using MPEG-2 Program Stream (PS) transferred with the HTTP
                     // transport protocol, the size of each PCP shall be one VOBU)
                     if (aligned_offset >= end && end != 0) {
-                         debug ("vobu_offsets_for_range: found end of range req_end %lld, aligned_end %lld",
+                         debug ("vobu_aligned_offsets_for_range: found end of range req_end %lld, aligned_end %lld",
                                    end, aligned_offset);
                          end_offset = aligned_offset;
                          aligned_range_list.add (aligned_offset);
@@ -491,17 +491,99 @@ public class Rygel.ODIDUtil : Object {
              }
         }
 
-        if (!start_offset_found) {
-            start_offset = aligned_offset;
-            debug ("vobu_offsets_for_range: start of range %lld beyond last entry at %lld",
-                   start, start_offset);
+        if (!end_offset_found) {
+            if (!start_offset_found) {
+                warning ("vobu_aligned_offsets_for_range: start of range %lld not found - not aligning range to VOBUs",
+                         start);
+                warning ("vobu_aligned_offsets_for_range: falling back to aligning range to iframes");
+                iframe_aligned_offsets_for_range (index_file, start, end, out start_offset,
+                                                  aligned_range_list, total_size);
+            } else {
+                // Modify the end byte value to align to start/end of the file, if necessary
+                //  (see DLNA 7.5.4.3.2.24.4)
+                aligned_range_list.add (total_size);
+                debug ("vobu_aligned_offsets_for_range: end of range beyond index range offset %lld", total_size);
+            }
+        }
+    }
+
+    /**
+     * Find the iframe data offsets that cover the provided data range (start-end)
+     */
+    internal static void iframe_aligned_offsets_for_range (File index_file, 
+                                                         int64 start, int64 end,
+                                                         out int64 start_offset,
+                                                         Gee.ArrayList<int64?> aligned_range_list,
+                                                         int64 total_size)
+         throws Error {
+        debug ("iframe_aligned_offsets_for_range: %s\n", index_file.get_basename () );
+        bool start_offset_found = false;
+        bool end_offset_found = false;
+
+        if (start >= total_size) {
+            throw new DataSourceError.SEEK_FAILED ("Start offset %lld is larger than total size %lld",
+                                                  start, total_size);
+        }
+
+        var dis = new DataInputStream (index_file.read ());
+        string line;
+        int64  aligned_offset = 0, last_aligned_offset;
+        int64  end_offset;
+        start_offset = int64.MAX;
+        int line_count = 0;
+        // Clear the list
+        aligned_range_list.clear ();
+        // Read lines until end of file (null) is reached
+        while ((line = dis.read_line (null)) != null) {
+            line_count++;
+            if (!ODIDIndexEntry.size_ok (line)) {
+                throw new ODIDMediaEngineError.INDEX_FILE_ERROR (
+                              "Bad index file entry size (line %d of %s is %d bytes - should be %u bytes): '%s'",
+                              line_count, index_file.get_basename (), line.length+1,
+                              ODIDIndexEntry.ROW_SIZE, line);
+            }
+            if ( (ODIDIndexEntry.type (line) == 'V')
+                 && (ODIDIndexEntry.subtype (line) == 'I')) {
+                last_aligned_offset = aligned_offset;
+                aligned_offset = ODIDIndexEntry.offset_bytes (line);
+                if (!start_offset_found) {
+                    if (aligned_offset >= start) {
+                        start_offset = last_aligned_offset;
+                        start_offset_found = true;
+                        debug ("iframe_aligned_offsets_for_range: found start of range %lld, aligned_start %lld",
+                               start, start_offset);
+                    }
+                }
+                if (start_offset_found) {
+                    if (aligned_offset >= end && end != 0) {
+                         debug ("iframe_aligned_offsets_for_range: found end of range req_end %lld, aligned_end %lld",
+                                   end, aligned_offset);
+                         end_offset = aligned_offset;
+                         aligned_range_list.add (aligned_offset);
+                         end_offset_found = true;
+                         break;
+                     }
+                     else {
+                         // debug ("iframe_aligned_offsets_for_range: found aligned_offset %lld",
+                         //        aligned_offset);
+                         aligned_range_list.add (aligned_offset);
+                     } 
+                 }
+             }
         }
 
         if (!end_offset_found) {
-            // Modify the end byte value to align to start/end of the file, if necessary
-            //  (see DLNA 7.5.4.3.2.24.4)
-            aligned_range_list.add (total_size);
-            debug ("vobu_offsets_for_range: end of range beyond index range offset %lld", total_size);
+            if (!start_offset_found) {
+                warning ("iframe_aligned_offsets_for_range: start of range %lld not found - not aligning range to frames",
+                         start);
+                start_offset = start;
+                aligned_range_list.add (end);
+            } else {
+                // Modify the end byte value to align to start/end of the file, if necessary
+                //  (see DLNA 7.5.4.3.2.24.4)
+                aligned_range_list.add (total_size);
+                debug ("iframe_aligned_offsets_for_range: end of range beyond index range offset %lld", total_size);
+            }
         }
     }
 
