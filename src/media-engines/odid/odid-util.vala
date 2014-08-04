@@ -636,12 +636,12 @@ public class Rygel.ODIDUtil : Object {
        throws Error {
         //Get the transport stream packet size for the profile
         string profile = res.dlna_profile;
-        aligned_start = range_start;
         // Transport streams
         if ((profile.has_prefix ("DTCP_MPEG_TS") ||
              profile.has_prefix ("DTCP_AVC_TS")) ) {
             // Align the bytes to transport packet boundaries
             int64 packet_size = ODIDUtil.get_profile_packet_size (profile);
+            aligned_start = range_start;
             // TODO: Align beginning of the packet also??
             if (packet_size > 0) {
                 // DLNA Link Protection : 8.9.5.4.2
@@ -664,8 +664,9 @@ public class Rygel.ODIDUtil : Object {
                            total_size );
         } 
         else {
-            warning ("Attemped to DTCP-align unsupported protocol: "
-                     + profile);
+            message ("Not applying DTCP alignment for protocol " + profile);
+            aligned_start = range_start;
+            aligned_range_list[0] = req_end_val;
         }
     }
 

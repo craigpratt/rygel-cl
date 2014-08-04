@@ -552,7 +552,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                                                                          content_size,
                                                                          encrypted_length);
                 message ("Byte range for dtcp cleartext response: bytes %lld through %lld",
-                       seek_response.start_byte, seek_response.end_byte );
+                         seek_response_cleartext.start_byte, seek_response_cleartext.end_byte );
                 response_list.add (seek_response_cleartext);
             } else {
                 seek_response = new HTTPTimeSeekResponse.with_length
