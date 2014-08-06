@@ -116,6 +116,7 @@ public class Rygel.BasicManagement : Service {
             this.tests_map[old_id].cancellable.cancel ();
             this.tests_map.unset (old_id);
         }
+        Thread.usleep(1000000);
         this.freeze_notify();
         this.notify ("TestIDs",
                      typeof (string),
@@ -135,9 +136,13 @@ public class Rygel.BasicManagement : Service {
          * practically required. */
         bm_test.run.begin ((obj,res) => {
             bm_test.run.end (res);
+            this.freeze_notify();
+            bm_test.execution_state = BasicManagementTest.ExecutionState.COMPLETED;
+            Thread.usleep(1000000);
             this.notify ("ActiveTestIDs",
                          typeof (string),
                          create_test_ids_list (true));
+            this.thaw_notify ();
         });
 
         action.set ("TestID", typeof (string), id);

@@ -72,7 +72,7 @@ internal abstract class Rygel.BasicManagementTest : Object, StateMachine {
 
     public ExecutionState execution_state {
         get;
-        protected set;
+        public set;
         default = ExecutionState.REQUESTED;
     }
     public string id;
@@ -117,10 +117,6 @@ internal abstract class Rygel.BasicManagementTest : Object, StateMachine {
         if (this.init_state != InitState.OK ||
             (this.current_iteration >= this.iterations &&
              this.execution_state == ExecutionState.IN_PROGRESS)) {
-            this.execution_state = ExecutionState.COMPLETED;
-        }
-
-        if (this.execution_state != ExecutionState.IN_PROGRESS) {
             this.async_callback ();
         } else {
             this.run_iteration ();
