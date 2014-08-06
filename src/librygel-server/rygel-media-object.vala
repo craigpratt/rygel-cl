@@ -42,13 +42,32 @@ public abstract class Rygel.MediaObject : GLib.Object {
     public string id { get; set construct; }
     public string ref_id { get; set; }
     public string upnp_class { get; construct set; }
+    public string date { get; set; }
+    public string creator { get; set; }
     public uint64 modified { get; set; }
     public uint object_update_id { get; set; }
+
+    public string artist { get; set; }
+    public string genre { get; set; }
 
     //TODO: { get; private set; } or, even better,
     // add virtual set_uri in Object and make add_uri() in Item into set_uri()
     // and make the uri property single-value.
-    public Gee.ArrayList<string> uris;
+    private Gee.ArrayList<string> uris;
+
+    public Gee.List<string> get_uris () { return this.uris; }
+
+    public string? get_primary_uri () {
+        if (this.uris.is_empty) {
+            return null;
+        }
+
+        return this.uris[0];
+    }
+
+    public virtual void add_uri (string uri) {
+        this.uris.add (uri);
+    }
 
     // You can keep both an unowned and owned ref to parent of this MediaObject.
     // In most cases, one will only need to keep an unowned ref to avoid cyclic
@@ -201,6 +220,8 @@ public abstract class Rygel.MediaObject : GLib.Object {
 
     internal virtual void apply_didl_lite (DIDLLiteObject didl_object) {
         this.title = didl_object.title;
+        this.artist = this.get_first (didl_object.get_artists ());
+        this.genre = didl_object.genre;
     }
 
     // Recursively drop attributes of a certain namespace from a node.
@@ -270,6 +291,15 @@ public abstract class Rygel.MediaObject : GLib.Object {
         case "upnp:class":
             return this.compare_string_props (this.upnp_class,
                                               media_object.upnp_class);
+        case "dc:artist":
+            return this.compare_string_props (this.artist, media_object.artist);
+        case "upnp:genre":
+            return this.compare_string_props (this.genre, media_object.genre);
+        case "dc:creator":
+            return this.compare_string_props (this.creator,
+                                              media_object.creator);
+        case "dc:date":
+            return this.compare_by_date (media_object);
         default:
             return 0;
         }
@@ -324,5 +354,55 @@ public abstract class Rygel.MediaObject : GLib.Object {
         } catch (IOError.NOT_FOUND error) {
             return true;
         }
+    }
+
+    private int compare_by_date (MediaObject object) {
+        if (this.date == null) {
+            return -1;
+        } else if (object.date == null) {
+            return 1;
+        } else {
+            var our_date = this.date;
+            var other_date = object.date;
+
+            if (!our_date.contains ("T")) {
+                our_date += "T00:00:00Z";
+            }
+
+            if (!other_date.contains ("T")) {
+                other_date += "T00:00:00Z";
+            }
+
+            var tv1 = TimeVal ();
+            assert (tv1.from_iso8601 (this.date));
+
+            var tv2 = TimeVal ();
+            assert (tv2.from_iso8601 (object.date));
+
+            var ret = this.compare_long (tv1.tv_sec, tv2.tv_sec);
+            if (ret == 0) {
+                ret = this.compare_long (tv1.tv_usec, tv2.tv_usec);
+            }
+
+            return ret;
+        }
+    }
+
+    private int compare_long (long a, long b) {
+        if (a < b) {
+            return -1;
+        } else if (a > b) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    private string get_first (GLib.List<DIDLLiteContributor>? contributors) {
+        if (contributors != null) {
+            return contributors.data.name;
+        }
+
+        return "";
     }
 }

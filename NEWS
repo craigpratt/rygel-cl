@@ -1,3 +1,317 @@
+0.23.2
+======
+
+- Hide Object.uris property. Its semantics were always unclear.
+
+Renderer:
+ - Work-around failing HEAD requests, next incarnation.
+ - Support M3U playlists.
+ - Check instance id in Next() and Prev() SOAP calls.
+ - Sent byte position in RelCount/AbsCount instead of int.MAX.
+
+GStreamer renderer:
+ - Remove "TRANSITIONING" state in Stop() and Pause() SOAP calls.
+ - Don't try to parse empty meta-data for duration guessing.
+
+Server:
+ - Make sure tags don't contain white-spaces in UpdateObject() call.
+ - Improve CSV splitting in UpdateObject().
+ - Validate date in UpdateObject().
+
+Basic Management:
+ - Fix NSLookup repitition.
+
+Bugs fixed in this release:
+ - https://bugzilla.gnome.org/show_bug.cgi?id=732935
+
+All contributors to this release:
+ - Jens Georg <mail@jensge.org>
+ - Enrico Nicoletto <liverig@gmail.com>
+ - Daniel Mustieles <dnaiel.mustieles@gmail.com>
+ - rygelgit <p.balasubramanian@cablelabs.com>
+ - Fran Diéguez <fran.dieguez@mabishu.com>
+
+Added/updated translations
+ - es, courtesy of Daniel Mustieles
+ - gl, courtesy of Fran Dieguez
+ - pt_BR, courtesy of Enrico Nicoletto
+
+0.23.1.1
+========
+
+- Launch rygel directly from desktop file.
+
+
+Bugs fixed in this release:
+ - https://bugzilla.gnome.org/show_bug.cgi?id=731858
+
+All contributors to this release:
+ - Yuri Myasoedov <ymyasoedov@yandex.ru>
+ - Bastien Nocera <hadess@hadess.net>
+
+Added/updated translations
+ - ru, courtesy of Yuri Myasoedov
+
+0.23.1
+======
+
+A new unstable release of Rygel!
+
+- Remove -Wl,-z,defs.
+- Fix several criticals related to time-out sources.
+
+Rygel:
+ - Change single instance behavior; don't replace running instance by default,
+   add new "-r/--replace" option to go back to the old behavior.
+ - Several manpage fixes.
+
+Server:
+ - Pass on all resources on object creation.
+ - Pass more meta-data on object creation.
+ - Improve error handling in reference creation.
+ - Set HTTP version to 1.1 as late as possible.
+ - Port media art lookup to libmediaart.
+ - Add some documentation for AudioItem.
+ - Move some properties to base classes.
+ - Fix a potential null pointer dereference.
+
+Renderer:
+ - Report NextAVTransport* values in GetMediaInfo().
+ - Properly remove the playlist timeout.
+
+GStreamer Renderer:
+ - Don't exit if there is no playbin element.
+ - Deprecate Renderer.wrap.
+ - Use cubic volume.
+ - Fix duration and position.
+ - Use duration from meta-data until playbin does provide it.
+ - Rely on libsoup to determine the proxy.
+ - Use dlna+http virtual protocol if the dlnasrc element is available.
+
+Preferences:
+ - Use Gtk.Window instead of Gtk.Dialog.
+
+External:
+ - Let the peer decide on the sort order.
+
+MediaExport:
+ - Code style fixes.
+ - Use libmediaart for media art extraction.
+ - Handle external media art such as folder.jpg etc.
+ - Prevent a strange warning on media upload.
+ - Add a configuration option to disable/set the time to wait before
+   extracting meta-data after a file modification event has happened.
+ - Properly handle album art for m4a fies.
+
+Attention!
+==========
+ - API and ABI version have been bumped to 2.4 to prepare for the upcoming API
+   changes.
+ - New dependency: libmediaart >= 0.4.0.
+ - Due to a memory leak fix, the recommended Vala version is 0.24.0-108-g0edb05c
+
+Bugs fixed in this release:
+ - https://bugzilla.gnome.org/show_bug.cgi?id=689632
+ - https://bugzilla.gnome.org/show_bug.cgi?id=694455
+ - https://bugzilla.gnome.org/show_bug.cgi?id=702555
+ - https://bugzilla.gnome.org/show_bug.cgi?id=709723
+ - https://bugzilla.gnome.org/show_bug.cgi?id=710387
+ - https://bugzilla.gnome.org/show_bug.cgi?id=710443
+ - https://bugzilla.gnome.org/show_bug.cgi?id=720672
+ - https://bugzilla.gnome.org/show_bug.cgi?id=721817
+ - https://bugzilla.gnome.org/show_bug.cgi?id=721824
+ - https://bugzilla.gnome.org/show_bug.cgi?id=723374
+ - https://bugzilla.gnome.org/show_bug.cgi?id=726982
+ - https://bugzilla.gnome.org/show_bug.cgi?id=727424
+ - https://bugzilla.gnome.org/show_bug.cgi?id=727479
+ - https://bugzilla.gnome.org/show_bug.cgi?id=729090
+ - https://bugzilla.gnome.org/show_bug.cgi?id=731348
+ - https://bugzilla.gnome.org/show_bug.cgi?id=731859
+
+All contributors to this release:
+ - Jens Georg <mail@jensge.org>
+ - Craig Pratt <craig@ecaspia.com>
+ - Richard Röjfors <richard.rojfors@gmail.com>
+ - Reiner Merk <lotan_rm@gmx.de>
+ - Piotr Drąg <piotrdrag@gmail.com>
+ - Marek Černocký <marek@manet.cz>
+ - Jussi Kukkonen <jussi.kukkonen@intel.com>
+ - Enrico Nicoletto <liverig@gmail.com>
+ - Daniel Mustieles <dnaiel.mustieles@gmail.com>
+ - Alexander Kanavin <alex.kanavin@gmail.com>
+
+Added/updated translations
+ - cs, courtesy of Marek Černocký
+ - es, courtesy of Daniel Mustieles
+ - pt_BR, courtesy of Enrico Nicoletto
+
+0.22.2
+======
+
+a new stable release of rygel!
+
+- fix dbus plugins.
+- bump libsoup requirement to 2.44.
+
+tracker:
+ - actually use nmm:dlnamime property.
+
+bugs fixed in this release:
+ - https://bugzilla.gnome.org/show_bug.cgi?id=730913
+
+all contributors to this release:
+ - jens georg <mail@jensge.org>
+ - wolfgang stöggl <c72578@yahoo.de>
+ - tom tryfonidis <tomtryf@gmail.com>
+ - dirgita <dirgitadevina@gmail.com>
+ - carles ferrando <carles.ferrando@gmail.com>
+
+added/updated translations
+ - ca@valencia, courtesy of pau iranzo
+ - de, courtesy of wolfgang stoeggl
+ - el, courtesy of eva fotopoulou
+ - id, courtesy of dirgita
+
+0.22.1
+======
+
+a new stable release of rygel!
+
+core:
+ - don't spam debug log.
+
+renderer:
+ - fix uri handling for playlists.
+
+
+bugs fixed in this release:
+ - https://bugzilla.gnome.org/show_bug.cgi?id=726776
+
+all contributors to this release:
+ - jens georg <mail@jensge.org>
+ - peter mráz <etkinator@gmail.com>
+ - dušan kazik <prescott66@gmail.com>
+ - christian kirbach <christian.kirbach@gmail.com>
+
+added/updated translations
+ - de, courtesy of christian kirbach
+ - sk, courtesy of peter mráz
+
+0.22.0
+======
+
+a new stable release of rygel!
+
+all contributors to this release:
+ - inaki larranaga murgoitio <dooteo@zundan.com>
+ - kenneth nielsen <k.nielsen81@gmail.com>
+ - мирослав николић <miroslavnikolic@rocketmail.com>
+ - pau iranzo <paugnu@gmail.com>
+ - jiro matsuzawa <jmatsuzawa@gnome.org>
+ - duarte loreto <happyguy_pt@hotmail.com>
+ - ask h. larsen <asklarsen@gmail.com>
+
+added/updated translations
+ - ca, courtesy of pau iranzo
+ - da, courtesy of ask hjorth larsen
+ - eu, courtesy of iñaki larrañaga murgoitio
+ - ja, courtesy of jiro matsuzawa
+ - pt, courtesy of duarte loreto
+ - sr, courtesy of мирослав николић
+
+0.21.6
+======
+
+- More cp -d replacement.
+
+GStreamer Renderer:
+ - Fix two criticals on start-up.
+
+All contributors to this release:
+ - Jens Georg <mail@jensge.org>
+ - Yuri Myasoedov <ymyasoedov@yandex.ru>
+ - Wylmer Wang <wantinghard@gmail.com>
+ - Ville-Pekka Vainio <vpvainio@iki.fi>
+ - Rūdolfs Mazurs <rudolfsm@src.gnome.org>
+ - Paweł Żołnowski <pawel@zolnowski.name>
+ - naybnet <naybnet@gmail.com>
+ - Daniel Korostil <ted.korostiled@gmail.com>
+ - Chao-Hsiung Liao <j_h_liau@yahoo.com.tw>
+ - Andika Triwidada <andika@gmail.com>
+
+Added/updated translations
+ - fi, courtesy of Jiri Grönroos
+ - fr, courtesy of naybnet
+ - id, courtesy of Andika Triwidada
+ - lv, courtesy of Rūdolfs Mazurs
+ - pl, courtesy of Paweł Żołnowski
+ - ru, courtesy of Yuri Myasoedov
+ - uk, courtesy of Daniel Korostil
+ - zh_CN, courtesy of Wylmer Wang
+ - zh_HK, courtesy of Chao-Hsiung Liao
+ - zh_TW, courtesy of Chao-Hsiung Liao
+
+0.21.5
+======
+
+- Some gtk-doc fixes.
+- Remove obsolete configure function from autogen.sh.
+- Fix "make distcheck".
+- Replace non-portable cp -d.
+- Fix GstLaunch examples in rygel.conf for GStreamer 1.0.
+- Add support for /etc/pretty-hostname.
+- Support building with tracker-1.0 API.
+
+Core:
+ - Remove Freedesktop.* DBus interfaces.
+ - Move the two copies of Rygel.DLNAProfile to Core.
+
+GStreamer Renderer:
+ - Deprecate .wrap constructor.
+ - Don't leak and return a value in the .wrap constructor on error.
+
+MediaExport:
+ - Be a bit more helpful and tell which folder we failed to enumerate.
+
+Bugs fixed in this release:
+ - https://bugzilla.gnome.org/show_bug.cgi?id=722021
+ - https://bugzilla.gnome.org/show_bug.cgi?id=722527
+ - https://bugzilla.gnome.org/show_bug.cgi?id=724138
+ - https://bugzilla.gnome.org/show_bug.cgi?id=724215
+ - https://bugzilla.gnome.org/show_bug.cgi?id=724820
+
+All contributors to this release:
+ - Jens Georg <mail@jensge.org>
+ - Kjartan Maraas <kmaraas@gnome.org>
+ - Fran Diéguez <fran.dieguez@mabishu.com>
+ - Rafael Ferreira <rafael.f.f1@gmail.com>
+ - Nilamdyuti Goswami <ngoswami@redhat.com>
+ - Milo Casagrande <milo@ubuntu.com>
+ - Matej Urbančič <mateju@svn.gnome.org>
+ - Marek Černocký <marek@manet.cz>
+ - Giovanni Campagna <gcampagna@src.gnome.org>
+ - Debarshi Ray <debarshir@gnome.org>
+ - Daniel Mustieles <daniel.mustieles@gmail.com>
+ - Daniel Korostil <ted.korostiled@gmail.com>
+ - Changwoo Ryu <cwryu@debian.org>
+ - Bjørn Lie <bjorn.lie@gmail.com>
+ - Balázs Úr <urbalazs@src.gnome.org>
+ - Aurimas Černius <aurisc4@gmail.com>
+
+Added/updated translations
+ - as, courtesy of Nilamdyuti Goswami
+ - cs, courtesy of Marek Černocký
+ - es, courtesy of Daniel Mustieles
+ - gl, courtesy of Fran Dieguez
+ - hu, courtesy of Balázs Úr
+ - it, courtesy of Milo Casagrande
+ - ko, courtesy of Changwoo Ryu
+ - lt, courtesy of Aurimas Černius
+ - nb, courtesy of Kjartan Maraas
+ - pt_BR, courtesy of Rafael Ferreira
+ - sl, courtesy of Matej Urbančič
+ - uk, courtesy of Daniel Korostil
+
 0.21.4
 ======
 

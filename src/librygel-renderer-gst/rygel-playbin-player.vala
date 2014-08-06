@@ -30,6 +30,10 @@
 using Gst;
 using GUPnP;
 
+public errordomain Rygel.Playbin.PlayerError {
+    NO_ELEMENT
+}
+
 /**
  * Implementation of RygelMediaPlayer for GStreamer.
  *
@@ -85,6 +89,12 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                                         "video/x-xvid",
                                         "video/x-ms-wmv" };
     private static Player player;
+    private static bool has_dlna_src;
+
+    static construct {
+        Player.has_dlna_src = Gst.URI.protocol_is_supported (URIType.SRC,
+                                                             "dlna+http");
+    }
 
     public dynamic Element playbin { get; private set; }
 
@@ -104,7 +114,6 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
             switch (value) {
                 case "STOPPED":
                     if (state != State.NULL || pending != State.VOID_PENDING) {
-                        this._playback_state = "TRANSITIONING";
                         this.playbin.set_state (State.NULL);
                     } else {
                         this._playback_state = value;
@@ -112,7 +121,6 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                 break;
                 case "PAUSED_PLAYBACK":
                     if (state != State.PAUSED || pending != State.VOID_PENDING) {
-                        this._playback_state = "TRANSITIONING";
                         this.playbin.set_state (State.PAUSED);
                     } else {
                         this._playback_state = value;
@@ -187,25 +195,15 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         set {
             this._uri = value;
             this.playbin.set_state (State.READY);
-            /* Prefix "dlna+" so that GstDlnaSrc plugin source will be used if
-             * available. gst-plugins-bad should have this "dlna+" virtual
-             * protocol change, otherwise play() will not work.
-             */
-            try {
-                if (Gst.Element.make_from_uri
-                         (Gst.URIType.SRC,"dlna+"+value, "") != null) {
-                    /* Add dlna+ protocol since it is supported. */
-                    this.playbin.uri = "dlna+" + value;
-                } else {
-                    /* Default value if dlna+ protocol is not supported. */
-                    this.playbin.uri = value;
-                }
-            } catch (GLib.Error err) {
-                debug ("Setting default URI since dlna+ prefix failed");
+            if (Player.has_dlna_src && value.has_prefix ("http")) {
+                debug ("Trying to use DLNA src element");
+                this.playbin.uri = "dlna+" + value;
+            } else {
                 this.playbin.uri = value;
             }
 
             if (value != "") {
+                this.guess_duration ();
                 switch (this._playback_state) {
                     case "NO_MEDIA_PRESENT":
                         this._playback_state = "STOPPED";
@@ -249,6 +247,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
 
         set {
+            this._parsed_duration = 0;
             this._metadata = value;
         }
     }
@@ -297,32 +296,36 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
 
     public double volume {
         get {
-            return this.playbin.volume;
+            return (this.playbin as Audio.StreamVolume).get_volume
+                                        (Audio.StreamVolumeFormat.CUBIC);
         }
 
         set {
-            this.playbin.volume = value;
+            (this.playbin as Audio.StreamVolume).set_volume
+                                        (Audio.StreamVolumeFormat.CUBIC, value);
             debug ("volume set to %f.", value);
         }
     }
 
+    private int64 _parsed_duration;
     public int64 duration {
         get {
-            int64 dur=0;
+            int64 dur = 0;
 
-            if (this.playbin.source.query_duration (Format.TIME, out dur)) {
+            if (this.playbin.query_duration (Format.TIME, out dur)) {
                 return dur / Gst.USECOND;
             } else {
-                return 0;
+                return _parsed_duration;
             }
         }
     }
 
     public int64 size {
         get {
-            int64 dur;
+            int64 dur = 0;
 
-            if (this.playbin.source.query_duration (Format.BYTES, out dur)) {
+            if (this.playbin.source != null &&
+                this.playbin.source.query_duration (Format.BYTES, out dur)) {
                 return dur;
             } else {
                 return 0;
@@ -334,7 +337,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         get {
             int64 pos;
 
-            if (this.playbin.source.query_position (Format.TIME, out pos)) {
+            if (this.playbin.query_position (Format.TIME, out pos)) {
                 return pos / Gst.USECOND;
             } else {
                 return 0;
@@ -354,8 +357,12 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-    private Player () {
+    private Player () throws Error {
         this.playbin = ElementFactory.make ("playbin", null);
+        if (this.playbin == null) {
+            throw new PlayerError.NO_ELEMENT (
+                _("Your GStreamer installation seems to be missing the \"playbin\" element. The Rygel GStreamer renderer implementation cannot work without it"));
+        }
         this.setup_playbin ();
     }
 
@@ -366,7 +373,20 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         this.setup_playbin ();
     }
 
+    [Deprecated (since="0.23.1")]
     public static Player get_default () {
+        if (player == null) {
+            try {
+                player = new Player ();
+            } catch (Error error) {
+                assert_not_reached ();
+            }
+        }
+
+        return player;
+    }
+
+    public static Player instance () throws Error {
         if (player == null) {
             player = new Player ();
         }
@@ -532,6 +552,10 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                             this.metadata = this.generate_basic_didl ();
                         }
                     }
+
+                    if (this.playbin.query_duration (Format.TIME, null)) {
+                        this.notify_property ("duration");
+                    }
                 }
 
                 if (pending == State.VOID_PENDING) {
@@ -622,7 +646,6 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         // Needed to get "Stop" events from the playbin.
         // We can do this because we have a bus watch
         this.playbin.auto_flush_bus = false;
-        assert (this.playbin != null);
 
         this.playbin.source_setup.connect (this.on_source_setup);
         this.playbin.notify["uri"].connect (this.on_uri_notify);
@@ -631,5 +654,30 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         var bus = this.playbin.get_bus ();
         bus.add_signal_watch ();
         bus.message.connect (this.bus_handler);
+    }
+
+    private void guess_duration () {
+        if (this._metadata == null || this._metadata == "") {
+            return;
+        }
+
+        var reader = new DIDLLiteParser ();
+
+        // Try to guess duration from meta-data.
+        reader.object_available.connect ( (object) => {
+            var resources = object.get_resources ();
+            foreach (var resource in resources) {
+                if (this._uri == resource.uri && resource.duration > 0) {
+                    this._parsed_duration = resource.duration * TimeSpan.SECOND;
+                    this.notify_property ("duration");
+                }
+            }
+        });
+
+        try {
+            reader.parse_didl (this._metadata);
+        } catch (Error error) {
+            debug ("Failed to parse meta-data: %s", error.message);
+        }
     }
 }

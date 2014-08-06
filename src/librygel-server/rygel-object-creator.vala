@@ -506,25 +506,27 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
                                           this.didl_object.title,
                                           this.didl_object.upnp_class);
 
+        this.object.apply_didl_lite (this.didl_object);
+
         if (this.object is MediaItem) {
             this.extract_item_parameters ();
         }
 
         // extract_item_parameters could not find an uri
-        if (this.object.uris.size == 0) {
+        if (this.object.get_uris ().is_empty) {
             var uri = yield this.create_uri (container, this.object.title);
-            this.object.uris.add (uri);
+            this.object.add_uri (uri);
             if (this.object is MediaItem) {
                 (this.object as MediaItem).place_holder = true;
             }
         } else {
             if (this.object is MediaItem) {
-                var file = File.new_for_uri (this.object.uris[0]);
+                var file = File.new_for_uri (this.object.get_primary_uri ());
                 (this.object as MediaItem).place_holder = !file.is_native ();
             }
         }
 
-        this.object.id = this.object.uris[0];
+        this.object.id = this.object.get_primary_uri ();
 
         this.parse_and_verify_didl_date ();
     }
@@ -532,9 +534,7 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
     private void extract_item_parameters () throws Error {
         var item = this.object as MediaItem;
 
-        var resources = this.didl_object.get_resources ();
-        if (resources != null && resources.length () > 0) {
-            var resource = resources.nth (0).data;
+        foreach (var resource in this.didl_object.get_resources ()) {
             var info = resource.protocol_info;
 
             if (info != null) {

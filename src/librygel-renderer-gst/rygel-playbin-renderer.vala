@@ -50,8 +50,14 @@ public class Rygel.Playbin.Renderer : Rygel.MediaRenderer {
      * @param title Friendly name of the new UPnP renderer on the network.
      */
     public Renderer (string title) {
-        Object (title: title,
-                player: Player.get_default ());
+        try {
+            Object (title: title,
+                    player: Player.instance ());
+        } catch (Error error) {
+            warning (error.message);
+
+            return_val_if_fail (false, null);
+        }
     }
 
     /**
@@ -61,6 +67,7 @@ public class Rygel.Playbin.Renderer : Rygel.MediaRenderer {
      * @param pipeline Instance of GstPlayBin to wrap.
      * @param title Friendly name of the new UPnP renderer on the network.
      */
+    [Deprecated (since="0.23.1")]
     public Renderer.wrap (Gst.Element pipeline, string title) {
         return_val_if_fail (pipeline != null, null);
         return_val_if_fail (pipeline.get_type ().name() == "GstPlayBin", null);
@@ -73,9 +80,14 @@ public class Rygel.Playbin.Renderer : Rygel.MediaRenderer {
      * Get the GstPlayBin used by this Renderer.
      */
     public Gst.Element? get_playbin () {
-        var player = Rygel.Playbin.Player.get_default ();
-        return_val_if_fail (player != null, null);
+        try {
+            var player = Rygel.Playbin.Player.instance ();
 
-        return player.playbin;
+            return player.playbin;
+        } catch (Error error) {
+            warning (error.message);
+
+            return null;
+        }
     }
 }

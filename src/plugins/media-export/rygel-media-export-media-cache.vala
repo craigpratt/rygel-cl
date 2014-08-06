@@ -150,9 +150,8 @@ public class Rygel.MediaExport.MediaCache : Object {
 
         foreach (var statement in cursor) {
             var parent_container = parent as MediaContainer;
-            var object = this.get_object_from_statement
-                                        (parent_container,
-                                         statement);
+            var object = this.get_object_from_statement (parent_container,
+                                                         statement);
             object.parent_ref = parent_container;
             parent = object;
         }
@@ -770,7 +769,7 @@ public class Rygel.MediaExport.MediaCache : Object {
         GLib.Value[] values = { type,
                                 parent,
                                 object.modified,
-                                object.uris.is_empty ? null : object.uris[0],
+                                object.get_primary_uri (),
                                 object.object_update_id,
                                 -1,
                                 -1,
@@ -805,7 +804,7 @@ public class Rygel.MediaExport.MediaCache : Object {
                                 type,
                                 parent,
                                 object.modified,
-                                object.uris.is_empty ? null : object.uris[0],
+                                object.get_primary_uri (),
                                 object.object_update_id,
                                 -1,
                                 -1,
@@ -888,7 +887,7 @@ public class Rygel.MediaExport.MediaCache : Object {
 
                 var container = object as MediaContainer;
                 if (uri != null) {
-                    container.uris.add (uri);
+                    container.add_uri (uri);
                 }
                 container.total_deleted_child_count = (uint32) statement.column_int64
                                         (DetailColumn.DELETED_CHILD_COUNT);

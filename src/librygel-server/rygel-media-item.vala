@@ -35,10 +35,6 @@ private errordomain Rygel.MediaItemError {
  * These objects correspond to items in the UPnP ContentDirectory's DIDL-Lite XML.
  */
 public abstract class Rygel.MediaItem : MediaObject {
-    public string date { get; set; }
-
-    public string creator { get; set; }
-
     // Resource info
     public string mime_type { get; set; }
     public string dlna_profile { get; set; }
@@ -114,15 +110,15 @@ public abstract class Rygel.MediaItem : MediaObject {
     // Live media items need to provide a nice working implementation of this
     // method if they can/do not provide a valid URI
     public virtual DataSource? create_stream_source (string? host_ip = null) {
-        if (this.uris.size == 0) {
+        if (this.get_uris ().is_empty) {
             return null;
         }
 
-        string translated_uri = this.uris.get (0);
+        string translated_uri = this.get_primary_uri ();
         if (host_ip != null) {
             try {
                 translated_uri = MediaItem.address_regex.replace_literal
-                    (this.uris.get (0), -1, 0, host_ip);
+                    (this.get_primary_uri (), -1, 0, host_ip);
             } catch (Error error) {
                 assert_not_reached ();
             }
@@ -136,10 +132,6 @@ public abstract class Rygel.MediaItem : MediaObject {
     }
 
     public abstract bool streamable ();
-
-    public virtual void add_uri (string uri) {
-        this.uris.add (uri);
-    }
 
     internal int compare_transcoders (Transcoder transcoder1,
                                       Transcoder transcoder2) {
@@ -184,24 +176,6 @@ public abstract class Rygel.MediaItem : MediaObject {
         res.protocol_info = this.get_protocol_info (uri, protocol);
 
         return res;
-    }
-
-    internal override int compare_by_property (MediaObject media_object,
-                                               string      property) {
-        if (!(media_object is MediaItem)) {
-           return 1;
-        }
-
-        var item = media_object as MediaItem;
-
-        switch (property) {
-        case "dc:creator":
-            return this.compare_string_props (this.creator, item.creator);
-        case "dc:date":
-            return this.compare_by_date (item);
-        default:
-            return base.compare_by_property (item, property);
-        }
     }
 
     internal override void apply_didl_lite (DIDLLiteObject didl_object) {
@@ -254,6 +228,15 @@ public abstract class Rygel.MediaItem : MediaObject {
 
         if (this is TrackableItem) {
             didl_item.update_id = this.object_update_id;
+        }
+
+        if (this.artist != null && this.artist != "") {
+            var contributor = didl_item.add_artist ();
+            contributor.name = this.artist;
+        }
+
+        if (this.genre != null && this.genre != "") {
+            didl_item.genre = this.genre;
         }
 
         /* We list proxy/transcoding resources first instead of original URIs
@@ -342,7 +325,7 @@ public abstract class Rygel.MediaItem : MediaObject {
     protected virtual void add_resources (DIDLLiteItem didl_item,
                                           bool         allow_internal)
                                           throws Error {
-        foreach (var uri in this.uris) {
+        foreach (var uri in this.get_uris ()) {
             var protocol = this.get_protocol_for_uri (uri);
 
             if (allow_internal || protocol != "internal") {
@@ -351,45 +334,4 @@ public abstract class Rygel.MediaItem : MediaObject {
         }
     }
 
-    private int compare_by_date (MediaItem item) {
-        if (this.date == null) {
-            return -1;
-        } else if (item.date == null) {
-            return 1;
-        } else {
-            var our_date = this.date;
-            var other_date = item.date;
-
-            if (!our_date.contains ("T")) {
-                our_date += "T00:00:00Z";
-            }
-
-            if (!other_date.contains ("T")) {
-                other_date += "T00:00:00Z";
-            }
-
-            var tv1 = TimeVal ();
-            assert (tv1.from_iso8601 (this.date));
-
-            var tv2 = TimeVal ();
-            assert (tv2.from_iso8601 (item.date));
-
-            var ret = this.compare_long (tv1.tv_sec, tv2.tv_sec);
-            if (ret == 0) {
-                ret = this.compare_long (tv1.tv_usec, tv2.tv_usec);
-            }
-
-            return ret;
-        }
-    }
-
-    private int compare_long (long a, long b) {
-        if (a < b) {
-            return -1;
-        } else if (a > b) {
-            return 1;
-        } else {
-            return 0;
-        }
-    }
 }
