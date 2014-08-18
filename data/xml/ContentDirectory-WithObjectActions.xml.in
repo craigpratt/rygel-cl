@@ -175,6 +175,166 @@
             </argument>
          </argumentList>
       </action>
+
+      <action>
+         <name>CreateObject</name>
+         <argumentList>
+            <argument>
+               <name>ContainerID</name>
+               <direction>in</direction>
+               <relatedStateVariable>A_ARG_TYPE_ObjectID</relatedStateVariable>
+            </argument>
+            <argument>
+               <name>Elements</name>
+               <direction>in</direction>
+               <relatedStateVariable>A_ARG_TYPE_Result</relatedStateVariable>
+            </argument>
+            <argument>
+               <name>ObjectID</name>
+               <direction>out</direction>
+               <relatedStateVariable>A_ARG_TYPE_ObjectID</relatedStateVariable>
+            </argument>
+            <argument>
+               <name>Result</name>
+               <direction>out</direction>
+               <relatedStateVariable>A_ARG_TYPE_Result</relatedStateVariable>
+            </argument>
+         </argumentList>
+      </action>
+
+      <action>
+         <name>DestroyObject</name>
+         <argumentList>
+            <argument>
+               <name>ObjectID</name>
+               <direction>in</direction>
+               <relatedStateVariable>A_ARG_TYPE_ObjectID</relatedStateVariable>
+            </argument>
+         </argumentList>
+      </action>
+
+      <action>
+         <name>UpdateObject</name>
+         <argumentList>
+            <argument>
+               <name>ObjectID</name>
+               <direction>in</direction>
+               <relatedStateVariable>
+                  A_ARG_TYPE_ObjectID
+               </relatedStateVariable>
+            </argument>
+            <argument>
+               <name>CurrentTagValue</name>
+               <direction>in</direction>
+               <relatedStateVariable>
+                  A_ARG_TYPE_TagValueList
+               </relatedStateVariable>
+            </argument>
+            <argument>
+               <name>NewTagValue</name>
+               <direction>in</direction>
+               <relatedStateVariable>
+                  A_ARG_TYPE_TagValueList
+               </relatedStateVariable>
+            </argument>
+         </argumentList>
+      </action>
+
+      <action>
+         <name>CreateReference</name>
+         <argumentList>
+            <argument>
+               <name>ContainerID</name>
+               <direction>in</direction>
+               <relatedStateVariable>A_ARG_TYPE_ObjectID</relatedStateVariable>
+            </argument>
+            <argument>
+               <name>ObjectID</name>
+               <direction>in</direction>
+               <relatedStateVariable>A_ARG_TYPE_ObjectID</relatedStateVariable>
+            </argument>
+            <argument>
+               <name>NewID</name>
+               <direction>out</direction>
+               <relatedStateVariable>A_ARG_TYPE_ObjectID</relatedStateVariable>
+            </argument>
+         </argumentList>
+      </action>
+
+
+      <action>
+         <name>ImportResource</name>
+         <argumentList>
+            <argument>
+               <name>SourceURI</name>
+               <direction>in</direction>
+               <relatedStateVariable>A_ARG_TYPE_URI</relatedStateVariable>
+            </argument>
+            <argument>
+               <name>DestinationURI</name>
+               <direction>in</direction>
+               <relatedStateVariable>A_ARG_TYPE_URI</relatedStateVariable>
+            </argument>
+            <argument>
+               <name>TransferID</name>
+               <direction>out</direction>
+               <relatedStateVariable>A_ARG_TYPE_TransferID</relatedStateVariable>
+            </argument>
+         </argumentList>
+      </action>
+
+      <action>
+         <name>GetTransferProgress</name>
+         <argumentList>
+            <argument>
+               <name>TransferID</name>
+               <direction>in</direction>
+               <relatedStateVariable>A_ARG_TYPE_TransferID</relatedStateVariable>
+            </argument>
+            <argument>
+               <name>TransferStatus</name>
+               <direction>out</direction>
+               <relatedStateVariable>A_ARG_TYPE_TransferStatus</relatedStateVariable>
+            </argument>
+            <argument>
+               <name>TransferLength</name>
+               <direction>out</direction>
+               <relatedStateVariable>A_ARG_TYPE_TransferLength</relatedStateVariable>
+            </argument>
+            <argument>
+               <name>TransferTotal</name>
+               <direction>out</direction>
+               <relatedStateVariable>A_ARG_TYPE_TransferTotal</relatedStateVariable>
+            </argument>
+         </argumentList>
+      </action>
+
+      <action>
+         <name>StopTransferResource</name>
+         <argumentList>
+            <argument>
+               <name>TransferID</name>
+               <direction>in</direction>
+               <relatedStateVariable>A_ARG_TYPE_TransferID</relatedStateVariable>
+            </argument>
+         </argumentList>
+      </action>
+
+      <action>
+        <name>X_GetDLNAUploadProfiles</name>
+        <argumentList>
+          <argument>
+            <name>UploadProfiles</name>
+            <direction>in</direction>
+            <relatedStateVariable>X_A_ARG_Type_UploadProfiles</relatedStateVariable>
+          </argument>
+          <argument>
+            <name>SupportedUploadProfiles</name>
+            <direction>out</direction>
+            <relatedStateVariable>X_A_ARG_Type_SupportedUploadProfiles</relatedStateVariable>
+          </argument>
+        </argumentList>
+      </action>
    </actionList>
 
    <serviceStateTable>
