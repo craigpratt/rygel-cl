@@ -262,55 +262,9 @@
          <dataType>string</dataType>
       </stateVariable>
 
-      <stateVariable sendEvents="no">
-         <name>A_ARG_TYPE_URI</name>
-         <dataType>uri</dataType>
-      </stateVariable>
-
-      <stateVariable sendEvents="no">
-         <name>A_ARG_TYPE_TagValueList</name>
-         <dataType>string</dataType>
-      </stateVariable>
-
-      <stateVariable sendEvents="no">
-         <name>A_ARG_TYPE_TransferID</name>
-         <dataType>ui4</dataType>
-      </stateVariable>
-
       <stateVariable sendEvents="yes">
          <name>TransferIDs</name>
          <dataType>string</dataType>
-      </stateVariable>
-
-      <stateVariable sendEvents="no">
-         <name>A_ARG_TYPE_TransferStatus</name>
-         <dataType>string</dataType>
-         <allowedValueList>
-            <allowedValue>COMPLETED</allowedValue>
-            <allowedValue>ERROR</allowedValue>
-            <allowedValue>IN_PROGRESS</allowedValue>
-            <allowedValue>STOPPED</allowedValue>
-         </allowedValueList>
-      </stateVariable>
-
-      <stateVariable sendEvents="no">
-         <name>A_ARG_TYPE_TransferLength</name>
-         <dataType>string</dataType>
-      </stateVariable>
-
-      <stateVariable sendEvents="no">
-         <name>A_ARG_TYPE_TransferTotal</name>
-         <dataType>string</dataType>
-      </stateVariable>
-
-      <stateVariable sendEvents="no">
-        <name>X_A_ARG_Type_UploadProfiles</name>
-        <dataType>string</dataType>
-      </stateVariable>
-
-      <stateVariable sendEvents="no">
-        <name>X_A_ARG_Type_SupportedUploadProfiles</name>
-        <dataType>string</dataType>
       </stateVariable>
    </serviceStateTable>
 </scpd>
