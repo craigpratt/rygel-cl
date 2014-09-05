@@ -45,7 +45,7 @@ internal class Rygel.ODID.DummyContainer : TrackableDbContainer {
 
         this.parent_ref = parent;
         this.file = file;
-        this.uris.add (file.get_uri ());
+        this.add_uri (file.get_uri ());
         try {
             this.children = cache.get_child_ids (this.id);
             this.child_count = this.children.size;

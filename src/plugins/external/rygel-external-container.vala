@@ -24,7 +24,7 @@
 
 using GUPnP;
 using Gee;
-using FreeDesktop;
+using Rygel.External.FreeDesktop;
 
 /**
  * Represents an external container.
@@ -54,6 +54,10 @@ public class Rygel.External.Container : Rygel.MediaContainer,
         this.item_factory = new ItemFactory ();
         this.containers = new ArrayList<Container> ();
         this.search_classes = new ArrayList<string> ();
+
+        // default: use sort order of external container, no additional
+        // sort criteria
+        this.sort_criteria = "";
 
         // Create proxy to MediaContainer iface
         this.actual_container = Bus.get_proxy_sync

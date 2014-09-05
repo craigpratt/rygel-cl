@@ -29,7 +29,10 @@
 
 using Gst;
 using GUPnP;
-using Xml;
+
+public errordomain Rygel.Playbin.PlayerError {
+    NO_ELEMENT
+}
 
 /**
  * Implementation of RygelMediaPlayer for GStreamer.
@@ -41,35 +44,59 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
     private const string TRANSFER_MODE_INTERACTIVE = "Interactive";
     private const string PROTOCOL_INFO_TEMPLATE = "http-get:%s:*:%s";
 
-    private const string protocol_xpath  = "/supported-profiles/protocols";
-    private const string media_collection_xpath  = "/supported-profiles/media-collection";
-    private const string mimetype_xpath  = "/supported-profiles/mime-type";
-
-    protected static string MIME_TYPE_NAME_PROPERTY   = "name";
-    protected static const string DLNA_ORG_PN         = "DLNA.ORG_PN";
-    protected static const string DLNA_ORG_FLAGS      = "DLNA.ORG_FLAGS";
-    protected static const string SUPPORT_PROFILE_LIST_PATH = BuildConfig.DATA_DIR + "/xml/profiles.xml";
-    private string[] protocols = null;
-    private string[] mime_types = null;
-
+    private const string[] protocols = { "http-get", "rtsp" };
+    private const string[] mime_types = {
+                                        "audio/mpeg",
+                                        "application/ogg",
+                                        "audio/x-vorbis",
+                                        "audio/x-vorbis+ogg",
+                                        "audio/ogg",
+                                        "audio/x-ms-wma",
+                                        "audio/x-ms-asf",
+                                        "audio/x-flac",
+                                        "audio/x-flac+ogg",
+                                        "audio/flac",
+                                        "audio/mp4",
+                                        "audio/3gpp",
+                                        "audio/vnd.dlna.adts",
+                                        "audio/x-mod",
+                                        "audio/x-wav",
+                                        "audio/x-ac3",
+                                        "audio/x-m4a",
+                                        "audio/l16;rate=44100;channels=2",
+                                        "audio/l16;rate=44100;channels=1",
+                                        "audio/l16;channels=2;rate=44100",
+                                        "audio/l16;channels=1;rate=44100",
+                                        "audio/l16;rate=44100",
+                                        "image/jpeg",
+                                        "image/png",
+                                        "video/x-theora",
+                                        "video/x-theora+ogg",
+                                        "video/x-oggm",
+                                        "video/ogg",
+                                        "video/x-dirac",
+                                        "video/x-wmv",
+                                        "video/x-wma",
+                                        "video/x-msvideo",
+                                        "video/x-3ivx",
+                                        "video/x-3ivx",
+                                        "video/x-matroska",
+                                        "video/x-mkv",
+                                        "video/mpeg",
+                                        "video/mp4",
+                                        "application/x-shockwave-flash",
+                                        "video/x-ms-asf",
+                                        "video/x-xvid",
+                                        "video/x-ms-wmv" };
     private static Player player;
+    private static bool has_dlna_src;
 
-    public dynamic Gst.Element playbin { get; private set; }
-
-    protected void print_array(string[] arr)    {
-        foreach(unowned string str in arr)
-        {
-            debug (" %s\n", str);
-        }
+    static construct {
+        Player.has_dlna_src = Gst.URI.protocol_is_supported (URIType.SRC,
+                                                             "dlna+http");
     }
 
-    protected void print_supported_profiles(GLib.List<DLNAProfile> supported_profs) {
-        supported_profs.foreach ((entry) => {
-                debug ("Mime: %s ", entry.mime);
-                debug ("Name: %s ", entry.name);
-                debug ("Flags: %s\n", entry.flags);
-            });
-    }
+    public dynamic Element playbin { get; private set; }
 
     private string _playback_state = "NO_MEDIA_PRESENT";
     public string playback_state {
@@ -170,25 +197,15 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         set {
             this._uri = value;
             this.playbin.set_state (State.READY);
-            /* Prefix "dlna+" so that GstDlnaSrc plugin source will be used if
-             * available. gst-plugins-bad should have this "dlna+" virtual
-             * protocol change, otherwise play() will not work.
-             */
-            try {
-                if (Gst.Element.make_from_uri
-                         (Gst.URIType.SRC,"dlna+"+value, "") != null) {
-                    /* Add dlna+ protocol since it is supported. */
-                    this.playbin.uri = "dlna+" + value;
-                } else {
-                    /* Default value if dlna+ protocol is not supported. */
-                    this.playbin.uri = value;
-                }
-            } catch (GLib.Error err) {
-                debug ("Setting default URI since dlna+ prefix failed");
+            if (Player.has_dlna_src && value.has_prefix ("http")) {
+                debug ("Trying to use DLNA src element");
+                this.playbin.uri = "dlna+" + value;
+            } else {
                 this.playbin.uri = value;
             }
 
             if (value != "") {
+                this.guess_duration ();
                 switch (this._playback_state) {
                     case "NO_MEDIA_PRESENT":
                         this._playback_state = "STOPPED";
@@ -232,6 +249,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
 
         set {
+            this._parsed_duration = 0;
             this._metadata = value;
         }
     }
@@ -270,7 +288,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                 } else {
                     this.transfer_mode = null;
                 }
-            } catch (GLib.Error error) {
+            } catch (Error error) {
                 this.protocol_info = null;
                 this.transfer_mode = null;
             }
@@ -280,32 +298,36 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
 
     public double volume {
         get {
-            return this.playbin.volume;
+            return (this.playbin as Audio.StreamVolume).get_volume
+                                        (Audio.StreamVolumeFormat.CUBIC);
         }
 
         set {
-            this.playbin.volume = value;
+            (this.playbin as Audio.StreamVolume).set_volume
+                                        (Audio.StreamVolumeFormat.CUBIC, value);
             debug ("volume set to %f.", value);
         }
     }
 
+    private int64 _parsed_duration;
     public int64 duration {
         get {
-            int64 dur=0;
+            int64 dur = 0;
 
-            if (this.playbin.source.query_duration (Format.TIME, out dur)) {
+            if (this.playbin.query_duration (Format.TIME, out dur)) {
                 return dur / Gst.USECOND;
             } else {
-                return 0;
+                return _parsed_duration;
             }
         }
     }
 
     public int64 size {
         get {
-            int64 dur;
+            int64 dur = 0;
 
-            if (this.playbin.source.query_duration (Format.BYTES, out dur)) {
+            if (this.playbin.source != null &&
+                this.playbin.source.query_duration (Format.BYTES, out dur)) {
                 return dur;
             } else {
                 return 0;
@@ -317,7 +339,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         get {
             int64 pos;
 
-            if (this.playbin.source.query_position (Format.TIME, out pos)) {
+            if (this.playbin.query_position (Format.TIME, out pos)) {
                 return pos / Gst.USECOND;
             } else {
                 return 0;
@@ -337,159 +359,13 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-
-    private void read_elements(Xml.XPath.Object* res,
-                               ref string[] read_elements) {
-        assert (res != null);
-        assert (res->type == Xml.XPath.ObjectType.NODESET);
-        assert (res->nodesetval != null);
-        if (res->nodesetval->length () > 0)
-        {
-            read_elements = new string[res->nodesetval->length()];
-            for (int i = 0; i < res->nodesetval->length (); i++) {
-                Xml.Node* node = res->nodesetval->item (i);
-                read_elements[i] = node->get_content ();
-            }
-        }
-    }
-
-    private void get_mime_attributes(Xml.XPath.Object* res,
-                                     ref string[] mime_types_param,
-                                     bool media_collection_flag) {
-        int num_of_mimes = res->nodesetval->length ();
-        assert (res != null);
-        assert (res->type == Xml.XPath.ObjectType.NODESET);
-        assert (res->nodesetval != null);
-
-        num_of_mimes = media_collection_flag == true
-                                                ? res->nodesetval->length () + 1
-                                                : num_of_mimes;
-
-        if (num_of_mimes > 0) {
-            int index = 0;
-            mime_types_param = new string[num_of_mimes];
-            if (media_collection_flag == true) {
-                // add elements
-                mime_types_param[0] = "text/xml";
-                _supported_profiles.prepend (new DLNAProfile.extended
-                                             ("DIDL_S",
-                                              "text/xml",
-                                              ""));
-                index = 1;
-            }
-
-            for (int i = index; i < num_of_mimes; i++) {
-                Xml.Node* node = null;
-                if (res->nodesetval != null &&
-                    res->nodesetval->item(i) != null) {
-                    node = res->nodesetval->item(i);
-                    string prop_value = node->get_prop(MIME_TYPE_NAME_PROPERTY);
-                    if (prop_value == null)
-                        break;
-
-                    mime_types_param[i] = prop_value;
-
-                    // Get the children for this node
-                    for (Xml.Node* iter = node->children; iter != null;
-                                                      iter = iter->next) {
-                        // Spaces between tags are also nodes, discard them
-                        if (iter->type != ElementType.ELEMENT_NODE) {
-                            continue;
-                        }
-
-                        string dlna_profile = iter->get_content();
-                        if (dlna_profile != null) {
-                            string[] temp_str = dlna_profile.split (";", 0);
-                            string dlna_org_pn = "", dlna_org_flags = "";
-
-                            foreach (unowned string str in temp_str) {
-                                string[] key_value = str.split("=", 0);
-
-                                switch (key_value[0]) {
-                                    case DLNA_ORG_PN:
-                                        dlna_org_pn = key_value[1];
-                                        break;
-                                    case DLNA_ORG_FLAGS:
-                                        dlna_org_flags = key_value[1];
-                                        break;
-                                }
-                            }
-
-                            if (dlna_org_pn != null) {
-                                _supported_profiles.prepend
-                                                   (new DLNAProfile.extended
-                                                        (dlna_org_pn,
-                                                         prop_value ?? "",
-                                                         dlna_org_flags ?? ""));
-                            }
-                        }
-                    }
-                } else {
-                    message ("failed to find the expected node");
-                }
-            }
-        }
-    }
-
-    private void parse_file () {
-        // Parse the document from path
-        Xml.Doc* doc = Xml.Parser.parse_file (SUPPORT_PROFILE_LIST_PATH);
-        if (doc == null) {
-            error ("File %s not found or permissions missing\n",
-                                              SUPPORT_PROFILE_LIST_PATH);
-        }
-
-        Xml.XPath.Context cntx = new Xml.XPath.Context (doc);
-        if (cntx==null) {
-            error ("failed to create the xpath context\n");
-        }
-
-        // Extract the protocol values
-        Xml.XPath.Object* protocols_node = cntx.eval_expression (protocol_xpath);
-
-        string[] temp_protocols = null;
-        read_elements(protocols_node, ref temp_protocols);
-        if (temp_protocols.length == 0) {
-            error("No Protocols specified. Please add the info to the"+
-                  " %s xml file\n", SUPPORT_PROFILE_LIST_PATH);
-        }
-
-        protocols = temp_protocols[0].split(",", 0);
-
-        // Extract media-collection value
-        Xml.XPath.Object* media_collection_node = cntx.eval_expression 
-                                                       (media_collection_xpath);
-        string[] media_collection_flagstr = null;
-        bool media_collection_flag = false;
-
-        read_elements(media_collection_node, ref media_collection_flagstr);
-        media_collection_flag = bool.parse(media_collection_flagstr[0]);
-
-        Xml.XPath.Object* mime_type_node = cntx.eval_expression (mimetype_xpath);
-        string[] temp_mime_types = null;
-
-        if (mime_type_node == null) {
-            warning ("failed to evaluate xpath\n");
-        } else {
-            get_mime_attributes(mime_type_node,
-                                ref temp_mime_types,
-                                media_collection_flag);
-            mime_types = temp_mime_types;
-        }
-
-        delete protocols_node;
-        delete media_collection_node;
-        delete mime_type_node;
-        delete doc;
-
-        // Do the parser cleanup to free the used memory
-        Parser.cleanup ();
-    }
-
-    private Player () {
+    private Player () throws Error {
         this.playbin = ElementFactory.make ("playbin", null);
+        if (this.playbin == null) {
+            throw new PlayerError.NO_ELEMENT (
+                _("Your GStreamer installation seems to be missing the \"playbin\" element. The Rygel GStreamer renderer implementation cannot work without it"));
+        }
         this.setup_playbin ();
-        this.parse_file();
     }
 
     [Deprecated (since="0.21.5")]
@@ -499,7 +375,20 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         this.setup_playbin ();
     }
 
+    [Deprecated (since="0.23.1")]
     public static Player get_default () {
+        if (player == null) {
+            try {
+                player = new Player ();
+            } catch (Error error) {
+                assert_not_reached ();
+            }
+        }
+
+        return player;
+    }
+
+    public static Player instance () throws Error {
         if (player == null) {
             player = new Player ();
         }
@@ -511,7 +400,6 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         bool seeked;
 
         var speed = this.play_speed_to_double (this._new_playback_speed);
-
         if (speed > 0) {
             seeked = this.playbin.seek (speed,
                                         format,
@@ -541,7 +429,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
 
         // Playbin doesn't return false when seeking beyond the end of the
         // file
-        if (this.duration > 0 && time > this.duration) {
+        if (time > this.duration) {
             return false;
         }
 
@@ -570,13 +458,67 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
     private GLib.List<DLNAProfile> _supported_profiles;
     public unowned GLib.List<DLNAProfile> supported_profiles {
         get {
-            this.print_supported_profiles (_supported_profiles);
+            if (_supported_profiles == null) {
+                // FIXME: Check available decoders in registry and register
+                // profiles after that
+                _supported_profiles = new GLib.List<DLNAProfile> ();
+
+                // Image
+                _supported_profiles.prepend (new DLNAProfile ("JPEG_SM",
+                                                              "image/jpeg"));
+                _supported_profiles.prepend (new DLNAProfile ("JPEG_MED",
+                                                              "image/jpeg"));
+                _supported_profiles.prepend (new DLNAProfile ("JPEG_LRG",
+                                                              "image/jpeg"));
+                _supported_profiles.prepend (new DLNAProfile ("PNG_LRG",
+                                                              "image/png"));
+
+                // Audio
+                _supported_profiles.prepend (new DLNAProfile ("MP3",
+                                                              "audio/mpeg"));
+                _supported_profiles.prepend (new DLNAProfile ("MP3X",
+                                                              "audio/mpeg"));
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("AAC_ADTS_320",
+                                         "audio/vnd.dlna.adts"));
+                _supported_profiles.prepend (new DLNAProfile ("AAC_ISO_320",
+                                                              "audio/mp4"));
+                _supported_profiles.prepend (new DLNAProfile ("AAC_ISO_320",
+                                                              "audio/3gpp"));
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("LPCM",
+                                         "audio/l16;rate=44100;channels=2"));
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("LPCM",
+                                         "audio/l16;rate=44100;channels=1"));
+                _supported_profiles.prepend (new DLNAProfile ("WMABASE",
+                                                              "audio/x-ms-wma"));
+                _supported_profiles.prepend (new DLNAProfile ("WMAFULL",
+                                                              "audio/x-ms-wma"));
+                _supported_profiles.prepend (new DLNAProfile ("WMAPRO",
+                                                              "audio/x-ms-wma"));
+
+                // Video
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("MPEG_TS_SD_EU_ISO",
+                                         "video/mpeg"));
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("MPEG_TS_SD_NA_ISO",
+                                         "video/mpeg"));
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("MPEG_TS_HD_NA_ISO",
+                                         "video/mpeg"));
+                _supported_profiles.prepend (new DLNAProfile
+                                        ("AVC_MP4_BL_CIF15_AAC_520",
+                                         "video/mp4"));
+            }
+
             return _supported_profiles;
         }
     }
 
     private bool is_rendering_image () {
-        dynamic Gst.Element typefind;
+        dynamic Element typefind;
 
         typefind = (this.playbin as Gst.Bin).get_by_name ("typefind");
         Caps caps = typefind.caps;
@@ -612,6 +554,10 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
                             this.metadata = this.generate_basic_didl ();
                         }
                     }
+
+                    if (this.playbin.query_duration (Format.TIME, null)) {
+                        this.notify_property ("duration");
+                    }
                 }
 
                 if (pending == State.VOID_PENDING) {
@@ -645,7 +591,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
 
             break;
         case MessageType.ERROR:
-            GLib.Error error;
+            Error error;
             string debug_message;
 
             message.parse_error (out error, out debug_message);
@@ -662,7 +608,7 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         }
     }
 
-    private void on_source_setup (Gst.Element pipeline, dynamic Gst.Element source) {
+    private void on_source_setup (Element pipeline, dynamic Element source) {
         if (source.get_type ().name () == "GstSoupHTTPSrc" &&
             this.transfer_mode != null) {
             debug ("Setting transfer mode to %s", this.transfer_mode);
@@ -701,7 +647,6 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
     private void setup_playbin () {
         // Needed to get "Stop" events from the playbin.
         // We can do this because we have a bus watch
-
         this.playbin.auto_flush_bus = false;
         assert (this.playbin != null);
 
@@ -712,5 +657,30 @@ public class Rygel.Playbin.Player : GLib.Object, Rygel.MediaPlayer {
         var bus = this.playbin.get_bus ();
         bus.add_signal_watch ();
         bus.message.connect (this.bus_handler);
+    }
+
+    private void guess_duration () {
+        if (this._metadata == null || this._metadata == "") {
+            return;
+        }
+
+        var reader = new DIDLLiteParser ();
+
+        // Try to guess duration from meta-data.
+        reader.object_available.connect ( (object) => {
+            var resources = object.get_resources ();
+            foreach (var resource in resources) {
+                if (this._uri == resource.uri && resource.duration > 0) {
+                    this._parsed_duration = resource.duration * TimeSpan.SECOND;
+                    this.notify_property ("duration");
+                }
+            }
+        });
+
+        try {
+            reader.parse_didl (this._metadata);
+        } catch (Error error) {
+            debug ("Failed to parse meta-data: %s", error.message);
+        }
     }
 }

@@ -124,8 +124,8 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
 
         var item = object as MediaFileItem; 
 
-        // For MediaFileItems, uri 0 is the file URI referring directly to the content
-        string source_uri = item.uris.get (0);
+        // For MediaFileItems, the primary URI refers directly to the content
+        string source_uri = item.get_primary_uri ();
 
         debug ("get_resources_for_item(%s)", source_uri);
 
@@ -183,8 +183,8 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
         }
         var item = object as MediaFileItem; 
 
-        // For MediaFileItems, uri 0 is the file URI referring directly to the content
-        string source_uri = item.uris.get (0);
+        // For MediaFileItems, the primary URI refers directly to the content
+        string source_uri = item.get_primary_uri ();
         debug ("creating data source for %s", source_uri);
 
         DataSource ds = new GstDataSource (source_uri, resource);

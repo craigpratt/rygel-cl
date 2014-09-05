@@ -126,18 +126,11 @@ public abstract class Rygel.MediaFileItem : MediaItem {
     public override DataSource? create_stream_source_for_resource (HTTPRequest request,
                                                                    MediaResource resource)
         throws Error {
-        if (this.uris.size == 0) {
+        if (this.get_uris ().is_empty) {
             return null;
         }
 
         return MediaEngine.get_default ().create_data_source_for_resource (this, resource);
-    }
-
-    /**
-     * Subclasses override this method to do type-specific resource processing before serialize().
-     */
-    public virtual void add_uri (string uri) {
-        this.uris.add (uri);
     }
 
     internal override DIDLLiteObject? serialize (Serializer serializer,
@@ -173,7 +166,7 @@ public abstract class Rygel.MediaFileItem : MediaItem {
         res.dlna_flags = DLNAFlags.BACKGROUND_TRANSFER_MODE;
 
         // MediaFileItems refer directly to the source URI
-        res.uri = this.uris.get (0);
+        res.uri = this.get_primary_uri ();
         try {
             res.protocol = this.get_protocol_for_uri (res.uri);
         } catch (Error e) {
@@ -190,7 +183,7 @@ public abstract class Rygel.MediaFileItem : MediaItem {
     public virtual string get_extension () {
         string uri_extension = null;
         // Use the extension from the source content filename, if it has an extension
-        string basename = Path.get_basename (this.uris.get (0));
+        string basename = Path.get_basename (this.get_primary_uri ());
         int dot_index = -1;
         if (basename != null) {
             dot_index = basename.last_index_of (".");

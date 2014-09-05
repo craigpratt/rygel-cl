@@ -198,9 +198,9 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
         var item = object as MediaItem;
 
-        // For MediaFileItems, uri 0 is the file URI referring directly to
-        //  the content. But for us, we're presuming it refers to the ODID item file
-        string item_info_uri = item.uris.get (0);
+        // For MediaFileItems, the primary URI refers directly to
+        //  the content. But for this engine it refers to the ODID item file
+        string item_info_uri = item.get_primary_uri ();
 
         debug ("OdidMediaEngine:get_resources: " + item_info_uri);
 
@@ -685,9 +685,9 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
         var item = object as MediaItem;
 
-        // For MediaFileItems, uri 0 is the file URI referring directly to
-        //  the content. But for us, we're presuming it refers to the ODID item file
-        string item_info_uri = item.uris.get (0);
+        // For MediaFileItems, the primary URI refers directly to
+        //  the content. But for us it refers to the ODID item file
+        string item_info_uri = item.get_primary_uri ();
 
         debug ("create_data_source_for_resource: source %s, resource %s",
                item_info_uri, resource.get_name ());

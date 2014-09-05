@@ -119,7 +119,9 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
         // Unlock eventually frozen sink
         this.sink.cancellable.cancel ();
         this.pipeline.set_state (State.NULL);
-        Source.remove (this.bus_watch_id);
+        if (this.bus_watch_id != 0) {
+            Source.remove (this.bus_watch_id);
+        }
         Idle.add ( () => { this.done (); return false; });
     }
 
@@ -250,6 +252,8 @@ internal class Rygel.GstDataSource : Rygel.DataSource, GLib.Object {
 
                 return false;
             });
+
+            this.bus_watch_id = 0;
         }
 
         return ret;

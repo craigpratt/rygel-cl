@@ -268,11 +268,21 @@ namespace Rygel.MediaExport.ItemFactory {
         tags.get_uint (Tags.TRACK_NUMBER, out tmp);
         item.track_number = (int) tmp;
 
+
+        var store = MediaArtStore.get_default ();
+
         Sample sample;
         tags.get_sample (Tags.IMAGE, out sample);
         if (sample == null) {
+            tags.get_sample (Tags.PREVIEW_IMAGE, out sample);
+        }
+
+        if (sample == null) {
+            store.add (item, file, null);
+
             return item;
         }
+
         unowned Structure structure = sample.get_caps ().get_structure (0);
 
         int image_type;
@@ -282,12 +292,10 @@ namespace Rygel.MediaExport.ItemFactory {
         switch (image_type) {
             case Tag.ImageType.UNDEFINED:
             case Tag.ImageType.FRONT_COVER:
-                var store = MediaArtStore.get_default ();
-                var thumb = store.get_media_art_file ("album", item, true);
-                try {
-                    var writer = new JPEGWriter ();
-                    writer.write (sample.get_buffer (), thumb);
-                } catch (Error error) {}
+                Gst.MapInfo map_info;
+                sample.get_buffer ().map (out map_info, Gst.MapFlags.READ);
+                store.add (item, file, map_info.data);
+                sample.get_buffer ().unmap (map_info);
                 break;
             default:
                 break;
