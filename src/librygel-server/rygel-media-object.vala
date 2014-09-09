@@ -417,6 +417,11 @@ public abstract class Rygel.MediaObject : GLib.Object {
         return (prop1 - prop2).clamp (-1, 1);
     }
 
+    /**
+     * Return true if the media object (or subclass) recognizes
+     * the given property and it satisfies the given relation.
+     * Otherwise return false.
+     */
     internal virtual bool satisfies (RelationalExpression relation) {
         switch (relation.operand1) {
         case "@id":
