@@ -105,6 +105,15 @@ public abstract class Rygel.MediaItem : MediaObject {
         this.description = didl_object.description;
     }
 
+    internal override bool satisfies (RelationalExpression relation) {
+        if (this is TrackableItem) {
+            if ((this as TrackableItem).satisfies (relation)) {
+                return true;
+            }
+        }
+        return base.satisfies (relation);
+    }
+
     internal override DIDLLiteObject? serialize (Serializer serializer,
                                                  HTTPServer http_server)
                                                  throws Error {

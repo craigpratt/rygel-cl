@@ -417,6 +417,25 @@ public abstract class Rygel.MediaObject : GLib.Object {
         return (prop1 - prop2).clamp (-1, 1);
     }
 
+    internal virtual bool satisfies (RelationalExpression relation) {
+        switch (relation.operand1) {
+        case "@id":
+            return relation.compare_string (this.id);
+        case "@refID":
+            return relation.compare_string (this.ref_id);
+        case "@parentID":
+            return relation.compare_string (this.parent.id);
+        case "upnp:class":
+            return relation.compare_string (this.upnp_class);
+        case "dc:title":
+            return relation.compare_string (this.title);
+        case "upnp:objectUpdateID":
+            return relation.compare_uint (this.object_update_id);
+        default:
+            return false;
+        }
+    }
+
     private async bool check_writable (File file, Cancellable? cancellable)
                                        throws Error {
         // Special URI scheme to indicate that this is a writable container

@@ -57,6 +57,14 @@ public class Rygel.PhotoItem : ImageItem {
         }
     }
 
+    internal override bool satisfies (RelationalExpression relation) {
+        if ((relation.operand1 == "dc:creator")
+            && relation.compare_string (this.creator)) {
+            return true;
+        }
+        return base.satisfies (relation);
+    }
+
     private string get_first (GLib.List<DIDLLiteContributor>? contributors) {
         if (contributors != null) {
             return contributors.data.name;

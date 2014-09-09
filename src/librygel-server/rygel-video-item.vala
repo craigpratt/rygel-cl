@@ -58,6 +58,8 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
      */
     public int color_depth { get; set; default = -1; }
 
+    public string genre { get; set; }
+
     /**
      * Thumbnail pictures to represent the video.
      */
@@ -111,6 +113,15 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
         default:
             return base.compare_by_property (item, property);
         }
+    }
+
+    internal override bool satisfies (RelationalExpression relation) {
+        if (((relation.operand1 == "upnp:genre")
+             || (relation.operand1 == "dc:genre"))
+            && relation.compare_string (this.genre)) {
+            return true;
+        }
+        return base.satisfies (relation);
     }
 
     private string get_first (GLib.List<DIDLLiteContributor>? contributors) {

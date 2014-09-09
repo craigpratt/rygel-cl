@@ -416,4 +416,20 @@ public abstract class Rygel.MediaContainer : MediaObject {
             }
         }
     }
+
+    internal override bool satisfies (RelationalExpression relation) {
+        if ((this is TrackableContainer)
+            && (this as TrackableContainer).satisfies (relation)) {
+            return true;
+        }
+        if ((this is WritableContainer)
+            && (this as WritableContainer).satisfies (relation)) {
+            return true;
+        }
+        if ((relation.operand1 == "@childCount")
+            && relation.compare_int (child_count)) {
+            return true;
+        }
+        return base.satisfies (relation);
+    }
 }

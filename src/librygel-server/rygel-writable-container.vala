@@ -141,4 +141,17 @@ public interface Rygel.WritableContainer : MediaContainer {
     public async abstract void remove_container (string       id,
                                                  Cancellable? cancellable)
                                                  throws Error;
+
+    public bool satisfies (RelationalExpression relation) {
+        var ret = false;
+
+        foreach (var create_class in this.create_classes) {
+            if (relation.compare_string (create_class)) {
+                ret = true;
+                break;
+            }
+        }
+
+        return ret;
+    }
 }

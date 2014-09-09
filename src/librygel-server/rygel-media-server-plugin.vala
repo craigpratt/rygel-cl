@@ -53,7 +53,9 @@ public abstract class Rygel.MediaServerPlugin : Rygel.Plugin {
     public virtual string search_caps {
         get {
             if (this._search_caps == null) {
-                this._search_caps = RelationalExpression.CAPS;
+                this._search_caps = "@id,@parentID,@refID,upnp:class,"
+                                    + "dc:title,upnp:artist,upnp:album,"
+                                    + "dc:creator,@childCount";
 
                 if (PluginCapabilities.TRACK_CHANGES in this.capabilities) {
                     this._search_caps += ",upnp:objectUpdateID,upnp:containerUpdateID";

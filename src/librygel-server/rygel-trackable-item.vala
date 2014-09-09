@@ -18,10 +18,18 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+using GUPnP;
+
 public interface Rygel.TrackableItem : Rygel.MediaItem {
     public void changed () {
         if (this.parent != null) {
             this.parent.updated (this);
         }
+    }
+
+    public bool satisfies (RelationalExpression relation) {
+        return ((relation.operand1 == "upnp:objectUpdateID")
+                && (relation.op == SearchCriteriaOp.EXISTS)
+                && (relation.operand2 == "true"));
     }
 }

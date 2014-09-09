@@ -86,6 +86,23 @@ public class Rygel.MusicItem : AudioItem {
         }
     }
 
+    internal override bool satisfies (RelationalExpression relation) {
+        if ((relation.operand1 == "upnp:artist")
+            && relation.compare_string (this.artist)) {
+            return true;
+        }
+        if ((relation.operand1 == "upnp:album")
+            && relation.compare_string (this.album)) {
+            return true;
+        }
+        if (((relation.operand1 == "upnp:genre")
+             || (relation.operand1 == "dc:genre"))
+            && relation.compare_string (this.genre)) {
+            return true;
+        }
+        return base.satisfies (relation);
+    }
+
     internal override void apply_didl_lite (DIDLLiteObject didl_object) {
         base.apply_didl_lite (didl_object);
 

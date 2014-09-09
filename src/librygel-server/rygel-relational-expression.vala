@@ -31,102 +31,12 @@ using GUPnP;
  */
 public class Rygel.RelationalExpression :
              Rygel.SearchExpression<SearchCriteriaOp,string,string> {
-    internal const string CAPS = "@id,@parentID,@refID,upnp:class," +
-                                 "dc:title,upnp:artist,upnp:album," +
-                                 "dc:creator,@childCount";
-
     public override bool satisfied_by (MediaObject media_object) {
-        switch (this.operand1) {
-        case "@id":
-            return this.compare_string (media_object.id);
-        case "@refID":
-            return this.compare_string (media_object.ref_id);
-        case "@parentID":
-            return this.compare_string (media_object.parent.id);
-        case "upnp:class":
-            return this.compare_string (media_object.upnp_class);
-        case "dc:title":
-            return this.compare_string (media_object.title);
-        case "upnp:objectUpdateID":
-            if (this.op == SearchCriteriaOp.EXISTS) {
-                if (this.operand2 == "true") {
-                    return media_object is TrackableContainer ||
-                           media_object is TrackableItem;
-                } else {
-                    return !(media_object is TrackableContainer ||
-                             media_object is TrackableItem);
-                }
-            } else {
-                return this.compare_uint (media_object.object_update_id);
-            }
-        case "upnp:containerUpdateID":
-            if (!(media_object is MediaContainer)) {
-                return false;
-            }
-
-            if (this.op == SearchCriteriaOp.EXISTS) {
-                if (this.operand2 == "true") {
-                    return media_object is TrackableContainer;
-                } else {
-                    return !(media_object is TrackableContainer);
-                }
-            } else {
-                var container = media_object as MediaContainer;
-                return this.compare_uint (container.update_id);
-            }
-        case "upnp:createClass":
-            if (!(media_object is WritableContainer)) {
-                return false;
-            }
-
-            return this.compare_create_class
-                                        (media_object as WritableContainer);
-        case "dc:creator":
-            if (!(media_object is PhotoItem)) {
-                return false;
-            }
-
-            return this.compare_string ((media_object as PhotoItem).creator);
-        case "upnp:artist":
-            if (!(media_object is MusicItem)) {
-                return false;
-            }
-
-            return this.compare_string ((media_object as MusicItem).artist);
-        case "upnp:album":
-            if (!(media_object is MusicItem)) {
-                return false;
-            }
-
-            return this.compare_string ((media_object as MusicItem).album);
-        case "@childCount":
-            if (!(media_object is MediaContainer)) {
-                return false;
-            }
-
-            var container = media_object as MediaContainer;
-            return this.compare_int (container.child_count);
-        default:
-            return false;
-        }
+        return media_object.satisfies (this);
     }
 
     public override string to_string () {
         return "%s %d %s".printf (this.operand1, this.op, this.operand2);
-    }
-
-    private bool compare_create_class (WritableContainer container) {
-        var ret = false;
-
-        foreach (var create_class in container.create_classes) {
-            if (this.compare_string (create_class)) {
-                ret = true;
-
-                break;
-            }
-        }
-
-        return ret;
     }
 
     public bool compare_string (string? str) {

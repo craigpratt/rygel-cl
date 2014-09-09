@@ -18,6 +18,8 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+using GUPnP;
+
 /**
  * The base class for containers that provide automatic change tracking.
  *
@@ -157,5 +159,11 @@ public interface Rygel.TrackableContainer : Rygel.MediaContainer {
 
     private void thaw_events () {
         // Forward events.
+    }
+
+    public bool satisfies (RelationalExpression relation) {
+        return ((relation.operand1 == "upnp:objectUpdateID")
+                && (relation.op == SearchCriteriaOp.EXISTS)
+                && (relation.operand2 == "true"));
     }
 }
