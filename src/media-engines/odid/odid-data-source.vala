@@ -37,7 +37,7 @@ using GUPnP;
 
 internal class Rygel.ODIDDataSource : DataSource, Object {
     public static const int64 DEFAULT_CHUNK_SIZE = 1536 * KILOBYTES_TO_BYTES;
-    public static const uint LIVE_CHUNKS_PER_SECOND = 2;
+    public static const uint DEFAULT_MIN_LIVE_CHUNKS_PER_SECOND = 2;
 
     protected string resource_uri;
     protected string content_uri;
@@ -52,6 +52,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     protected bool content_protected = false;
     protected int dtcp_session_handle = -1;
     protected int64 chunk_size; // HTTP chunk size to use (when chunking)
+    protected int64 min_live_chunk_dur_ms = 0; // chunk duration in live mode
+    protected uint min_live_chunks_per_sec = 0; // Chunks per second in live mode
     protected Gee.ArrayList<int64?> range_offset_list = new Gee.ArrayList<int64?> ();
     protected ODIDLiveSimulator live_sim = null;
     protected DataInputStream index_stream;
@@ -93,12 +95,15 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
     }
 
     public ODIDDataSource.from_live (ODIDLiveSimulator live_sim, MediaResource res,
-                                     int64 chunk_size) {
+                                     int64 chunk_size, int64 chunk_duration_ms,
+                                     int chunks_per_second) {
         this.live_sim = live_sim;
         this.resource_uri = live_sim.resource_uri;
         this.res = res;
         this.chunk_size = chunk_size;
-        
+        this.min_live_chunk_dur_ms = chunk_duration_ms;
+        this.min_live_chunks_per_sec = (chunks_per_second != 0) ? chunks_per_second
+                                       : DEFAULT_MIN_LIVE_CHUNKS_PER_SECOND;
         // Pipe channel initialization.
         try {
             FB_REGEX = new GLib.Regex (GLib.Regex.escape_string ("%firstByte"));
@@ -598,14 +603,21 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         var byterate = (content_size * MILLIS_PER_SEC) / total_duration_ms;
         debug ("    Source content byterate: %lld bytes/second", byterate);
         if (this.chunk_size > 0) {
-            debug ("    Using config-specified chunk size: %lld bytes", this.chunk_size);
+            debug ("    Using config-specified chunk size: %lld bytes", 
+                   this.chunk_size);
         } else {
-            this.chunk_size = int64.min (byterate / LIVE_CHUNKS_PER_SECOND, DEFAULT_CHUNK_SIZE);
-            debug ("    Reducing chunk size using %u chunks_per_second: %lld bytes",
-                   LIVE_CHUNKS_PER_SECOND, this.chunk_size);
+            var chunk_size_from_avg_rate = byterate 
+                                           / this.min_live_chunks_per_sec;
+            if (chunk_size_from_avg_rate < DEFAULT_CHUNK_SIZE) {
+                this.chunk_size = chunk_size_from_avg_rate;
+                debug ("    Reduced chunk size using %u chunks_per_second: %lld bytes",
+                       this.min_live_chunks_per_sec, this.chunk_size);
+            } else {
+                this.chunk_size = DEFAULT_CHUNK_SIZE;
+                debug ("    Using default chunk size: %lld bytes",
+                       this.chunk_size);
+            }
         }
-            
-        this.chunk_size = byterate / 2; // use 1/2 second chunk sizes for 
 
         bool is_reverse = (this.playspeed_request == null)
                            ? false : (!this.playspeed_request.speed.is_positive ());
@@ -1221,25 +1233,54 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
 
     /**
      * Number of milliseconds until the next buffer should be available.
+     * This will be negative if the next buffer is already available.
      *
      * Note that the index file stream must be open and the buffer size set on the
-     * output IOChannel.
-     *
-     * This will be negative if the next buffer is already available.
+     * output IOChannel. And this method will set the IOChannel buffer size
+     * if/when min_live_chunk_dur_ms is set.
      */
     private int time_to_next_buffer () {
         assert (this.live_sim != null);
-        size_t buf_size = this.output.get_buffer_size ();
-        int64 next_offset = this.range_start + this.total_bytes_read + buf_size;
-        try {
-            int64 next_offset_time_ms = ODIDUtil.advance_index_to_offset (this.index_stream,
-                                                                          ref next_offset);
-            return (int)(next_offset_time_ms - (this.live_sim.get_elapsed_live_time ()
-                                                /  MICROS_PER_MILLI ) );
-        } catch (Error error) {
-            warning ("time_to_next_buffer: Error finding offset %lld in %s: %s",
-                     next_offset, this.index_uri, error.message);
-            return 0;
+        int64 current_byte_pos = this.range_start + this.total_bytes_read;
+        var current_live_time_ms = this.live_sim.get_elapsed_live_time ()
+                                   /  MICROS_PER_MILLI;
+
+        if (this.min_live_chunk_dur_ms > 0) {
+            // We're going to determine the amount of data to read based
+            //  on how much time it represents
+            int64 next_offset_time_ms = current_live_time_ms
+                                        + this.min_live_chunk_dur_ms;
+            try {
+                int64 next_offset_bytes = ODIDUtil.advance_index_to_time 
+                                                    (this.index_stream,
+                                                     current_byte_pos,
+                                                     ref next_offset_time_ms);
+                int64 byte_distance = next_offset_bytes - current_byte_pos;
+                // debug ("time_to_next_buffer: byte distance is %lld (%lld-%lld)",
+                //        byte_distance, next_offset_bytes, current_byte_pos);
+                if ((byte_distance > 0) 
+                    && (byte_distance < this.output.get_buffer_size ())) {
+                    this.output.set_buffer_size ((size_t)byte_distance);
+                }
+                return (int)(next_offset_time_ms - current_live_time_ms);
+            } catch (Error error) {
+                warning ("time_to_next_buffer: Error finding time offset %lldms in %s: %s",
+                         next_offset_time_ms, this.index_uri, error.message);
+                return 0;
+            }
+        } else {
+            size_t buf_size = this.output.get_buffer_size ();
+            int64 next_offset = current_byte_pos + buf_size;
+            try {
+                int64 next_offset_time_ms = ODIDUtil.advance_index_to_offset 
+                                                      (this.index_stream,
+                                                       ref next_offset);
+                return (int)(next_offset_time_ms - current_live_time_ms);
+            } catch (Error error) {
+                warning ("time_to_next_buffer: Error finding byte offset %lld in %s: %s",
+                         next_offset, this.index_uri, error.message);
+                return 0;
+            }
         }
     }
 
@@ -1390,18 +1431,25 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             done ();
         }
 
-        // If we are aligning VOBU per PCP, we set the channel buffer to
-        // the next VOBU size so we can encrypt it as a single unit
-        if (!all_data_read && (this.range_offset_list.size > 1)) {
-            assert (this.range_offset_index < this.range_offset_list.size);
-            this.output.set_buffer_size
-                ((size_t) (this.range_offset_list[++this.range_offset_index]
-                           - this.range_offset_list[this.range_offset_index-1] ) );
+        if (!all_data_read) {
+            // Set the size of the next buffer to fill
+            size_t next_buffer_size;
+            if (this.range_offset_list.size > 1) {
+                assert (this.range_offset_index < this.range_offset_list.size);
+                ++this.range_offset_index;
+                next_buffer_size 
+                  = (size_t)(this.range_offset_list[this.range_offset_index]
+                             - this.range_offset_list[this.range_offset_index-1] );
+            } else {
+                next_buffer_size = (size_t) this.chunk_size;
+            }
+            this.output.set_buffer_size (next_buffer_size);
         }
 
         bool pace = false;
         if (!all_data_read && this.pacing) {
             int time_to_next_buf_ms = time_to_next_buffer ();
+            // Note: time_to_next_buffer() may change the buffer size
             if (time_to_next_buf_ms > 0) {
                 pace = true; // We need to wait for the next buffer of data
                 this.pacing_timer = Timeout.add (time_to_next_buf_ms, on_paced_data_ready);

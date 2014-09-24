@@ -421,6 +421,53 @@ public class Rygel.ODIDUtil : Object {
     }
 
     /**
+     * Moves the index_stream forward to the index entry with a time offset 
+     * >= time_offset_ms and data offset >= data_offset. The byte offset of 
+     * the entry is returned.
+     *
+     * If time_offset_ms is 0, 0 is returned. If time_offset_ms is larger than 
+     * the last index entry's time, int64.MAX is returned.
+     */
+    internal static int64 advance_index_to_time (DataInputStream index_stream,
+                                                 int64 data_offset,
+                                                 ref int64 time_offset_ms)
+
+            throws Error {
+        // debug ("advance_index_to_time: %lldms", time_offset_ms);
+
+        if (time_offset_ms == 0) { // 0-time is always a valid random access point
+            // debug ("advance_index_to_time: Using 0 time/offset");
+            return 0;
+        }
+
+        string line;
+        int line_count = 0;
+        // Read lines until end of file (null) is reached
+        while ((line = index_stream.read_line (null)) != null) {
+            line_count++;
+            if (!ODIDIndexEntry.size_ok (line)) {
+                throw new ODIDMediaEngineError.INDEX_FILE_ERROR (
+                              "Bad index file entry size (entry is %d bytes, should be %u bytes): '%s'",
+                              line.length+1, ODIDIndexEntry.ROW_SIZE, line);
+            }
+            // Any entry type is ok (not checking the type)
+            int64 cur_time_offset = ODIDIndexEntry.time_ms (line);
+            int64 cur_data_offset = ODIDIndexEntry.offset_bytes (line);
+            // debug ("advance_index_to_time: entry at %s (%0.3f) has offset %llu",
+            //        ODIDIndexEntry.time_field (line),
+            //        cur_time_offset, cur_data_offset);
+            if ((cur_time_offset >= time_offset_ms) 
+                && (cur_data_offset >= data_offset)) {
+                time_offset_ms = cur_time_offset;
+                // debug ("advance_index_to_time: found offset %lld with time %0.3f",
+                //        cur_data_offset, msec_to_secs (time_offset_ms));
+                return (cur_data_offset);
+            }
+        }
+        return int64.MAX;
+    }
+
+    /**
      * Find the vobu data offsets that cover the provided data range (start-end)
      */
     internal static void vobu_aligned_offsets_for_range (File index_file, 

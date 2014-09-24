@@ -54,8 +54,10 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     private  GLib.List<DLNAProfile> profiles
         = new GLib.List<DLNAProfile> ();
 
-    // Variable to hold chunk size for streaming
+    // Chunk size control variables
     public int64 chunk_size;
+    protected int64 min_live_chunk_duration_ms; // Min chunk duration in live
+    protected int min_live_chunks_per_sec; // Min chunks per second in live
 
     // DTCP control variables
     private bool dtcp_initialized;
@@ -79,13 +81,39 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
         try {
             var chunk_size_str = config.get_string ("OdidMediaEngine", "chunk-size");
-            this.chunk_size = int64.parse (chunk_size_str) * KILOBYTES_TO_BYTES;
+            this.chunk_size = int64.parse (chunk_size_str);
         } catch (Error err) {
-            debug ("Error reading ODIDMediaEngine property: " + err.message);
+            debug ("Could not read ODIDMediaEngine chunk-size setting: " 
+                   + err.message);
             this.chunk_size = 0; // Let the DataSource use a default value
         }
         message ("chunk size: %lld bytes%s", this.chunk_size,
                  (this.chunk_size <= 0) ? " (DataSource-controlled)" : "");
+
+        try {
+            var chunk_duration_str = config.get_string ("OdidMediaEngine", 
+                                                        "min-live-chunk-duration");
+            this.min_live_chunk_duration_ms = int64.parse (chunk_duration_str);
+            message ("min-live-chunk-duration: %lld ms", 
+                     this.min_live_chunk_duration_ms);
+        } catch (Error err) {
+            debug ("Could not read ODIDMediaEngine live-chunk-duration setting: " 
+                   + err.message);
+            this.min_live_chunk_duration_ms = 0;
+        }
+
+        try {
+            var chunks_per_sec_str = config.get_string 
+                                             ("OdidMediaEngine", 
+                                              "min-live-chunks-per-second");
+            this.min_live_chunks_per_sec = int.parse (chunks_per_sec_str);
+            message ("min-live-chunks-per-second: %lld ms", 
+                     this.min_live_chunks_per_sec);
+        } catch (Error err) {
+            debug ("Could not read ODIDMediaEngine live-chunks-per-second setting: " 
+                   + err.message);
+            this.min_live_chunks_per_sec = 0;
+        }
 
         try {
             this.dtcp_initialized = false;
@@ -720,7 +748,10 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             if (this.control_channel != null) {
                 this.control_channel.send_message ("Creating live data source for " + item_info_uri);
             }
-            return new ODIDDataSource.from_live (live_sim, resource, this.chunk_size);
+            return new ODIDDataSource.from_live (live_sim, resource, 
+                                                 this.chunk_size,
+                                                 this.min_live_chunk_duration_ms,
+                                                 this.min_live_chunks_per_sec);
         } else {
             debug ("create_data_source_for_resource: IS NOT live");
             if (this.control_channel != null) {
