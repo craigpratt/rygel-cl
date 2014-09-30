@@ -285,7 +285,13 @@ public abstract class Rygel.MediaObject : GLib.Object {
         }
     }
 
-    public static string apply_replacements 
+    /**
+     * Replace each key in replacement_pairs with its corresponding
+     * value in the source_string and return the result.
+     * 
+     * If source_string is null, null is returned.
+     */
+    public static string ? apply_replacements 
                             (HashTable<string, string> replacement_pairs,
                              string source_string) {
         if (source_string == null) {

@@ -8,7 +8,7 @@
      <fork>true</fork>
      <lifetime>-1</lifetime>
      <protocol shortName="DLNA-HTML5-1.0">
-         <uri>http://192.168.1.10/index.html</uri>
+         <uri>http://@HTTP_SERVER_ADDRESS@:80/index.html</uri>
      </protocol>
  </ui>
  <ui>
@@ -18,7 +18,7 @@
      <fork>true</fork>
      <lifetime>-1</lifetime>
      <protocol shortName="DLNA-HTML5-1.0">
-         <uri>https://192.168.1.10/index.html</uri>
+         <uri>https://@HTTP_SERVER_ADDRESS@:80/index.html</uri>
      </protocol>
  </ui>
 </uilist>

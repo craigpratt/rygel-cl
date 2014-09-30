@@ -37,10 +37,10 @@ using Xml;
 internal class Rygel.UIListingManager : GLib.Object {
 
     private string file;
-    private Service ruih;
+    private RuihService ruih;
     public Cancellable cancellable { get; set; }
 
-    public UIListingManager(Service service, string file) {
+    public UIListingManager(RuihService service, string file) {
         this.file = file;
         this.ruih = service;
     }
@@ -63,7 +63,6 @@ internal class Rygel.UIListingManager : GLib.Object {
     }
 
     public string getUIListing(string path) {
-
         // Parse XML and put in string
         Xml.Doc* uilistingdoc = Parser.parse_file (path);
         if (uilistingdoc == null) {
@@ -73,7 +72,7 @@ internal class Rygel.UIListingManager : GLib.Object {
         string xmlstr;
         uilistingdoc->dump_memory (out xmlstr);
         delete uilistingdoc; 
-        return xmlstr;
+        return this.ruih.replace_variables (xmlstr);
 
     }
 
