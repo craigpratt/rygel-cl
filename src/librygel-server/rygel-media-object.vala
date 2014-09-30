@@ -288,6 +288,9 @@ public abstract class Rygel.MediaObject : GLib.Object {
     public static string apply_replacements 
                             (HashTable<string, string> replacement_pairs,
                              string source_string) {
+        if (source_string == null) {
+            return null;
+        }
         var replaced_string = source_string;
         replacement_pairs.foreach ((search_string, replacement) 
             => {
