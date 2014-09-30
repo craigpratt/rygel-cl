@@ -147,7 +147,9 @@ public class Rygel.MediaResource : GLib.Object {
         return this.name;
     }
 
-    public DIDLLiteResource serialize (DIDLLiteResource didl_resource) {
+    public DIDLLiteResource serialize  
+                               (DIDLLiteResource didl_resource,
+                                HashTable<string, string> ? replacements) {
         // Note: For a DIDLLiteResource, a values -1/null also signal "not set"
         didl_resource.uri = this.uri;
         didl_resource.size64 = this.size;
@@ -160,8 +162,7 @@ public class Rygel.MediaResource : GLib.Object {
         didl_resource.height = this.height;
         didl_resource.audio_channels = this.audio_channels;
         didl_resource.sample_freq = this.sample_freq;
-        didl_resource.protocol_info = get_protocol_info ();
-
+        didl_resource.protocol_info = get_protocol_info (replacements);
         return didl_resource;
     }
 
@@ -176,12 +177,18 @@ public class Rygel.MediaResource : GLib.Object {
         this.play_speeds = copy_speeds (pi.play_speeds);
     }
 
-    public ProtocolInfo get_protocol_info () {
+    public ProtocolInfo get_protocol_info 
+                            (HashTable<string, string> ? replacements = null) {
         var new_pi = new ProtocolInfo ();
 
         new_pi.protocol = this.protocol;
         new_pi.network = this.network;
-        new_pi.mime_type = this.mime_type;
+        if (replacements == null) {
+            new_pi.mime_type = this.mime_type;
+        } else {
+            new_pi.mime_type = MediaObject.apply_replacements (replacements,
+                                                               this.mime_type);
+        }
         new_pi.dlna_profile = this.dlna_profile;
         new_pi.dlna_conversion = this.dlna_conversion;
         new_pi.dlna_operation = this.dlna_operation;

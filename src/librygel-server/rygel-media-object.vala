@@ -257,6 +257,7 @@ public abstract class Rygel.MediaObject : GLib.Object {
     public void serialize_resource_list (DIDLLiteObject didl_object,
                                          HTTPServer http_server)
                                          throws Error {
+        var replacements = http_server.get_replacements ();
         // Note: Intentionally not using get_resource_list_for_server() to avoid a copy
         foreach (var res in get_resource_list ()) {
             if (res.uri == null || res.uri == "") {
@@ -265,7 +266,7 @@ public abstract class Rygel.MediaObject : GLib.Object {
                                         (this, res.extension,-1,-1,res.get_name ());
                 http_server.set_resource_delivery_options (res);
                 DIDLLiteResource didl_resource = didl_object.add_resource ();
-                res.serialize (didl_resource);
+                res.serialize (didl_resource, replacements);
                 res.uri = "";
             } else { // URI doesn't refer to our HTTP server
                 string protocol;
@@ -278,10 +279,22 @@ public abstract class Rygel.MediaObject : GLib.Object {
                 if (protocol != "internal" || http_server.is_local ()) {
                     // Exclude internal resources when request is non-local
                     DIDLLiteResource didl_resource = didl_object.add_resource ();
-                    res.serialize (didl_resource);
+                    res.serialize (didl_resource, replacements);
                 }
             }
         }
+    }
+
+    public static string apply_replacements 
+                            (HashTable<string, string> replacement_pairs,
+                             string source_string) {
+        var replaced_string = source_string;
+        replacement_pairs.foreach ((search_string, replacement) 
+            => {
+                    replaced_string 
+                        = replaced_string.replace (search_string, replacement);
+               } );
+        return replaced_string;
     }
 
     internal string get_protocol_for_uri (string uri) throws Error {
