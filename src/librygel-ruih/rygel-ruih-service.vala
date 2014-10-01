@@ -157,19 +157,19 @@ internal class Rygel.RuihService: Service {
     /**
      * Perform variable substitutions.
      * 
-     * @HTTP_SERVER_ADDRESS@, @HTTP_SERVER_INTERFACE@, and @HTTP_SERVER_PORT@
+     * @SERVICE_ADDRESS@, @SERVICE_INTERFACE@, and @SERVICE_PORT@
      * are replaced with the service-specific values.
      */
     public string ? replace_variables (string ? source) {
         if (source == null) {
             return null;
         }
-        var replacee = source.replace ("@HTTP_SERVER_ADDRESS@", 
-                                         this.context.host_ip);
-        replacee = replacee.replace ("@HTTP_SERVER_INTERFACE@", 
-                                         this.context.interface);
-        replacee = replacee.replace ("@HTTP_SERVER_PORT@", 
-                                         this.context.port.to_string ());
+        var replacee = source.replace ("@SERVICE_ADDRESS@", 
+                                       this.context.host_ip);
+        replacee = replacee.replace ("@SERVICE_INTERFACE@", 
+                                     this.context.interface);
+        replacee = replacee.replace ("@SERVICE_PORT@", 
+                                     this.context.port.to_string ());
         return replacee;
     }
 }

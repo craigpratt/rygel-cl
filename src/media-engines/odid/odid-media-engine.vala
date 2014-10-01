@@ -92,7 +92,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             bool dtcp_enabled = config.get_bool ("OdidMediaEngine", "dtcp-enabled");
             if (dtcp_enabled) {
                 this.dtcp_storage = config.get_string ("OdidMediaEngine", "dtcp-storage");
-                this.dtcp_host = "@HTTP_SERVER_ADDRESS@";
+                this.dtcp_host = config.get_string ("OdidMediaEngine", "dtcp-host");
                 this.dtcp_port = (ushort)config.get_int ("OdidMediaEngine", "dtcp-port",
                                                          6000, 8999);
                 if (Dtcpip.init_dtcp_library (dtcp_storage) != 0) {
