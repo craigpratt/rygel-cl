@@ -116,10 +116,9 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
     }
 
     internal override bool satisfies (RelationalExpression relation) {
-        if (((relation.operand1 == "upnp:genre")
-             || (relation.operand1 == "dc:genre"))
-            && relation.compare_string (this.genre)) {
-            return true;
+        if ((relation.operand1 == "upnp:genre")
+             || (relation.operand1 == "dc:genre")) {
+            return relation.compare_string (this.genre);
         }
         return base.satisfies (relation);
     }

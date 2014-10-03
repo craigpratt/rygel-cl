@@ -58,9 +58,8 @@ public class Rygel.PhotoItem : ImageItem {
     }
 
     internal override bool satisfies (RelationalExpression relation) {
-        if ((relation.operand1 == "dc:creator")
-            && relation.compare_string (this.creator)) {
-            return true;
+        if (relation.operand1 == "dc:creator") {
+            return relation.compare_string (this.creator);
         }
         return base.satisfies (relation);
     }

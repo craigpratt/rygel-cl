@@ -426,9 +426,8 @@ public abstract class Rygel.MediaContainer : MediaObject {
             && (this as WritableContainer).satisfies (relation)) {
             return true;
         }
-        if ((relation.operand1 == "@childCount")
-            && relation.compare_int (child_count)) {
-            return true;
+        if (relation.operand1 == "@childCount") {
+            return relation.compare_int (child_count);
         }
         return base.satisfies (relation);
     }
