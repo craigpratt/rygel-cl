@@ -32,7 +32,7 @@ using Gee;
 using Xml;
 using GLib;
 
-public class Rygel.RuihServiceManager
+internal class Rygel.RuihServiceManager
 {
     protected static string UI            = "ui";
     protected static string UIID          = "uiID";
@@ -56,10 +56,16 @@ public class Rygel.RuihServiceManager
         + "xsi:schemaLocation=\"urn:schemas-upnp-org:remoteui:uilist-1-0 CompatibleUIs.xsd\">\n";
     
     private static string POST_RESULT = "</" + UILIST + ">\n";
+    private RuihService ruih;
     private ArrayList<UIElem> m_uiList;
     protected ArrayList<FilterEntry> filterEntries;
     private static ArrayList<UIElem> oldList;
     protected static bool protoPresent = false;
+
+    public RuihServiceManager (RuihService service) {
+        this.ruih = service;
+    }
+
     public void setUIList(string uiList) throws GLib.Error //synchronized??
     {
         this.m_uiList = new ArrayList<UIElem> ();
@@ -228,7 +234,7 @@ public class Rygel.RuihServiceManager
             {
                 return "";
             }
-            result.append(result_content.str);
+            result.append (this.ruih.replace_variables (result_content.str));
         }
         result.append(POST_RESULT);
 
@@ -317,11 +323,6 @@ public class Rygel.RuihServiceManager
         public WildCardFilterEntry()
         {
             base("*","*");
-        }
-       
-        public new bool matches(string name, string value)
-        {
-            return true;
         }
     }
 

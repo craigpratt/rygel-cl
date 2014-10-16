@@ -37,6 +37,7 @@ public class Rygel.HTTPServer : Rygel.StateMachine, GLib.Object {
     public GUPnP.Context context;
     private ArrayList<HTTPRequest> requests;
     private bool locally_hosted;
+    public HashTable<string, string> replacements;
 
     public Cancellable cancellable { get; set; }
 
@@ -50,6 +51,14 @@ public class Rygel.HTTPServer : Rygel.StateMachine, GLib.Object {
         this.locally_hosted = this.context.interface == "lo"
                               || this.context.host_ip == "127.0.0.1";
         this.path_root = "/" + name;
+        this.replacements = new HashTable <string, string> (str_hash, str_equal);
+        this.replacements.insert ("@SERVICE_ADDRESS@", 
+                                  this.context.host_ip);
+        this.replacements.insert ("@SERVICE_INTERFACE@", 
+                                  this.context.interface);
+        this.replacements.insert ("@SERVICE_PORT@",
+                                  this.context.port.to_string ());
+        this.replacements.insert ("@HOSTNAME@", Environment.get_host_name ());
     }
 
     public async void run () {
@@ -104,6 +113,10 @@ public class Rygel.HTTPServer : Rygel.StateMachine, GLib.Object {
 
     public string get_protocol () {
         return "http-get";
+    }
+
+    public HashTable<string, string> get_replacements () {
+        return this.replacements;
     }
 
     public bool is_local () {

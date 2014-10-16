@@ -658,7 +658,7 @@ public class Rygel.ODID.MediaCache : Object {
                                     resource.color_depth,
                                     resource.duration,
                                     item.id,
-                                    resource.get_protocol_info ().to_string (),
+                                    resource.get_protocol_info (null).to_string (),
                                     resource.cleartext_size,
                                     Database.null (),
                                     -1,

@@ -71,7 +71,7 @@ internal class Rygel.RuihService: Service {
         this.cancellable = new Cancellable ();
 
         this.uiMan = new UIListingManager(this, UIISTING_PATH);
-        this.ruiManager = new RuihServiceManager();
+        this.ruiManager = new RuihServiceManager(this);
 
         new Thread<int> ("UIListingManager thread", uiMan.run);
 
@@ -154,4 +154,22 @@ internal class Rygel.RuihService: Service {
         value.set_string ("");
     }
 
+    /**
+     * Perform variable substitutions.
+     * 
+     * @SERVICE_ADDRESS@, @SERVICE_INTERFACE@, and @SERVICE_PORT@
+     * are replaced with the service-specific values.
+     */
+    public string ? replace_variables (string ? source) {
+        if (source == null) {
+            return null;
+        }
+        var replacee = source.replace ("@SERVICE_ADDRESS@", 
+                                       this.context.host_ip);
+        replacee = replacee.replace ("@SERVICE_INTERFACE@", 
+                                     this.context.interface);
+        replacee = replacee.replace ("@SERVICE_PORT@", 
+                                     this.context.port.to_string ());
+        return replacee;
+    }
 }
