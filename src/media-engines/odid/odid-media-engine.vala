@@ -451,7 +451,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                             //       npt/byte 0. The DataSource will have to offset accordingly...
                             break;
                         case ODIDLiveSimulator.Mode.S0_EQUALS_SN:
-                            // There's data to access after being stopped
+                            // There's no data to access after being stopped
                             // Nothing to set and no data to serve
                             break;
                         default:
@@ -707,7 +707,11 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             if (!live_sim.started && this.autostart_live_sims) {
                 // We'll start the sim now
                 live_sim.start_live ();
-                if (this.live_sim_reset_s > 0) {
+                if (this.live_sim_reset_s > 0 
+                    && (live_sim.get_mode () 
+                        != ODIDLiveSimulator.Mode.S0_EQUALS_SN)) {
+                    // A stopped strict-live resource isn't useful - we'll 
+                    //  reset it as soon as it's stopped
                     debug ("Setting auto-reset time of sim %s to %d seconds",
                            live_sim.name, this.live_sim_reset_s);
                     live_sim.enable_autoreset (this.live_sim_reset_s * MILLIS_PER_SEC);
@@ -827,7 +831,12 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
     void sim_stopped (Object sim) {
         var live_sim = (ODIDLiveSimulator)sim;
         debug ("sim_stopped for simulator " + live_sim.name);
-        this.resource_changed (live_sim.item_info_uri);
+        if (live_sim.autoreset_enabled ()) {
+            // Putting the resource in a stopped state for now (live completed)
+            this.resource_changed (live_sim.item_info_uri);
+        } else { // Reset it ourselves (sim_reset() should be invoked)
+            live_sim.reset ();
+        }
     }
 
     void sim_reset (Object sim) {
