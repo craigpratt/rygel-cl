@@ -34,9 +34,10 @@ public class Rygel.ODIDControlChannel : Object {
     protected uint16 listen_port;
     protected Cancellable cancellable;
     protected unowned CommandFunction command_function;
-    protected DataInputStream istream = null;
-    protected DataOutputStream ostream = null;
+    protected Gee.List<DataOutputStream> ostream_list 
+                = new Gee.ArrayList<DataOutputStream> ();
 
+    protected static int channel_counter = 1;
     public ODIDControlChannel (uint16 port, CommandFunction command_function) {
         this.listen_port = port;
         this.command_function = command_function;
@@ -55,36 +56,57 @@ public class Rygel.ODIDControlChannel : Object {
                 worker_func.begin (connection);
             }
         } catch (Error e) {
-                message ("Error: %s", e.message);
+            message ("Error: %s", e.message);
         }
     }
 
     private async void worker_func (SocketConnection connection) {
+        DataInputStream istream = null;
+        DataOutputStream ostream = null;
+        var channel_id = ODIDControlChannel.channel_counter++;
         try {
-            this.istream = new DataInputStream (connection.input_stream);
-            this.ostream = new DataOutputStream (connection.output_stream);
+            istream = new DataInputStream (connection.input_stream);
+            ostream = new DataOutputStream (connection.output_stream);
+            this.ostream_list.add (ostream);
 
+            debug ("Opened command channel %d", channel_id);
+            ostream.put_string ("Opened odid command channel %d\n"
+                                .printf(channel_id), this.cancellable);
             while (true) {
-                string command = yield istream.read_line_async (Priority.DEFAULT, this.cancellable);
-
-                if (command == null || command == "exit") {
-                    debug ("Command channel closed");
+                string command_line = yield istream.read_line_async (Priority.DEFAULT, this.cancellable);
+                if (command_line != null) {
+                    command_line = command_line._delimit ("\n\r", ' ');
+                    command_line = command_line._strip ();
+                }
+                if (command_line == null
+                    || (command_line == "quit")
+                    || (command_line == "exit")) {
                     break;
                 }
-                command._strip ();
-                debug ("Received command: %s", command);
+                if (command_line.length == 0) {
+                    continue;
+                }
 
-                string response = this.command_function (command);
-                debug ("  Response: %s", response);
+                debug ("Channel %d: Received command line: \"%s\"",
+                       channel_id, command_line);
 
-                this.ostream.put_string (response, this.cancellable);
-                this.ostream.put_byte ('\n', this.cancellable);
+                string response = this.command_function (command_line) + "\n";
+                debug ("Channel %d:   Response: \"%s\"", channel_id, response);
+
+                ostream.put_string (response, this.cancellable);
+                ostream.put_byte ('\n', this.cancellable);
             }
+            ostream.put_string ("Closing odid command channel %d\n"
+                                .printf(channel_id), this.cancellable);
+            istream.close ();
+            ostream.close ();
         } catch (Error e) {
             message ("Error: %s", e.message);
         }
-        this.istream = null;
-        this.ostream = null;
+        debug ("Closed command channel %d", channel_id);
+        if (ostream != null) {
+            this.ostream_list.remove (ostream);
+        }
     }
 
     /**
@@ -94,9 +116,9 @@ public class Rygel.ODIDControlChannel : Object {
      */
     public void send_message (string message_string) {
         try {
-            if (this.ostream != null) {
-                this.ostream.put_string (message_string, this.cancellable);
-                this.ostream.put_byte ('\n', this.cancellable);
+            foreach (var ostream in this.ostream_list) {
+                ostream.put_string (message_string, this.cancellable);
+                ostream.put_byte ('\n', this.cancellable);
             }
         } catch (Error e) {
             message ("Error: %s", e.message);

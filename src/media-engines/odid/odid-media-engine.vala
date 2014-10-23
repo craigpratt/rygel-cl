@@ -141,7 +141,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         uint16 control_port;
         try {
             control_port = (uint16)config.get_int ("OdidMediaEngine", "control-port",
-                                                   1025, 8999);
+                                                   0, uint16.MAX);
         } catch (Error err) {
             debug ("Could not read control-port setting: " + err.message);
             control_port = 0;
@@ -152,7 +152,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             cancellable.connect (() => {
                 message ("Control channel listener canceled");
             });
-            this.control_channel = new ODIDControlChannel (control_port, process_command);
+            this.control_channel = new ODIDControlChannel (control_port, 
+                                                           process_command);
             control_channel.listen.begin (cancellable);
             message ("control channel started on port %d", control_port);
         } else {
@@ -667,9 +668,12 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
 
         // Going with a simple three-part command structure for now...
 
-        message ("Command: %s", command_elems[0]);
-        message ("Sub-command: %s", command_elems[1]);
-        message ("param(s): %s", command_elems[2]);
+        if (command_elems[1] != null) {
+            message ("Sub-command: %s", command_elems[1]);
+            if (command_elems[2] != null) {
+                message ("param(s): %s", command_elems[2]);
+            }
+        }
         
         return ("Command processed: " + command_elems[0]);
     }
