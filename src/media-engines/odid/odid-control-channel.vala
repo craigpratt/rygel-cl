@@ -37,7 +37,7 @@ public class Rygel.ODIDControlChannel : Object {
     protected Gee.List<DataOutputStream> ostream_list 
                 = new Gee.ArrayList<DataOutputStream> ();
 
-    protected static int channel_counter = 1;
+    protected static uint channel_counter = 1;
     public ODIDControlChannel (uint16 port, CommandFunction command_function) {
         this.listen_port = port;
         this.command_function = command_function;
@@ -69,8 +69,8 @@ public class Rygel.ODIDControlChannel : Object {
             ostream = new DataOutputStream (connection.output_stream);
             this.ostream_list.add (ostream);
 
-            debug ("Opened command channel %d", channel_id);
-            ostream.put_string ("Opened odid command channel %d\n"
+            debug ("Opened command channel %u", channel_id);
+            ostream.put_string ("Opened odid command channel %u\n"
                                 .printf(channel_id), this.cancellable);
             while (true) {
                 string command_line = yield istream.read_line_async (Priority.DEFAULT, this.cancellable);
@@ -87,23 +87,21 @@ public class Rygel.ODIDControlChannel : Object {
                     continue;
                 }
 
-                debug ("Channel %d: Received command line: \"%s\"",
+                debug ("Channel %u: Received command line: \"%s\"",
                        channel_id, command_line);
 
                 string response = this.command_function (command_line) + "\n";
-                debug ("Channel %d:   Response: \"%s\"", channel_id, response);
+                debug ("Channel %u:   Response: \"%s\"", channel_id, response);
 
                 ostream.put_string (response, this.cancellable);
                 ostream.put_byte ('\n', this.cancellable);
             }
-            ostream.put_string ("Closing odid command channel %d\n"
+            ostream.put_string ("Closing odid command channel %u\n"
                                 .printf(channel_id), this.cancellable);
-            istream.close ();
-            ostream.close ();
         } catch (Error e) {
             message ("Error: %s", e.message);
         }
-        debug ("Closed command channel %d", channel_id);
+        debug ("Closed command channel %u", channel_id);
         if (ostream != null) {
             this.ostream_list.remove (ostream);
         }
