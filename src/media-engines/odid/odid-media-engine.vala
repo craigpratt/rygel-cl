@@ -589,6 +589,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                    + value);
                 }
                 break;
+            case "color-depth":
             case "video-color-depth":
                 res.color_depth = int.parse (value);
                 if (res.color_depth <= 0) {
@@ -597,6 +598,7 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                   + value);
                 }
                 break;
+            case "resolution":
             case "video-resolution":
                 var res_fields = value.split ("x");
                 if (res_fields.length != 2) {
