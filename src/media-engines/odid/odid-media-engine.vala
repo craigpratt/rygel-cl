@@ -590,32 +590,30 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 }
                 break;
             case "color-depth":
-            case "video-color-depth":
                 res.color_depth = int.parse (value);
                 if (res.color_depth <= 0) {
                     throw new ODIDMediaEngineError.CONFIG_ERROR
-                                  ("Bad odid resource video-color-depth value: "
+                                  ("Bad odid resource color-depth value: "
                                   + value);
                 }
                 break;
             case "resolution":
-            case "video-resolution":
                 var res_fields = value.split ("x");
                 if (res_fields.length != 2) {
                     throw new ODIDMediaEngineError.CONFIG_ERROR
-                                  ("Bad odid resource video-resolution value: "
+                                  ("Bad odid resource resolution value: "
                                    + value);
                 }
                 res.width = int.parse (res_fields[0]);
                 if (res.width <= 0) {
                     throw new ODIDMediaEngineError.CONFIG_ERROR
-                                  ("Bad odid resource video-resolution x value: "
+                                  ("Bad odid resource resolution x value: "
                                    + value);
                 }
                 res.height = int.parse (res_fields[1]);
                 if (res.height <= 0) {
                     throw new ODIDMediaEngineError.CONFIG_ERROR
-                                  ("Bad odid resource video-resolution y value: "
+                                  ("Bad odid resource resolution y value: "
                                    + value);
                 }
                 break;
