@@ -1780,6 +1780,10 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
             bytes_removed += trim_segment_end (end_point, bytes_removed, file_box_it);
         }
         bytes_removed += remove_remaining_boxes (file_box_it);
+        
+        if (insert_empty_edit) {
+        }
+
         update (); // propagate dependent field changes
     }
 
@@ -2033,6 +2037,37 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
         message ("  remove_remaining_boxes removed %llu bytes", bytes_removed);
 
         return bytes_removed;
+    }
+
+    protected void insert_empty_edit_lists (IsoAccessPoint start_point,
+                                            IsoAccessPoint end_point) {
+        // Create/replace the EditListBoxes on all tracks
+        var track_list = get_tracks ();
+        foreach (var track in track_list) {
+            message ("  Inserting empty edit list for track %lld",
+                     track.get_header_box ().track_id);
+
+            var edit_list_box = track.create_edit_box ().get_edit_list_box ();
+            edit_list_box.edit_array = new IsoEditListBox.EditEntry[2];
+            edit_list_box.set_edit_list_entry (0, start_point.time_offset,
+                                               master_track_timescale,
+                                               -1, 0,
+                                               1, 0);
+            message ("    Created empty edit: " + edit_list_box.string_for_entry (0));
+            edit_list_box.set_edit_list_entry (1,
+                                               end_point.time_offset
+                                                - start_point.time_offset,
+                                               master_track_timescale,
+                                               0, master_track_timescale,
+                                               1, 0);
+            // Alternate "simple" edit
+            //    edit_list_box.edit_array = new IsoEditListBox.EditEntry[1];
+            //    edit_list_box.set_edit_list_entry (0, master_track_duration,
+            //                                       master_track_timescale,
+            //                                       0,
+            //                                       master_track_timescale,
+            //                                       1, 0);
+        }
     }
 
     public override string to_string () {
