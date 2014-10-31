@@ -5,7 +5,6 @@ check_PROGRAMS = rygel-http-item-uri-test \
 		 rygel-http-byte-seek-test \
 		 rygel-http-time-seek-test \
 		 rygel-http-get-test \
-		 rygel-album-art-spec-test \
 		 rygel-http-post-test \
 		 rygel-searchable-container-test \
 		 rygel-object-creator-test \
@@ -113,17 +112,6 @@ rygel_http_post_test_CFLAGS =  \
 rygel_http_post_test_LDADD = \
 	$(test_libs)
 
-rygel_album_art_spec_test_SOURCES = rygel-album-art-spec-test.vala \
-			       rygel-media-art-store.vala \
-				   rygel-thumbnail.vala \
-				   rygel-icon-info.vala
-rygel_album_art_spec_test_VALAFLAGS = $(test_valaflags) \
-	--pkg gupnp-av-1.0
-rygel_album_art_spec_test_CFLAGS =  \
-	$(test_cflags)
-rygel_album_art_spec_test_LDADD = \
-	$(test_libs)
-
 rygel_searchable_container_test_SOURCES = \
 	rygel-searchable-container.vala \
 	rygel-searchable-container-test.vala
@@ -228,8 +216,8 @@ if BUILD_MEDIA_EXPORT_PLUGIN
 check_PROGRAMS += plugins/media-export/regression
 
 plugins_media_export_regression_SOURCES = \
-	$(top_srcdir)/src/librygel-core/rygel-core-2.2.vapi \
-	$(top_srcdir)/src/librygel-server/rygel-server-2.2.vapi \
+	$(top_srcdir)/src/librygel-core/rygel-core-2.4.vapi \
+	$(top_srcdir)/src/librygel-server/rygel-server-2.4.vapi \
 	$(top_srcdir)/src/plugins/media-export/rygel-media-export.vapi \
 	plugins/media-export/regression.vala
 plugins_media_export_regression_CFLAGS = \

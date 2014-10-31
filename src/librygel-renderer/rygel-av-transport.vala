@@ -167,17 +167,8 @@ internal class Rygel.AVTransport : Service {
 
         this.player.notify["duration"].connect (this.notify_duration_cb);
 
-        var proxy = Environment.get_variable ("http_proxy");
-        if (proxy != null) {
-            if (!proxy.has_prefix ("http://") &&
-                !proxy.has_prefix ("https://")) {
-                proxy = "http://" + proxy;
-            }
-            this.session = new Session.with_options (Soup.SESSION_PROXY_URI,
-                                                     new Soup.URI (proxy));
-        } else {
-            this.session = new Session ();
-        }
+        this.session = new Session ();
+
         this.protocol_info = plugin.get_protocol_info ();
     }
 
@@ -329,10 +320,10 @@ internal class Rygel.AVTransport : Service {
                         this.controller.metadata,
                     "NextURI",
                         typeof (string),
-                        "NOT_IMPLEMENTED",
+                        this.controller.next_uri,
                     "NextURIMetaData",
                         typeof (string),
-                        "NOT_IMPLEMENTED",
+                        this.controller.next_metadata,
                     "PlayMedium",
                         typeof (string),
                         this.playback_medium,
@@ -378,10 +369,10 @@ internal class Rygel.AVTransport : Service {
                         this.controller.metadata,
                     "NextURI",
                         typeof (string),
-                        "NOT_IMPLEMENTED",
+                        this.controller.next_uri,
                     "NextURIMetaData",
                         typeof (string),
-                        "NOT_IMPLEMENTED",
+                        this.controller.next_metadata,
                     "PlayMedium",
                         typeof (string),
                         this.playback_medium,
@@ -453,11 +444,11 @@ internal class Rygel.AVTransport : Service {
                         typeof (string),
                         this.player.position_as_str,
                     "RelCount",
-                        typeof (int),
-                        int.MAX,
+                        typeof (int64),
+                        this.player.byte_position,
                     "AbsCount",
-                        typeof (int),
-                        int.MAX);
+                        typeof (int64),
+                        this.player.byte_position);
 
         action.return ();
     }
@@ -626,6 +617,10 @@ internal class Rygel.AVTransport : Service {
     }
 
     private void next_cb (Service service, ServiceAction action) {
+        if (!this.check_instance_id (action)) {
+            return;
+        }
+
         if (this.controller.next ()) {
             action.return ();
         } else {
@@ -634,6 +629,10 @@ internal class Rygel.AVTransport : Service {
     }
 
     private void previous_cb (Service service, ServiceAction action) {
+        if (!this.check_instance_id (action)) {
+            return;
+        }
+
         if (this.controller.previous ()) {
             action.return ();
         } else {
@@ -729,7 +728,7 @@ internal class Rygel.AVTransport : Service {
                                         string metadata,
                                         string mime,
                                         string features) {
-        var message = new Message ("GET", this.controller.uri);
+        var message = new Message ("GET", uri);
         this.session.queue_message (message, () => {
             handle_playlist.callback ();
         });
@@ -741,14 +740,58 @@ internal class Rygel.AVTransport : Service {
             return;
         }
 
-        unowned string xml_string = (string) message.response_body.data;
+        var content_type = message.response_headers.get_content_type (null);
 
-        var collection = new MediaCollection.from_string (xml_string);
-        if (collection.get_items ().length () == 0) {
-            // FIXME: Return a more sensible error here.
-            action.return_error (716, _("Resource not found"));
+        MediaCollection collection = null;
+        if (content_type.has_suffix ("mpegurl")) {
+            collection = new MediaCollection ();
+            var m_stream = new MemoryInputStream.from_data
+                                        (message.response_body.data, null);
+            var stream = new DataInputStream (m_stream);
 
-            return;
+            size_t length;
+            debug ("Trying to parse m3u playlist");
+            try {
+                var line = stream.read_line (out length);
+                while (line != null) {
+
+                    // Swallow comments
+                    while (line != null && line.has_prefix ("#")) {
+                        line = stream.read_line (out length);
+                    }
+
+                    // No more lines after comments
+                    if (line == null) {
+                        break;
+                    }
+
+                    debug ("Adding uri with %s", line);
+                    var item = collection.add_item ();
+                    item.upnp_class = "object.item.audioItem";
+
+                    var resource = item.add_resource ();
+                    var pi = new ProtocolInfo.from_string ("*:*:*:*");
+                    resource.set_protocol_info (pi);
+                    resource.uri = line.strip ();
+
+                    line = stream.read_line (out length);
+                }
+            } catch (Error error) {
+                warning (_("Problem parsing playlist: %s"), error.message);
+                // FIXME: Return a more sensible error here.
+                action.return_error (716, _("Resource not found"));
+
+                return;
+            }
+        } else {
+            unowned string xml_string = (string) message.response_body.data;
+            collection = new MediaCollection.from_string (xml_string);
+            if (collection.get_items ().length () == 0) {
+                // FIXME: Return a more sensible error here.
+                action.return_error (716, _("Resource not found"));
+
+                return;
+            }
         }
 
         switch (action.get_name ()) {
@@ -766,9 +809,13 @@ internal class Rygel.AVTransport : Service {
     }
 
     private bool is_playlist (string? mime, string? features) {
-        return mime == "text/xml" && features != null &&
-               features.has_prefix ("DLNA.ORG_PN=DIDL_S");
+        return (mime != null && mime == "text/xml" &&
+                features != null &&
+                features.has_prefix ("DLNA.ORG_PN=DIDL_S")) ||
+                mime.has_suffix ("mpegurl");
     }
+
+    bool head_faked;
 
     private void check_resource (Soup.Message msg,
                                  string       _uri,
@@ -788,6 +835,7 @@ internal class Rygel.AVTransport : Service {
             // Fake HEAD request by cancelling the message after the headers
             // were received, then restart the message
             msg.got_headers.connect ((msg) => {
+                this.head_faked = true;
                 this.session.cancel_message (msg, msg.status_code);
             });
 
@@ -796,7 +844,7 @@ internal class Rygel.AVTransport : Service {
             return;
         }
 
-        if (msg.status_code != Status.OK) {
+        if (msg.status_code != Status.OK && !this.head_faked) {
             // TRANSLATORS: first %s is a URI, the second an explanaition of
             // the error
             warning (_("Failed to access resource at %s: %s"),
@@ -814,6 +862,7 @@ internal class Rygel.AVTransport : Service {
 
         if (!this.is_valid_mime_type (mime) &&
             !this.is_playlist (mime, features)) {
+            debug ("Unsupported mime type %s", mime);
             action.return_error (714, _("Illegal MIME-type"));
 
             return;
@@ -838,6 +887,7 @@ internal class Rygel.AVTransport : Service {
             var message = new Message ("HEAD", uri);
             message.request_headers.append ("getContentFeatures.dlna.org",
                                             "1");
+            this.head_faked = false;
             message.finished.connect ((msg) => {
                 this.check_resource (msg, uri, metadata, action);
             });

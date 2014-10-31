@@ -28,27 +28,19 @@ internal errordomain MediaArtStoreError {
 
 /**
  * This maps RygelMusicItem objects to their cached cover art,
- * implementing the GNOME [[https://live.gnome.org/MediaArtStorageSpec|MediaArt storage specification]]
- * and the simplified version that Banshee uses.
+ * implementing the GNOME
+ * [[https://live.gnome.org/MediaArtStorageSpec|MediaArt storage specification]].
  */
 public class Rygel.MediaArtStore : GLib.Object {
-    private const string PLACEHOLDER_HASH = "7215ee9c7d9dc229d2921a40e899ec5f";
-    private const string INVALID_CHARS = "()[]<>{}_!@#$^&*+=|\\/\"'?~";
-    private const string CONVERT_CHARS = "\t";
-    private const string BLOCK_PATTERN = "%s[^%s]*%s";
-    private const string[] BLOCKS = { "()", "{}", "[]", "<>" };
     private static MediaArtStore media_art_store;
     private static bool first_time = true;
-    private Regex char_remove_regex;
-    private Regex char_convert_regex;
-    private Regex space_compress_regex;
-    private Regex[] block_regexes;
 
     private string directory;
 
     public static MediaArtStore? get_default () {
         if (first_time) {
             try {
+                MediaArt.init ();
                 media_art_store = new MediaArtStore ();
             } catch (MediaArtStoreError error) {
                 warning ("No media art available: %s", error.message);
@@ -67,7 +59,7 @@ public class Rygel.MediaArtStore : GLib.Object {
 
         foreach (var type in types) {
             file = this.get_media_art_file (type, item, simple);
-            if (file.query_exists (null)) {
+            if (file != null && file.query_exists (null)) {
                 break;
             } else {
                 file = null;
@@ -95,31 +87,29 @@ public class Rygel.MediaArtStore : GLib.Object {
 
     public Thumbnail? find_media_art_any (MusicItem item) throws Error {
         var thumb = this.find_media_art (item);
-        if (thumb == null) {
-            thumb = this.find_media_art (item, true);
-        }
 
         return thumb;
     }
 
-    public File get_media_art_file (string    type,
-                                    MusicItem item,
-                                    bool      simple = false) {
-        string hash;
-        string suffix;
+    public File? get_media_art_file (string    type,
+                                     MusicItem item,
+                                     bool      simple = false) {
+        File file;
 
-        if (simple) {
-            hash = this.get_simple_hash (type, item);
-            suffix = "jpg";
-        } else {
-            hash = this.get_hash (type, item);
-            suffix = "jpeg";
-        }
-        var file_path = "%s-%s.%s".printf (type, hash, suffix);
+        MediaArt.get_file (item.artist,
+                           type == "album" ? item.album : item.title,
+                           type,
+                           null,
+                           out file,
+                           null);
 
-        var path = Path.build_filename (this.directory, file_path);
+        return file;
+    }
 
-        return File.new_for_path (path);
+    public void add (MusicItem item, File file, uint8[]? data) {
+        MediaArt.process_file (data, item.mime_type,
+                               MediaArt.Type.ALBUM, item.artist, item.album,
+                               file);
     }
 
     private MediaArtStore () throws MediaArtStoreError {
@@ -132,107 +122,5 @@ public class Rygel.MediaArtStore : GLib.Object {
         }
 
         this.directory = dir;
-        try {
-            var regex_string = Regex.escape_string (INVALID_CHARS);
-            char_remove_regex = new Regex ("[%s]".printf (regex_string));
-            regex_string = Regex.escape_string (CONVERT_CHARS);
-            char_convert_regex = new Regex ("[%s]".printf (regex_string));
-            space_compress_regex = new Regex ("\\s+");
-            block_regexes = new Regex[0];
-
-            foreach (var block in BLOCKS) {
-                var block_re = BLOCK_PATTERN.printf (
-                                  Regex.escape_string ("%C".printf (block[0])),
-                                  Regex.escape_string ("%C".printf (block[1])),
-                                  Regex.escape_string ("%C".printf (block[1])));
-                block_regexes += new Regex (block_re);
-            }
-        } catch (RegexError error) {
-            assert_not_reached ();
-        }
-    }
-
-    private string get_simple_hash (string type, MusicItem item) {
-        string hash;
-        switch (type) {
-            case "artist":
-                case "radio":
-                hash = this.normalize_and_hash (item.artist);
-                break;
-            case "podcast":
-                hash = this.normalize_and_hash (item.title);
-                break;
-            case "album":
-                hash = this.normalize_and_hash (item.artist + "\t" +
-                                                item.album);
-                break;
-            case "track":
-                hash = this.normalize_and_hash (item.artist + "\t" +
-                                                item.album + "\t" +
-                                                item.title);
-                break;
-            default:
-                assert_not_reached ();
-        }
-
-        return hash;
-    }
-
-    private string get_hash (string type, MusicItem item) {
-        string b = null, c = null;
-        switch (type) {
-            case "track":
-                b = this.normalize_and_hash (item.artist, false) + "-" +
-                    this.normalize_and_hash (item.album, false);
-                c = this.normalize_and_hash (item.title, false);
-                break;
-            case "album":
-            case "artist":
-                b = this.normalize_and_hash (item.artist, false);
-                c = this.normalize_and_hash (item.album, false);
-                break;
-            case "radio":
-            case "podcast":
-                b = this.normalize_and_hash (item.title, false);
-                c = PLACEHOLDER_HASH;
-                break;
-        }
-
-        return "%s-%s".printf (b, c);
-    }
-
-    private string normalize_and_hash (string? input, bool utf8_only = true) {
-        string normalized = " ";
-        if (input != null && input != "") {
-            if (utf8_only) {
-                normalized = input;
-            } else {
-                normalized = this.strip_invalid_entities (input);
-                normalized = normalized.down ();
-            }
-            normalized = normalized.normalize (-1, NormalizeMode.ALL);
-        }
-
-        return Checksum.compute_for_string (ChecksumType.MD5, normalized);
-    }
-
-    string strip_invalid_entities (string original) {
-        string p;
-
-        p = original;
-
-        try {
-            foreach (var re in block_regexes) {
-                p = re.replace_literal (p, -1, 0, "");
-            }
-
-            p = char_remove_regex.replace_literal (p, -1, 0, "");
-            p = char_convert_regex.replace_literal (p, -1, 0, " ");
-            p = space_compress_regex.replace_literal (p, -1, 0, " ");
-
-            return p;
-        } catch (RegexError error) {
-            assert_not_reached ();
-        }
     }
 }

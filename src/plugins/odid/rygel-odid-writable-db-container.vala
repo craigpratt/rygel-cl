@@ -79,7 +79,7 @@ internal class Rygel.ODID.WritableDbContainer : TrackableDbContainer,
                                         Cancellable? cancellable)
                                         throws Error {
         item.parent = this;
-        var file = File.new_for_uri (item.uris[0]);
+        var file = File.new_for_uri (item.get_primary_uri ());
         // TODO: Mark as place-holder. Make this proper some time.
         if (file.is_native ()) {
             item.modified = int64.MAX;
@@ -102,7 +102,7 @@ internal class Rygel.ODID.WritableDbContainer : TrackableDbContainer,
         switch (container.upnp_class) {
         case MediaContainer.STORAGE_FOLDER:
         case MediaContainer.UPNP_CLASS:
-            var file = File.new_for_uri (container.uris[0]);
+            var file = File.new_for_uri (container.get_primary_uri ());
             container.id = MediaCache.get_id (file.get_uri ());
             if (file.is_native ()) {
                 file.make_directory_with_parents (cancellable);

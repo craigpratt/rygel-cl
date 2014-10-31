@@ -14,7 +14,7 @@ VALADOC_FLAGS = --force \
 		--pkg rygel-build-config \
 		-b $(top_srcdir)/src/lib$(RYGEL_DOCBUILD_MODULE) \
 		--package-name lib$(RYGEL_DOCBUILD_MODULE) \
-		--package-version 2.2 \
+		--package-version 2.4 \
 		$(VALA_SOURCE_FILES_WITH_PATHS)
 
 
@@ -41,7 +41,7 @@ gtkdoc-gen: $(VALA_SOURCE_FILES_WITH_PATHS) $(RYGEL_GTKDOC_DOCS_XML)
 	$(AM_V_GEN)$(VALADOC) \
 		-X $(top_srcdir)/src/lib$(RYGEL_DOCBUILD_MODULE)/$(RYGEL_DOCBUILD_MODULE).h \
 		$(RYGEL_DOCBUILD_EXTRA_GTKDOC_OPTIONS) \
-		-X -l -X $(top_builddir)/src/lib$(RYGEL_DOCBUILD_MODULE)/.libs/lib$(RYGEL_DOCBUILD_MODULE)-2.2.so \
+		-X -l -X $(top_builddir)/src/lib$(RYGEL_DOCBUILD_MODULE)/.libs/lib$(RYGEL_DOCBUILD_MODULE)-2.4.so \
 		-o gtkdoc \
 		--doclet gtkdoc \
 		$(VALADOC_FLAGS)
@@ -59,6 +59,7 @@ clean-local:
 	rm -f gtkdoc/lib$(RYGEL_DOCBUILD_MODULE).signals
 	rm -f gtkdoc/lib$(RYGEL_DOCBUILD_MODULE).types
 	rm -f gtkdoc/lib$(RYGEL_DOCBUILD_MODULE)*.txt
+	rm -f gtkdoc/lib$(RYGEL_DOCBUILD_MODULE)*.bak
 	rm -f gtkdoc/lib$(RYGEL_DOCBUILD_MODULE).prerequisites
 
 all: valadoc-gen gtkdoc-gen
@@ -72,7 +73,7 @@ install-data-hook: gtkdoc/html/index.html
 else
 install-data-hook:
 	test -d $(srcdir)/gtkdoc/html && $(MKDIR_P) $(RYGEL_GTKDOC_INSTALL_DIR); true
-	test -d $(srcdir)/gtkdoc/html && cp -d -R $(srcdir)/gtkdoc/html/* $(RYGEL_GTKDOC_INSTALL_DIR); true
+	test -d $(srcdir)/gtkdoc/html && cp -p -R $(srcdir)/gtkdoc/html/* $(RYGEL_GTKDOC_INSTALL_DIR); true
 	test -d $(srcdir)/gtkdoc/html && chmod -R u+w $(RYGEL_GTKDOC_INSTALL_DIR); true
 
 endif
@@ -85,6 +86,7 @@ uninstall-hook:
 distclean-local:
 	@if test "$(abs_srcdir)" != "$(abs_builddir)" ; then \
 		rm -f gtkdoc/lib$(RYGEL_DOCBUILD_MODULE)-docs.xml; \
+		rm -f gtkdoc/*-scan.[co] ; \
 	fi
 
 EXTRA_DIST = $(RYGEL_GTKDOC_DOCS_XML) gtkdoc/html valadoc

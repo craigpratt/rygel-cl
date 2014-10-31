@@ -127,7 +127,14 @@ public class Rygel.MediaObject : GLib.Object {
         this.uris.add (uri);
     }
 
+    public Gee.ArrayList<string> get_uris () { return this.uris; }
+
+    public string get_primary_uri () { return this.uris[0]; }
+
     internal void serialize (Rygel.Serializer serializer, HTTPServer server) {
+    }
+
+    public void apply_didl_lite (GUPnP.DIDLLiteObject object) {
     }
 
     public virtual async MediaObjects? get_children

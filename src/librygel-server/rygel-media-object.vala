@@ -50,7 +50,21 @@ public abstract class Rygel.MediaObject : GLib.Object {
     //TODO: { get; private set; } or, even better,
     // add virtual set_uri in Object and make add_uri() in Item into set_uri()
     // and make the uri property single-value.
-    public Gee.ArrayList<string> uris;
+    private Gee.ArrayList<string> uris;
+
+    public Gee.List<string> get_uris () { return this.uris; }
+
+    public string? get_primary_uri () {
+        if (this.uris.is_empty) {
+            return null;
+        }
+
+        return this.uris[0];
+    }
+
+    public virtual void add_uri (string uri) {
+        this.uris.add (uri);
+    }
 
     private Gee.List<MediaResource> media_resources
                                     = new Gee.LinkedList<MediaResource> ();
@@ -406,7 +420,7 @@ public abstract class Rygel.MediaObject : GLib.Object {
         case "upnp:class":
             return this.compare_string_props (this.upnp_class,
                                               media_object.upnp_class);
-        default:
+       default:
             return 0;
         }
     }

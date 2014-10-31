@@ -50,7 +50,7 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
         var item = object as MediaFileItem; 
 
         // For MediaFileItems, uri 0 is the file URI referring directly to the content
-        string source_uri = item.uris.get (0);
+        string source_uri = item.get_primary_uri ();
         if (!source_uri.has_prefix ("file://")) {
             warning ("Can't process non-file uri " + source_uri);
         }
@@ -86,8 +86,8 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
             return null;
         }
 
-        // For MediaFileItems, uri 0 is the file URI referring directly to the content
-        string source_uri = object.uris.get (0);
+        // For MediaFileItems, the primary URI referrs to the local content file
+        string source_uri = object.get_primary_uri ();
         return new SimpleDataSource (source_uri);
     }
 

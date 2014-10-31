@@ -38,10 +38,6 @@ public class Rygel.ODID.MediaItem : Rygel.MediaItem,
                 upnp_class : upnp_class);
     }
 
-    public void add_uri (string uri) {
-        this.uris.add (uri);
-    }
-
     public async void commit () throws Error {
         yield this.commit_custom (true);
     }
@@ -65,7 +61,7 @@ public class Rygel.ODID.MediaItem : Rygel.MediaItem,
     public override DataSource? create_stream_source_for_resource
                                     (HTTPRequest request, MediaResource resource)
         throws Error {
-        if (this.uris.size == 0) {
+        if (this.get_primary_uri () == null) {
             return null;
         }
 
