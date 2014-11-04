@@ -221,7 +221,7 @@ public class Rygel.ODIDLiveSimulator : Object {
                 Source.remove (this.autostop_timer_id);
                 this.autostop_timer_id = 0;
             }
-            if (this.autoreset_timeout_ms != 0) {
+            if (autoreset_enabled ()) {
                 set_autoreset ();
             }
             debug ("sim %s: stop_live: Stopped at %s (%lldus)",
@@ -244,7 +244,7 @@ public class Rygel.ODIDLiveSimulator : Object {
         this.started = false;
         this.stopped = false;
         var cur_time = get_current_time_us ();
-        debug ("sim %s: stop_live: Reset at %s (%lldus)",
+        debug ("sim %s: Reset at %s (%lldus)",
                this.name, ODIDUtil.system_time_to_string (cur_time), cur_time);
         reset_signal ();
     }
@@ -272,6 +272,13 @@ public class Rygel.ODIDLiveSimulator : Object {
     }
 
     /**
+     * Return true of autoreset is enabled (autoreset time is non-0)
+     */
+    public bool autoreset_enabled () {
+        return (this.autoreset_timeout_ms != 0);
+    }
+
+    /**
      * Cancel any scheduled autoreset
      */
     public void cancel_autoreset () {
@@ -281,7 +288,7 @@ public class Rygel.ODIDLiveSimulator : Object {
     }
 
     private void set_autoreset () {
-        if (this.autoreset_timeout_ms == 0) {
+        if (!autoreset_enabled ()) {
             warning ("sim %s: Not setting an autoreset timer (timeout==0)", this.name);
             return;
         }
