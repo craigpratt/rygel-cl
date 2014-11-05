@@ -119,6 +119,20 @@ public class Rygel.ODIDUtil : Object {
         return (speeds.size > 0) ? speeds : null;
     }
 
+    internal static string first_line_from_index_file (File index_file) throws Error {
+        var dis = new DataInputStream (index_file.read ());
+        string line = dis.read_line (null);
+
+        if (!ODIDIndexEntry.size_ok (line)) {
+            throw new ODIDMediaEngineError.INDEX_FILE_ERROR (
+                           "Bad index file entry size (entry at offset 0 of %s is %d bytes - should be %u bytes): '%s'",
+                           index_file.get_basename (), line.length+1, 
+                           ODIDIndexEntry.ROW_SIZE, line);
+        }
+
+        return line;
+    }
+
     internal static string last_line_from_index_file (File index_file) throws Error {
         FileInfo index_info = index_file.query_info
                                              (GLib.FileAttribute.STANDARD_SIZE, 0);
@@ -144,9 +158,11 @@ public class Rygel.ODIDUtil : Object {
     /**
      * Return the duration of the content according to the given index file (in milliseconds)
      */
-    internal static int64 duration_from_index_file_ms (File index_file)
+    internal static int64 duration_from_index_file_ms (File index_file, 
+                                                       bool is_reverse)
             throws Error {
-        var line = last_line_from_index_file (index_file);
+        var line = is_reverse ? first_line_from_index_file (index_file)
+                              : last_line_from_index_file (index_file);
         var time_ms = ODIDIndexEntry.time_ms (line);
         message ("Duration from %s: %sms", index_file.get_basename (), time_ms.to_string());
         return time_ms;
@@ -155,9 +171,11 @@ public class Rygel.ODIDUtil : Object {
     /**
      * Return the duration of the content according to the given index file (in seconds)
      */
-    internal static long duration_from_index_file_s (File index_file)
+    internal static long duration_from_index_file_s (File index_file, 
+                                                     bool is_reverse)
             throws Error {
-        var line = last_line_from_index_file (index_file);
+        var line = is_reverse ? first_line_from_index_file (index_file)
+                              : last_line_from_index_file (index_file);
         var time_s = ODIDIndexEntry.time_s (line);
         message ("Duration from %s: %ss", index_file.get_basename (), time_s.to_string());
         return time_s;
@@ -834,7 +852,8 @@ public class Rygel.ODIDUtil : Object {
             throw new ODIDMediaEngineError.CONFIG_ERROR
                           ("Index file not found/accessible: " + index_file.get_uri ());
         }
-        return duration_from_index_file_ms (index_file) * MICROS_PER_MILLI;
+        return duration_from_index_file_ms (index_file, false) 
+               * MICROS_PER_MILLI;
     }
 
     public static bool resource_has_mp4_container (MediaResource res) {

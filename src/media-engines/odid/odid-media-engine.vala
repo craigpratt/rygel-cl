@@ -426,7 +426,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                             live_sim.get_available_time_range (out time_range_start,
                                                                out time_range_end);
                             int64 total_duration = ODIDUtil.duration_from_index_file_ms
-                                                            (normal_content_index_file);
+                                                            (normal_content_index_file,
+                                                             false);
                             ODIDUtil.offsets_within_time_range
                                        (normal_content_index_file, false, // for 1.0 rate (forward)
                                         ref time_range_start, ref time_range_end,
@@ -471,7 +472,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             res.dlna_flags |= DLNAFlags.BACKGROUND_TRANSFER_MODE
                               | DLNAFlags.CONNECTION_STALL;
             if (normal_content_index_file.query_exists ()) {
-                res.duration = ODIDUtil.duration_from_index_file_s (normal_content_index_file);
+                res.duration = ODIDUtil.duration_from_index_file_s (normal_content_index_file,
+                                                                    false);
                 res.dlna_operation |= DLNAOperation.TIMESEEK; // Full time seek (full RADA)
                 debug ("create_resource: %s: duration from index: %lds", short_res_path, res.duration);
             } else if (ODIDUtil.resource_has_mp4_container (res)) {

@@ -590,9 +590,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                           ("Request to stream live resource without index file: "
                            + this.resource_uri);
         }
+        bool is_reverse = (this.playspeed_request == null)
+                           ? false : (!this.playspeed_request.speed.is_positive ());
+
         var content_size = ODIDUtil.file_size (content_file);
         debug ("    Source content size: " + content_size.to_string ());
-        var total_duration_ms = ODIDUtil.duration_from_index_file_ms (index_file);
+        var total_duration_ms = ODIDUtil.duration_from_index_file_ms 
+                                          (index_file, is_reverse);
         debug ("    Source content duration: %lldms (%0.3fs)",
                total_duration_ms, (float)total_duration_ms/MILLIS_PER_SEC);
         var byterate = (content_size * MILLIS_PER_SEC) / total_duration_ms;
@@ -606,9 +610,6 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         }
             
         this.chunk_size = byterate / 2; // use 1/2 second chunk sizes for 
-
-        bool is_reverse = (this.playspeed_request == null)
-                           ? false : (!this.playspeed_request.speed.is_positive ());
 
         int64 timelimit_start; // The earliest time that can be requested right now
         int64 timelimit_end; // The latest time that can be requested right now
