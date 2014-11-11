@@ -396,6 +396,12 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                             res.dlna_operation |= DLNAOperation.TIMESEEK; // Full time seek
                             res.dlna_flags |= DLNAFlags.BACKGROUND_TRANSFER_MODE
                                               | DLNAFlags.CONNECTION_STALL;
+                            res.play_speeds = ODIDUtil.playspeed_strings_for_res
+                                                       (res_dir_uri, basename);
+                            debug ("create_resource: %s: Found %s speeds",
+                                   short_res_path,
+                                   (res.play_speeds == null)
+                                   ? "0" : res.play_speeds.length.to_string ());
                             break;
                         case ODIDLiveSimulator.Mode.S0_INCREASING:
                             debug ("create_resource: %s: Enabling limited operation seek (S0 increasing)",
@@ -486,6 +492,11 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
             } else {
                 debug ("create_resource: %s: duration: unknown (no index file)", short_res_path);
             }
+            res.play_speeds = ODIDUtil.playspeed_strings_for_res
+                                       (res_dir_uri, basename);
+            debug ("create_resource: %s: Found %s speeds", short_res_path,
+                   (res.play_speeds == null)
+                   ? "0" : res.play_speeds.length.to_string ());
         }
         // Assert: byte_range_start and res@size reflect the accessible byte range
         // Assert: byteseek_flags and byteseek_operations reflect capabilities
@@ -529,23 +540,6 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                                                                     est_chunk_size);
                 }
                 debug ("create_resource: %s: encrypted size: %lld", short_res_path, res.size);
-            }
-        }
-
-        // Look for scaled files and set fields accordingly if/when found
-        {
-            Gee.List<PlaySpeed> playspeeds;
-
-            playspeeds = ODIDUtil.find_playspeeds_for_res (res_dir_uri, basename);
-
-            if (playspeeds != null) {
-                var speed_array = new string[playspeeds.size];
-                int speed_index = 0;
-                foreach (var speed in playspeeds) {
-                    speed_array[speed_index++] = speed.to_string ();
-                }
-                res.play_speeds = speed_array;
-                debug ("create_resource: %s: Found %d speeds", short_res_path, speed_index);
             }
         }
 

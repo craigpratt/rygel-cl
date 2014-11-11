@@ -119,6 +119,30 @@ public class Rygel.ODIDUtil : Object {
         return (speeds.size > 0) ? speeds : null;
     }
 
+    /**
+     * Produce a list of PlaySpeeds corresponding to scaled content files 
+     * for the given resource directory and basename as an array of strings.
+     *
+     * @return An array of playspeeds in string form that are supported for
+     *         the given resource. Null is returned if no playspeeds are
+     *         supported (beyond rate 1.0).
+     */
+    internal static string[] ? playspeed_strings_for_res 
+                                  (string res_dir_uri, string basename) 
+        throws Error {
+        var playspeeds = ODIDUtil.find_playspeeds_for_res (res_dir_uri, basename);
+
+        if (playspeeds == null) {
+            return null;
+        }
+        var speed_array = new string[playspeeds.size];
+        int speed_index = 0;
+        foreach (var speed in playspeeds) {
+            speed_array[speed_index++] = speed.to_string ();
+        }
+        return speed_array;
+    }
+
     internal static string first_line_from_index_file (File index_file) throws Error {
         var dis = new DataInputStream (index_file.read ());
         string line = dis.read_line (null);
