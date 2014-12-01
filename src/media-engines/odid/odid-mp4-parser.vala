@@ -1744,7 +1744,7 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
     public void trim_to_time_range (uint64 start_time_us, uint64 end_time_us,
                                     out IsoAccessPoint start_point,
                                     out IsoAccessPoint end_point,
-                                    bool insert_empty_edit = false)
+                                    bool insert_edit_list = false)
                 throws IsoBoxError {
         message ("IsoFileContainerBox.trim_to_time_range(start %0.3fs, end %0.3fs)",
                  (float)start_time_us/MICROS_PER_SEC, (float)end_time_us/MICROS_PER_SEC);
@@ -1771,7 +1771,8 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
         uint64 bytes_removed;
         var file_box_it = this.children.iterator ();
 
-        bytes_removed = trim_movie_box (start_point, end_point, file_box_it);
+        bytes_removed = trim_movie_box (start_point, end_point, 
+                                        insert_edit_list, file_box_it);
         if (start_point is IsoTrackRunBox.AccessPoint) {
             bytes_removed += trim_segment_start (start_point as IsoTrackRunBox.AccessPoint,
                                              file_box_it);
@@ -1780,6 +1781,7 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
             bytes_removed += trim_segment_end (end_point, bytes_removed, file_box_it);
         }
         bytes_removed += remove_remaining_boxes (file_box_it);
+        
         update (); // propagate dependent field changes
     }
 
@@ -1787,8 +1789,10 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
      * This will trim the MovieBox samples, advance file_box_iterator just past the MovieBox
      * or MovieBox mdat, and return the number of byte (references) removed in the process.
      */
-    protected uint64 trim_movie_box (IsoAccessPoint start_point, IsoAccessPoint end_point,
-                                  Gee.Iterator<IsoBox> file_box_iterator)
+    protected uint64 trim_movie_box (IsoAccessPoint start_point, 
+                                     IsoAccessPoint end_point,
+                                     bool insert_edit_list,
+                                     Gee.Iterator<IsoBox> file_box_iterator)
                 throws IsoBoxError {
         message ("IsoFileContainerBox.trim_movie_box(start %s, end %s)",
                  start_point.to_string (), end_point.to_string ());
@@ -1798,6 +1802,11 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
         bool moov_before_mdat = movie_box.precedes (moov_mdat);
 
         var old_moov_size = movie_box.size;
+
+        remove_edit_lists ();
+        if (insert_edit_list) {
+            insert_edit_lists (start_point, end_point);
+        }
 
         if (!(start_point is IsoSampleTableBox.AccessPoint)) {
             message ("  the start point is not within the MovieBox - removing all MovieBox samples");
@@ -2022,7 +2031,8 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
      * This will remove all boxes starting at file_box_iterator until there are no more
      * boxes to remove and return the number of byte (references) removed in the process.
      */
-    protected uint64 remove_remaining_boxes (Gee.Iterator<IsoBox> file_box_iterator) {
+    protected uint64 remove_remaining_boxes (Gee.Iterator<IsoBox> file_box_iterator)
+            throws IsoBoxError {
         uint64 bytes_removed = 0;
         while (file_box_iterator.next ()) {
             var cur_box = file_box_iterator.get ();
@@ -2033,6 +2043,56 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
         message ("  remove_remaining_boxes removed %llu bytes", bytes_removed);
 
         return bytes_removed;
+    }
+
+    /**
+     * Remove all edit list boxes from all tracks
+     */
+    protected void remove_edit_lists () throws IsoBoxError {
+        var movie_box = get_movie_box ();
+        var track_list = movie_box.get_tracks ();
+        foreach (var track in track_list) {
+            if (track.remove_edit_box ()) {
+                message ("  Removed edit list box for track %lld",
+                         track.get_header_box ().track_id);
+            }
+        }
+    }
+
+    protected void insert_edit_lists (IsoAccessPoint start_point,
+                                      IsoAccessPoint end_point)
+                throws IsoBoxError {
+        // Create/replace the EditListBoxes on all tracks
+        var movie_box = get_movie_box ();
+        var track_list = movie_box.get_tracks ();
+        foreach (var track in track_list) {
+            message ("  Inserting edit list for track %lld",
+                     track.get_header_box ().track_id);
+            var track_timescale = track.get_media_box ()
+                                       .get_header_box ().timescale;
+            var edit_list_box = track.create_edit_box ().get_edit_list_box ();
+            //edit_list_box.edit_array = new IsoEditListBox.EditEntry[2];
+            //edit_list_box.set_edit_list_entry (0, start_point.time_offset,
+            //                                   track_timescale,
+            //                                   -1, 0,
+            //                                   1, 0);
+            //message ("    Created empty edit: " + edit_list_box.string_for_entry (0));
+            //edit_list_box.set_edit_list_entry (1,
+            //                                   end_point.time_offset
+            //                                    - start_point.time_offset,
+            //                                   track_timescale,
+            //                                   0, track_timescale,
+            //                                   1, 0);
+            // Alternate "simple" edit
+            edit_list_box.edit_array = new IsoEditListBox.EditEntry[1];
+            edit_list_box.set_edit_list_entry (0, 
+                                               end_point.time_offset
+                                                - start_point.time_offset,
+                                               start_point.get_timescale (),
+                                               0,
+                                               track_timescale,
+                                               1, 0);
+        }
     }
 
     public override string to_string () {
@@ -2578,7 +2638,6 @@ public class Rygel.IsoMovieBox : IsoContainerBox {
                 var media_header = track.get_media_box ().get_header_box ();
                 media_header.duration = 0;
                 track_header.duration = 0;
-                track.remove_edit_box ();
             } else {
                 message ("  Removing track %u", track_header.track_id);
                 track_it.remove ();
@@ -7661,7 +7720,7 @@ public static int main (string[] args) {
     int MICROS_PER_SEC = 1000000;
 	try {
         bool trim_file = false;
-        bool with_empty_edit = false;
+        bool with_edit_list = false;
         bool print_infile = false;
         uint64 print_infile_levels = 0;
         bool print_outfile = false;
@@ -7725,10 +7784,10 @@ public static int main (string[] args) {
                         }
                         var range_param = args[++i];
                         if (range_param[0] == '^') {
-                            with_empty_edit = true;
+                            with_edit_list = true;
                             range_param = range_param.substring (1);
                         } else {
-                            with_empty_edit = false;
+                            with_edit_list = false;
                         }
                         var range_elems = range_param.split ("-");
                         if (range_elems.length != 2) {
@@ -7813,7 +7872,7 @@ public static int main (string[] args) {
             stderr.printf ("Error: %s\n\n", e.message);
             stderr.printf ("Usage: %s -infile <filename>\n", args[0]);
             stderr.printf ("\t[-timerange [^]x-y]: Reduce the samples in the MP4 to those falling between time range x-y (decimal seconds)\n");
-            stderr.printf ("\t                     (The caret (^) will cause an empty edit to be inserted into the generated stream)\n");
+            stderr.printf ("\t                     (The caret (^) will cause an edit list box to be inserted into the generated stream)\n");
             stderr.printf ("\t[-print (infile [levels]|outfile [levels]|access-points|movie-duration|track-duration|track-for-time [time])]: Print various details to the standard output\n");
             stderr.printf ("\t[-outfile <filename>]: Write the resulting MP4 to the given filename\n");
             stderr.printf ("\t[-bufoutstream [buffer_size]]: Test running the resulting MP4 through the BufferGeneratingOutputStream\n");
@@ -7882,14 +7941,14 @@ public static int main (string[] args) {
             //
             // Trim the MP4 to the designated time range
             //
-            stdout.printf  ("\nTRIMMING INPUT FILE: (%s empty edit)\n",
-                            (with_empty_edit ? "with" : "no"));
+            stdout.printf  ("\nTRIMMING INPUT FILE: (%s edit list)\n",
+                            (with_edit_list ? "with" : "no"));
             stdout.printf  ("  Requested time range: %0.3fs-%0.3fs\n",
                             (float)time_range_start_us/MICROS_PER_SEC,
                             (float)time_range_end_us/MICROS_PER_SEC);
             Rygel.IsoAccessPoint start_point, end_point;
             file_container_box.trim_to_time_range (time_range_start_us, time_range_end_us,
-                                                   out start_point, out end_point, with_empty_edit);
+                                                   out start_point, out end_point, with_edit_list);
             stdout.printf  ("  Effective time range: %0.3fs-%0.3fs\n",
                             (float)start_point.time_offset/start_point.get_timescale (),
                             (float)end_point.time_offset/end_point.get_timescale ());

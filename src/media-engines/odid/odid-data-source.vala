@@ -514,8 +514,10 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
                        ODIDUtil.usec_to_secs (time_offset_start),
                        ODIDUtil.usec_to_secs (time_offset_end));
             }
+            bool insert_edit_lists = true; // TODO: Make configurable   
             new_mp4.trim_to_time_range (time_offset_start, time_offset_end,
-                                        out start_point, out end_point);
+                                        out start_point, out end_point,
+                                        insert_edit_lists);
             time_offset_start = start_point.time_offset * MICROS_PER_SEC
                                 / start_point.get_timescale ();
             time_offset_end = end_point.time_offset  * MICROS_PER_SEC
