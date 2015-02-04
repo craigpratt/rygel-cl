@@ -42,391 +42,6 @@ public errordomain Rygel.IsoBoxError {
     NOT_SUPPORTED
 }
 
-public class Rygel.IsoInputStream : GLib.DataInputStream {
-    public IsoInputStream (GLib.FileInputStream base_stream) {
-        // Can't use: base (base_stream);
-        // See https://mail.gnome.org/archives/vala-list/2009-October/msg00000.html
-        Object (base_stream: base_stream);
-        this.set_byte_order (DataStreamByteOrder.BIG_ENDIAN); // We want network byte order
-    }
-
-    public uint8[] read_buf (uint8[] byte_buffer) throws Error {
-        if (read (byte_buffer) != byte_buffer.length) {
-            throw new IsoBoxError.PARSE_ERROR
-                          ("Could not read %d bytes from the stream".printf (byte_buffer.length));
-        }
-        return byte_buffer;
-    }
-
-    public uint64[] read_uint64_array (uint64[] array) throws Error {
-        for (int i=0; i<array.length; i++) {
-            array[i] = read_uint64 ();
-        }
-        return array;
-    }
-
-    public int64[] read_int64_array (int64[] array) throws Error {
-        for (int i=0; i<array.length; i++) {
-            array[i] = read_int64 ();
-        }
-        return array;
-    }
-
-    public uint32[] read_uint32_array (uint32[] array) throws Error {
-        for (int i=0; i<array.length; i++) {
-            array[i] = read_uint32 ();
-        }
-        return array;
-    }
-
-    public int32[] read_int32_array (int32[] array) throws Error {
-        for (int i=0; i<array.length; i++) {
-            array[i] = read_int32 ();
-        }
-        return array;
-    }
-
-    public uint16[] read_uint16_array (uint16[] array) throws Error {
-        for (int i=0; i<array.length; i++) {
-            array[i] = read_uint16 ();
-        }
-        return array;
-    }
-
-    public int16[] read_int16_array (int16[] array) throws Error {
-        for (int i=0; i<array.length; i++) {
-            array[i] = read_int16 ();
-        }
-        return array;
-    }
-
-    public string read_4cc () throws Error {
-        uint8 byte_buf[4];
-        read_buf (byte_buf);
-        return "%c%c%c%c".printf(byte_buf[0], byte_buf[1], byte_buf[2], byte_buf[3]);
-    }
-
-    public string[] read_4cc_array (string[] array) throws Error {
-        for (int i=0; i<array.length; i++) {
-            array[i] = read_4cc ();
-        }
-        return array;
-    }
-
-    public double read_fixed_point_16_16 () throws Error {
-        return (((double)read_uint32()) / 65536);
-    }
-
-    public float read_fixed_point_8_8 () throws Error {
-        return (((float)read_uint16()) / 256);
-    }
-
-    public string read_packed_language_code () throws Error {
-        uint16 packed_code = read_uint16 ();
-        return "%c%c%c".printf ((uint8)(((packed_code >> 10) & 0x1f) + 0x60),
-                                (uint8)(((packed_code >> 5) & 0x1f) + 0x60),
-                                (uint8)(((packed_code) & 0x1f) + 0x60));
-    }
-
-    public string read_null_terminated_string (out size_t bytes_read) throws Error {
-        size_t string_len;
-        var read_string = read_upto ("\0", 1, out string_len);
-        read_byte (); // Read the null
-        bytes_read = string_len + 1;
-        return read_string;
-    }
-
-    public void seek_to_offset (uint64 offset) throws Error {
-        // debug ("IsoInputStream: seek_to_offset: Seeking to " + offset.to_string ());
-        if (!can_seek ()) {
-            throw new IOError.FAILED ("Stream doesn't support seeking");
-        }
-        if (!seek ((int64)offset, GLib.SeekType.SET)) {
-            throw new IOError.FAILED ("Failed to seek to byte " + offset.to_string ());
-        }
-    }
-
-    public void skip_bytes (uint64 bytes) throws Error {
-        skip ((size_t)bytes);
-    }
-}
-
-public class Rygel.IsoOutputStream : DataOutputStream {
-    public IsoOutputStream (GLib.OutputStream base_stream) {
-        // Can't use: base (base_stream);
-        // See https://mail.gnome.org/archives/vala-list/2009-October/msg00000.html
-        Object (base_stream: base_stream);
-        this.byte_order = DataStreamByteOrder.BIG_ENDIAN; // We want network byte order
-    }
-
-    public void put_uint64_array (uint64[] array) throws Error {
-        foreach (var val in array) {
-            put_uint64 (val);
-        }
-    }
-
-    public void put_int64_array (int64[] array) throws Error {
-        foreach (var val in array) {
-            put_int64 (val);
-        }
-    }
-
-    public void put_uint32_array (uint32[] array) throws Error {
-        foreach (var val in array) {
-            put_uint32 (val);
-        }
-    }
-
-    public void put_int32_array (int32[] array) throws Error {
-        foreach (var val in array) {
-            put_int32 (val);
-        }
-    }
-
-    public void put_uint16_array (uint16[] array) throws Error {
-        foreach (var val in array) {
-            put_uint16 (val);
-        }
-    }
-
-    public void put_int16_array (int16[] array) throws Error {
-        foreach (var val in array) {
-            put_int16 (val);
-        }
-    }
-
-    public void put_4cc (string code) throws Error {
-        write (code.data);
-    }
-
-    public void put_4cc_array (string[] array) throws Error {
-        foreach (var val in array) {
-            write (val.data);
-        }
-    }
-
-    public void put_fixed_point_16_16 (double val) throws Error {
-        put_uint32 ((uint32)(val * 65536));
-    }
-
-    public void put_fixed_point_8_8 (float val) throws Error {
-        put_uint16 ((uint16)(val * 256));
-    }
-
-    public void put_packed_language_code (string language) throws Error {
-        uint16 packed_language = 0;
-        packed_language |= (language.data[2] - 0x60);
-        packed_language |= (language.data[1] - 0x60) << 5;
-        packed_language |= (language.data[0] - 0x60) << 10;
-        put_uint16 (packed_language);
-    }
-
-    public void put_null_terminated_string (string outstring) throws Error {
-        put_string (outstring);
-        put_byte (0);
-    }
-
-    public void put_zero_bytes (uint64 num_bytes) throws Error {
-        for (uint64 i=0; i<num_bytes; i++) {
-            put_byte (0);
-        }
-    }
-}
-
-/**
- * This is a simple OutputStream that generates fixed-size buffers and hands off ownership
- * via a delegate.
- */
-public class BufferGeneratingOutputStream : OutputStream {
-    /**
-     * BufferReady delegate will be called when there's a buffer available.
-     * last_buffer will be true when the last buffer is sent. Note that the last
-     * buffer can be indicated when the stream is closed prematurely. In this case,
-     * new_buffer may be null.
-     */
-    public delegate void BufferReady (Bytes ? new_buffer, bool last_buffer);
-
-    protected unowned BufferReady buffer_sink;
-    protected uint32 buffer_target_size;
-    protected ByteArray current_buffer;
-    private Mutex state_mutex = Mutex ();
-    private bool paused;
-    private Cond unpaused = Cond ();
-    private bool stopped;
-    private bool flush_partial_buffer;
-
-    public BufferGeneratingOutputStream (uint64 buffer_size, BufferReady buffer_sink, bool paused)
-            throws Error {
-        // debug ("BufferGeneratingOutputStream constructor(size %u)", buffer_size);
-        if (buffer_size > uint32.MAX) {
-            throw new Rygel.IsoBoxError.VALUE_TOO_LARGE ("Only 32-bit sizes are currently supported");
-        }
-        this.buffer_target_size = (uint32)buffer_size;
-        this.buffer_sink = buffer_sink;
-        this.current_buffer = null;
-        this.paused = paused;
-        this.stopped = false;
-        this.flush_partial_buffer = true;
-    }
-
-    public override ssize_t write (uint8[] buffer, Cancellable? cancellable = null)
-            throws IOError {
-        // debug ("BufferGeneratingOutputStream.write (buffer %02x%02x%02x%02x%02x%02x..., buffer.length %u, cancellable %s)",
-        //        buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5],
-        //        buffer.length, ((cancellable==null) ? "null" : "non-null"));
-        uint32 bytes_copied = 0;
-        while (bytes_copied < buffer.length) {
-            Bytes buffer_to_pass = null;
-            try {
-                this.state_mutex.lock ();
-                if (this.stopped) {
-                    throw new IOError.NO_SPACE ("The BufferGeneratingOutputStream is stopped (pre-wait)");
-                }
-                if (this.current_buffer == null) {
-                    this.current_buffer = new ByteArray.sized ((uint32)buffer_target_size);
-                }
-                var bytes_remaining = buffer.length - bytes_copied;
-                var space_in_buffer = this.buffer_target_size - this.current_buffer.len;
-                var bytes_to_copy = uint32.min (bytes_remaining, space_in_buffer);
-                // debug ("bytes_remaining %u, space_in_buffer %u", bytes_remaining, space_in_buffer);
-                this.current_buffer.append (buffer[bytes_copied:bytes_copied+bytes_to_copy]);
-                bytes_copied += bytes_to_copy;
-                space_in_buffer -= bytes_to_copy;
-                if (space_in_buffer == 0) {
-                    if (this.paused) {
-                        // debug ("BufferGeneratingOutputStream.write: waiting for unpaused");
-                        this.unpaused.wait (state_mutex);
-                        // debug ("BufferGeneratingOutputStream.write: done waiting");
-                        if (this.stopped) {
-                            throw new IOError.NO_SPACE ("The BufferGeneratingOutputStream is stopped (post-wait)");
-                        }
-                        if (this.current_buffer == null) {
-                            // Buffer was handled out from under us (e.g. flushed)
-                            continue;
-                        }
-                    }
-                    buffer_to_pass = ByteArray.free_to_bytes (this.current_buffer);
-                    this.current_buffer = null;
-                }
-            } finally {
-                this.state_mutex.unlock ();
-            }
-            if (buffer_to_pass != null) {
-                // Call the delegate without holding the lock
-                this.buffer_sink (buffer_to_pass, false);
-            }
-        }
-        return buffer.length;
-    }
-
-    public override bool flush (Cancellable? cancellable = null)
-            throws Error {
-        debug ("BufferGeneratingOutputStream.flush()");
-        Bytes buffer_to_pass = null;
-        try {
-            this.state_mutex.lock ();
-            if (this.stopped) {
-                return false;
-            }
-            // Bit of a policy conflict here. We want to generate fixed-sized buffers. But
-            //  we were asked to flush...
-            if (this.flush_partial_buffer
-                 && (this.current_buffer != null)
-                 && this.paused) {
-                this.unpaused.wait (state_mutex);
-            }
-
-            // Re-check, since the mutex isn't held in wait
-            if (this.stopped) {
-                return false;
-            }
-            if (this.flush_partial_buffer && (this.current_buffer != null)) {
-                buffer_to_pass = ByteArray.free_to_bytes (this.current_buffer);
-                this.current_buffer = null;
-            }
-        } finally {
-            this.state_mutex.unlock ();
-        }
-        if (buffer_to_pass != null) {
-            // Call the delegate without holding the lock
-            this.buffer_sink (buffer_to_pass, false);
-        }
-        return true;
-    }
-
-    public override bool close (Cancellable? cancellable = null)
-            throws IOError {
-        debug ("BufferGeneratingOutputStream.close()");
-
-        try {
-            this.state_mutex.lock ();
-            if (this.stopped) {
-                return false;
-            }
-            if (this.current_buffer != null) {
-                this.current_buffer = null;
-            }
-            this.stopped = true;
-            this.unpaused.broadcast ();
-            // No one should be waiting now
-        } finally {
-            this.state_mutex.unlock ();
-        }
-        return true;
-    }
-
-    /**
-     * Resume/start issuing buffers on the BufferReady delegate.
-     */
-    public void resume () {
-        debug ("BufferGeneratingOutputStream.resume()");
-        try {
-            this.state_mutex.lock ();
-            this.paused = false;
-            this.unpaused.broadcast ();
-        } finally {
-            this.state_mutex.unlock ();
-        }
-    }
-
-    /**
-     * Stop issuing buffers on the BufferReady delegate and block writes until resume() or
-     *  stop() is called.
-     */
-    public void pause () {
-        debug ("BufferGeneratingOutputStream.pause()");
-        try {
-            this.state_mutex.lock ();
-            this.paused = true;
-        } finally {
-            this.state_mutex.unlock ();
-        }
-    }
-
-    /**
-     * Stop issuing buffers on the BufferReady delegate and fail/disallow IO operations
-     *  (write(), flush(), etc). The BufferReady delegate will not be called once stop()
-     *  returns.
-     */
-    public void stop () {
-        debug ("BufferGeneratingOutputStream.stop()");
-        if (this.stopped) { // We never unset stopped - so this is a safe check
-            return;
-        }
-        try {
-            this.state_mutex.lock ();
-            if (this.current_buffer != null) {
-                this.current_buffer = null;
-            }
-            this.stopped = true;
-            this.unpaused.broadcast ();
-            // No one should be waiting now
-        } finally {
-            this.state_mutex.unlock ();
-        }
-    }
-}
-
 /**
  * The IsoBox is the top-level class for all ISO/MP4 Box classes defined here
  *
@@ -462,7 +77,7 @@ public abstract class Rygel.IsoBox : Object {
     protected bool loaded; // Indicates the box fields/children are populated/parsed
 
     // These fields are for IsoBox instances contained in a input stream
-    public unowned IsoInputStream source_stream;
+    public unowned ExtDataInputStream source_stream;
     public uint64 source_offset;
     public uint32 source_size;
     public uint64 source_largesize; // If source_size==1
@@ -483,7 +98,7 @@ public abstract class Rygel.IsoBox : Object {
     }
 
     public IsoBox.from_stream (IsoContainerBox ? parent, string type_code,
-                               IsoInputStream stream, uint64 offset,
+                               ExtDataInputStream stream, uint64 offset,
                                uint32 size, uint64 largesize)
             throws Error {
         base ();
@@ -588,7 +203,7 @@ public abstract class Rygel.IsoBox : Object {
      * The base implementation will write from the source when source_verbatim is true or
      * call write_fields_to_stream() when it's false.
      */
-    public virtual void write_to_stream (IsoOutputStream outstream) throws Error {
+    public virtual void write_to_stream (ExtDataOutputStream outstream) throws Error {
         if (this.source_verbatim) {
             // debug ("write_to_stream(%s): Writing from source stream: %s",
             //        this.type_code, this.to_string ());
@@ -607,7 +222,7 @@ public abstract class Rygel.IsoBox : Object {
      * base.write_fields_to_stream()). And it's presumed that update() is called
      * prior to write if/when/after fields are modified.
      */
-    protected virtual void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    protected virtual void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         if (this.source_verbatim) {
             throw new IsoBoxError.INVALID_BOX_STATE ("Cannot update a verbatim (unparsed) box");
         }
@@ -631,7 +246,7 @@ public abstract class Rygel.IsoBox : Object {
      *
      * TODO: Consider restoring the file position post-write.
      */
-    protected void write_box_from_source (IsoOutputStream outstream) throws Error {
+    protected void write_box_from_source (ExtDataOutputStream outstream) throws Error {
         write_from_source (outstream, this.source_offset, this.source_size);
     }
 
@@ -643,7 +258,7 @@ public abstract class Rygel.IsoBox : Object {
      *
      * TODO: Consider restoring the file position post-write.
      */
-    protected void write_from_source (IsoOutputStream outstream,
+    protected void write_from_source (ExtDataOutputStream outstream,
                                       uint64 source_offset, uint64 length)
             throws Error {
         this.source_stream.seek_to_offset (source_offset);
@@ -850,7 +465,7 @@ public abstract class Rygel.IsoFullBox : IsoBox {
     }
 
     public IsoFullBox.from_stream (IsoContainerBox parent, string type_code,
-                                   IsoInputStream stream, uint64 offset,
+                                   ExtDataInputStream stream, uint64 offset,
                                    uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -869,7 +484,7 @@ public abstract class Rygel.IsoFullBox : IsoBox {
         base.update_box_fields (payload_size + 4); // 1 version byte + 3 flag bytes
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         uint32 dword = (this.version << 24) | (this.flags & 0xFFFFFF);
         outstream.put_uint32 (dword);
@@ -1372,12 +987,12 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
     protected IsoMovieBox movie_box = null;
 
     public GLib.File iso_file;
-    public IsoInputStream file_stream;
+    public ExtDataInputStream file_stream;
     public static const int MICROS_PER_SEC = 1000000;
 
     public IsoFileContainerBox.from_stream (FileInputStream file_stream, uint64 largesize)
                throws Error {
-        var input_stream = new IsoInputStream (file_stream);
+        var input_stream = new ExtDataInputStream (file_stream);
         base.from_stream (null, "FILE", input_stream, 0, 1, largesize);
         this.file_stream = input_stream;
     }
@@ -1407,7 +1022,7 @@ public class Rygel.IsoFileContainerBox : IsoContainerBox {
         this.size = payload_size;
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         // The FileContainerBox doesn't have a base header
         foreach (var box in this.children) {
             box.write_to_stream (outstream);
@@ -2128,7 +1743,7 @@ public class Rygel.IsoGenericBox : IsoBox {
     }
 
     public IsoGenericBox.from_stream (IsoContainerBox parent, string type_code,
-                                      IsoInputStream stream, uint64 offset,
+                                      ExtDataInputStream stream, uint64 offset,
                                       uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -2152,7 +1767,7 @@ public class Rygel.IsoGenericBox : IsoBox {
         base.update_box_fields (payload_size + this.source_payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         base.write_from_source (outstream,
                                 this.source_offset + this.source_payload_offset,
@@ -2185,7 +1800,7 @@ public class Rygel.IsoFileTypeBox : IsoBox {
     }
 
     public IsoFileTypeBox.from_stream (IsoContainerBox parent, string type_code,
-                                       IsoInputStream stream, uint64 offset,
+                                       ExtDataInputStream stream, uint64 offset,
                                        uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -2211,7 +1826,7 @@ public class Rygel.IsoFileTypeBox : IsoBox {
         base.update_box_fields (payload_size + 8 + (this.compatible_brands.length * 4));
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         outstream.put_4cc (this.major_brand);
         outstream.put_uint32 (this.minor_version);
@@ -2257,7 +1872,7 @@ public class Rygel.IsoMovieBox : IsoContainerBox {
     protected IsoMovieExtendsBox movie_extends_box = null;
     
     public IsoMovieBox.from_stream (IsoContainerBox parent, string type_code,
-                                    IsoInputStream stream, uint64 offset,
+                                    ExtDataInputStream stream, uint64 offset,
                                     uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -2285,7 +1900,7 @@ public class Rygel.IsoMovieBox : IsoContainerBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         foreach (var box in this.children) {
             box.write_to_stream (outstream);
@@ -2729,7 +2344,7 @@ public class Rygel.IsoMovieHeaderBox : IsoFullBox {
     }
 
     public IsoMovieHeaderBox.from_stream (IsoContainerBox parent, string type_code,
-                                   IsoInputStream stream, uint64 offset,
+                                   ExtDataInputStream stream, uint64 offset,
                                    uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -2852,7 +2467,7 @@ public class Rygel.IsoMovieHeaderBox : IsoFullBox {
         return (float)get_duration () / this.timescale;
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         switch (this.version) {
             case 0:
@@ -2926,7 +2541,7 @@ public class Rygel.IsoTrackBox : IsoContainerBox {
     }
 
     public IsoTrackBox.from_stream (IsoContainerBox parent, string type_code,
-                                    IsoInputStream stream, uint64 offset,
+                                    ExtDataInputStream stream, uint64 offset,
                                     uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -2951,7 +2566,7 @@ public class Rygel.IsoTrackBox : IsoContainerBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         foreach (var box in this.children) {
             box.write_to_stream (outstream);
@@ -3108,7 +2723,7 @@ public class Rygel.IsoTrackHeaderBox : IsoFullBox {
     }
 
     public IsoTrackHeaderBox.from_stream (IsoContainerBox parent, string type_code,
-                                   IsoInputStream stream, uint64 offset,
+                                   ExtDataInputStream stream, uint64 offset,
                                    uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -3246,7 +2861,7 @@ public class Rygel.IsoTrackHeaderBox : IsoFullBox {
         return media_header_box.get_media_duration_seconds ();
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         switch (this.version) {
             case 0:
@@ -3329,7 +2944,7 @@ public class Rygel.IsoMediaBox : IsoContainerBox {
     }
 
     public IsoMediaBox.from_stream (IsoContainerBox parent, string type_code,
-                                    IsoInputStream stream, uint64 offset,
+                                    ExtDataInputStream stream, uint64 offset,
                                     uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -3353,7 +2968,7 @@ public class Rygel.IsoMediaBox : IsoContainerBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         foreach (var box in this.children) {
             box.write_to_stream (outstream);
@@ -3449,7 +3064,7 @@ public class Rygel.IsoMediaHeaderBox : IsoFullBox {
     }
 
     public IsoMediaHeaderBox.from_stream (IsoContainerBox parent, string type_code,
-                                   IsoInputStream stream, uint64 offset,
+                                   ExtDataInputStream stream, uint64 offset,
                                    uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -3602,7 +3217,7 @@ public class Rygel.IsoMediaHeaderBox : IsoFullBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         switch (this.version) {
             case 0:
@@ -3667,7 +3282,7 @@ public class Rygel.IsoHandlerBox : IsoFullBox {
     }
 
     public IsoHandlerBox.from_stream (IsoContainerBox parent, string type_code,
-                                      IsoInputStream stream, uint64 offset,
+                                      ExtDataInputStream stream, uint64 offset,
                                       uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -3698,7 +3313,7 @@ public class Rygel.IsoHandlerBox : IsoFullBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         outstream.put_zero_bytes (4); // reserved
         outstream.put_4cc (this.handler_type);
@@ -3735,7 +3350,7 @@ public class Rygel.IsoMediaInformationBox : IsoContainerBox {
     }
 
     public IsoMediaInformationBox.from_stream (IsoContainerBox parent, string type_code,
-                                    IsoInputStream stream, uint64 offset,
+                                    ExtDataInputStream stream, uint64 offset,
                                     uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -3753,7 +3368,7 @@ public class Rygel.IsoMediaInformationBox : IsoContainerBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         foreach (var box in this.children) {
             box.write_to_stream (outstream);
@@ -3792,7 +3407,7 @@ public class Rygel.IsoVideoMediaHeaderBox : IsoFullBox {
     }
 
     public IsoVideoMediaHeaderBox.from_stream (IsoContainerBox parent, string type_code,
-                                      IsoInputStream stream, uint64 offset,
+                                      ExtDataInputStream stream, uint64 offset,
                                       uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -3820,7 +3435,7 @@ public class Rygel.IsoVideoMediaHeaderBox : IsoFullBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         outstream.put_uint16 (this.graphicsmode);
         outstream.put_uint16_array (this.opcolor);
@@ -3859,7 +3474,7 @@ public class Rygel.IsoSoundMediaHeaderBox : IsoFullBox {
     }
 
     public IsoSoundMediaHeaderBox.from_stream (IsoContainerBox parent, string type_code,
-                                      IsoInputStream stream, uint64 offset,
+                                      ExtDataInputStream stream, uint64 offset,
                                       uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -3887,7 +3502,7 @@ public class Rygel.IsoSoundMediaHeaderBox : IsoFullBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         outstream.put_int16 (this.balance);
         outstream.put_zero_bytes (2); // reserved
@@ -3933,7 +3548,7 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
     }
 
     public IsoSampleTableBox.from_stream (IsoContainerBox parent, string type_code,
-                                    IsoInputStream stream, uint64 offset,
+                                    ExtDataInputStream stream, uint64 offset,
                                     uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -3963,7 +3578,7 @@ public class Rygel.IsoSampleTableBox : IsoContainerBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         foreach (var box in this.children) {
             box.write_to_stream (outstream);
@@ -4615,7 +4230,7 @@ public class Rygel.IsoTimeToSampleBox : IsoFullBox {
     }
 
     public IsoTimeToSampleBox.from_stream (IsoContainerBox parent, string type_code,
-                                           IsoInputStream stream, uint64 offset,
+                                           ExtDataInputStream stream, uint64 offset,
                                            uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -4648,7 +4263,7 @@ public class Rygel.IsoTimeToSampleBox : IsoFullBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         var entry_count = this.sample_array.length;
         outstream.put_uint32 (entry_count);
@@ -4835,7 +4450,7 @@ public class Rygel.IsoSyncSampleBox : IsoFullBox {
     }
 
     public IsoSyncSampleBox.from_stream (IsoContainerBox parent, string type_code,
-                                           IsoInputStream stream, uint64 offset,
+                                           ExtDataInputStream stream, uint64 offset,
                                            uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -4866,7 +4481,7 @@ public class Rygel.IsoSyncSampleBox : IsoFullBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         outstream.put_uint32 (this.sample_number_array.length);
         outstream.put_uint32_array (this.sample_number_array);
@@ -4992,7 +4607,7 @@ public class Rygel.IsoSampleToChunkBox : IsoFullBox {
     }
 
     public IsoSampleToChunkBox.from_stream (IsoContainerBox parent, string type_code,
-                                           IsoInputStream stream, uint64 offset,
+                                           ExtDataInputStream stream, uint64 offset,
                                            uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -5025,7 +4640,7 @@ public class Rygel.IsoSampleToChunkBox : IsoFullBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         var entry_count = this.chunk_run_array.length;
         outstream.put_uint32 (entry_count);
@@ -5325,7 +4940,7 @@ public class Rygel.IsoSampleSizeBox : IsoFullBox {
     }
 
     public IsoSampleSizeBox.from_stream (IsoContainerBox parent, string type_code,
-                                           IsoInputStream stream, uint64 offset,
+                                           ExtDataInputStream stream, uint64 offset,
                                            uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -5366,7 +4981,7 @@ public class Rygel.IsoSampleSizeBox : IsoFullBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         outstream.put_uint32 (this.sample_size);
         outstream.put_uint32 (this.sample_count);
@@ -5537,7 +5152,7 @@ public class Rygel.IsoChunkOffsetBox : IsoFullBox {
     }
 
     public IsoChunkOffsetBox.from_stream (IsoContainerBox parent, string type_code,
-                                          IsoInputStream stream, uint64 offset,
+                                          ExtDataInputStream stream, uint64 offset,
                                           uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -5581,7 +5196,7 @@ public class Rygel.IsoChunkOffsetBox : IsoFullBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         outstream.put_uint32 (this.chunk_offset_array.length);
         if (use_large_offsets) {
@@ -5716,7 +5331,7 @@ public class Rygel.IsoEditBox : IsoContainerBox {
     }
 
     public IsoEditBox.from_stream (IsoContainerBox parent, string type_code,
-                                   IsoInputStream stream, uint64 offset,
+                                   ExtDataInputStream stream, uint64 offset,
                                    uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -5765,7 +5380,7 @@ public class Rygel.IsoEditBox : IsoContainerBox {
         return this.edit_list_box;
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         foreach (var box in this.children) {
             box.write_to_stream (outstream);
@@ -5812,7 +5427,7 @@ public class Rygel.IsoEditListBox : IsoFullBox {
     }
 
     public IsoEditListBox.from_stream (IsoContainerBox parent, string type_code,
-                                           IsoInputStream stream, uint64 offset,
+                                           ExtDataInputStream stream, uint64 offset,
                                            uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -5974,7 +5589,7 @@ public class Rygel.IsoEditListBox : IsoFullBox {
                               this.edit_array[index].media_rate_fraction));
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         var entry_count = this.edit_array.length;
         outstream.put_uint32 (entry_count);
@@ -6034,7 +5649,7 @@ public class Rygel.IsoDataInformationBox : IsoContainerBox {
     }
 
     public IsoDataInformationBox.from_stream (IsoContainerBox parent, string type_code,
-                                              IsoInputStream stream, uint64 offset,
+                                              ExtDataInputStream stream, uint64 offset,
                                               uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -6052,7 +5667,7 @@ public class Rygel.IsoDataInformationBox : IsoContainerBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         foreach (var box in this.children) {
             box.write_to_stream (outstream);
@@ -6086,7 +5701,7 @@ public class Rygel.IsoMovieExtendsBox : IsoContainerBox {
     }
 
     public IsoMovieExtendsBox.from_stream (IsoContainerBox parent, string type_code,
-                                              IsoInputStream stream, uint64 offset,
+                                              ExtDataInputStream stream, uint64 offset,
                                               uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -6104,7 +5719,7 @@ public class Rygel.IsoMovieExtendsBox : IsoContainerBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         foreach (var box in this.children) {
             box.write_to_stream (outstream);
@@ -6172,7 +5787,7 @@ public class Rygel.IsoMovieExtendsHeaderBox : IsoFullBox {
     }
 
     public IsoMovieExtendsHeaderBox.from_stream (IsoContainerBox parent, string type_code,
-                                                 IsoInputStream stream, uint64 offset,
+                                                 ExtDataInputStream stream, uint64 offset,
                                                  uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -6217,7 +5832,7 @@ public class Rygel.IsoMovieExtendsHeaderBox : IsoFullBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         if (this.use_large_duration) {
             assert (this.version == 1);
@@ -6350,7 +5965,7 @@ public class Rygel.IsoTrackExtendsBox : IsoFullBox {
     }
 
     public IsoTrackExtendsBox.from_stream (IsoContainerBox parent, string type_code,
-                                           IsoInputStream stream, uint64 offset,
+                                           ExtDataInputStream stream, uint64 offset,
                                            uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -6386,7 +6001,7 @@ public class Rygel.IsoTrackExtendsBox : IsoFullBox {
         base.update_box_fields (payload_size + 20);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         outstream.put_uint32 (this.track_id);
         outstream.put_uint32 (this.default_sample_description_index);
@@ -6464,7 +6079,7 @@ public class Rygel.IsoMovieFragmentBox : IsoContainerBox {
     }
 
     public IsoMovieFragmentBox.from_stream (IsoContainerBox parent, string type_code,
-                                            IsoInputStream stream, uint64 offset,
+                                            ExtDataInputStream stream, uint64 offset,
                                             uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -6486,7 +6101,7 @@ public class Rygel.IsoMovieFragmentBox : IsoContainerBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         foreach (var box in this.children) {
             box.write_to_stream (outstream);
@@ -6618,7 +6233,7 @@ public class Rygel.IsoMovieFragmentHeaderBox : IsoFullBox {
     }
 
     public IsoMovieFragmentHeaderBox.from_stream (IsoContainerBox parent, string type_code,
-                                                 IsoInputStream stream, uint64 offset,
+                                                 ExtDataInputStream stream, uint64 offset,
                                                  uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -6642,7 +6257,7 @@ public class Rygel.IsoMovieFragmentHeaderBox : IsoFullBox {
         base.update_box_fields (payload_size+4);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         outstream.put_uint32 (this.sequence_number);
     }
@@ -6681,7 +6296,7 @@ public class Rygel.IsoTrackFragmentBox : IsoContainerBox {
     }
 
     public IsoTrackFragmentBox.from_stream (IsoContainerBox parent, string type_code,
-                                            IsoInputStream stream, uint64 offset,
+                                            ExtDataInputStream stream, uint64 offset,
                                             uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -6708,7 +6323,7 @@ public class Rygel.IsoTrackFragmentBox : IsoContainerBox {
         base.update_box_fields (payload_size);
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         foreach (var box in this.children) {
             box.write_to_stream (outstream);
@@ -6997,7 +6612,7 @@ public class Rygel.IsoTrackFragmentHeaderBox : IsoFullBox {
     }
 
     public IsoTrackFragmentHeaderBox.from_stream (IsoContainerBox parent, string type_code,
-                                                  IsoInputStream stream, uint64 offset,
+                                                  ExtDataInputStream stream, uint64 offset,
                                                   uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
@@ -7128,7 +6743,7 @@ public class Rygel.IsoTrackFragmentHeaderBox : IsoFullBox {
         return (float)this.default_sample_duration / get_track_fragment_box ().get_timescale ();
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         outstream.put_uint32 (this.track_id);
         if (flag_set (BASE_DATA_OFFSET_PRESENT_FLAG)) {
@@ -7288,8 +6903,8 @@ public class Rygel.IsoTrackRunBox : IsoFullBox {
     }
 
     public IsoTrackRunBox.from_stream (IsoContainerBox parent, string type_code,
-                                           IsoInputStream stream, uint64 offset,
-                                           uint32 size, uint64 largesize)
+                                       ExtDataInputStream stream, uint64 offset,
+                                       uint32 size, uint64 largesize)
             throws Error {
         base.from_stream (parent, type_code, stream, offset, size, largesize);
     }
@@ -7593,7 +7208,7 @@ public class Rygel.IsoTrackRunBox : IsoFullBox {
         return null;
     }
 
-    public override void write_fields_to_stream (IsoOutputStream outstream) throws Error {
+    public override void write_fields_to_stream (ExtDataOutputStream outstream) throws Error {
         base.write_fields_to_stream (outstream);
         var entry_count = this.sample_entry_array.length;
         outstream.put_uint32 (entry_count);
@@ -8038,8 +7653,8 @@ public static int main (string[] args) {
             if (out_file.query_exists ()) {
                 out_file.delete ();
             }
-            var out_stream = new Rygel.IsoOutputStream (out_file.create (
-                                                        FileCreateFlags.REPLACE_DESTINATION ) );
+            var out_stream = new Rygel.ExtDataOutputStream (
+                                   out_file.create (FileCreateFlags.REPLACE_DESTINATION) );
             file_container_box.write_to_stream (out_stream);
             out_stream.close ();
             FileInfo out_file_info = out_file.query_info (GLib.FileAttribute.STANDARD_SIZE, 0);
@@ -8070,10 +7685,10 @@ public static int main (string[] args) {
                 }, true /* paused */ );
             var gen_thread = new Thread<void*> ( "mp4 time-seek generator", () => {
                 stderr.printf ("  Generator started\n");
-                Rygel.IsoOutputStream out_stream;
+                Rygel.ExtDataOutputStream out_stream;
                 try {
                     stderr.printf ("  Generator writing...\n");
-                    out_stream = new Rygel.IsoOutputStream (my_buf_gen_stream);
+                    out_stream = new Rygel.ExtDataOutputStream (my_buf_gen_stream);
                     file_container_box.write_to_stream (out_stream);
                     stderr.printf ("  Generator done writing.\n");
                 } catch (Error err) {

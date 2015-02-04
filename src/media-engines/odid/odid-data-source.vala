@@ -1110,14 +1110,14 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         debug ("mp4_container_source: starting " + generator_name);
         this.mp4_container_thread = new Thread<void*> ( generator_name, () => {
             debug (generator_name + " started");
-            Rygel.IsoOutputStream out_stream;
+            Rygel.ExtDataOutputStream out_stream;
             string container_source_name = (this.mp4_container_source == null)
                                            ? "null"
                                            : this.mp4_container_source.iso_file.get_basename ();
             try {
                 debug (generator_name + ": Starting write of mp4 box tree from %s (%llu bytes)",
                        container_source_name, this.mp4_container_source.size);
-                out_stream = new Rygel.IsoOutputStream (this.mp4_container_stream);
+                out_stream = new Rygel.ExtDataOutputStream (this.mp4_container_stream);
                 this.mp4_container_source.write_to_stream (out_stream);
                 debug (generator_name + ": Completed writing mp4 box tree from %s (%llu bytes written)",
                        container_source_name, this.total_bytes_read);
