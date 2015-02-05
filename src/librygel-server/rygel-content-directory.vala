@@ -564,7 +564,7 @@ public class Rygel.ContentDirectory: Service {
         if ((event_type == ObjectEventType.ADDED ||
             event_type == ObjectEventType.DELETED ||
             event_type == ObjectEventType.MODIFIED) &&
-            object is MediaItem) {
+            (object is MediaItem || object is MediaContainer)) {
             debug ("Forward call to update SourceProtocolInfo");
             if (this.root_container is SearchableContainer) {
                  ("Calling searchablecontainer");
