@@ -39,7 +39,7 @@ public class Rygel.ExtDataInputStream : GLib.DataInputStream {
 
     public uint8[] read_buf (uint8[] byte_buffer) throws Error {
         if (read (byte_buffer) != byte_buffer.length) {
-            throw new IsoBoxError.PARSE_ERROR
+            throw new IOError.FAILED
                           ("Could not read %d bytes from the stream".printf (byte_buffer.length));
         }
         return byte_buffer;
@@ -246,7 +246,7 @@ public class BufferGeneratingOutputStream : OutputStream {
             throws Error {
         // debug ("BufferGeneratingOutputStream constructor(size %u)", buffer_size);
         if (buffer_size > uint32.MAX) {
-            throw new Rygel.IsoBoxError.VALUE_TOO_LARGE ("Only 32-bit sizes are currently supported");
+            throw new IOError.NOT_SUPPORTED ("Only 32-bit sizes are currently supported");
         }
         this.buffer_target_size = (uint32)buffer_size;
         this.buffer_sink = buffer_sink;
