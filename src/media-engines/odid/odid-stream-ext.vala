@@ -29,6 +29,68 @@
 
 using Gee;
 
+public class Rygel.Bits {    
+    public static uint64 getbits_64 (uint64 target, uint offset, uint width) throws Error
+    {
+        if (offset+width > 64) {
+            throw new IOError.FAILED ("Attempt to access bit %u in 64-bit field"
+                                      .printf (offset+width)); 
+        }
+        uint64 bitmask;
+        if ((offset+width) == 64) {
+            bitmask = (0xFFFFFFFFFFFFFFFF << offset);
+        } else {
+            bitmask = (0xFFFFFFFFFFFFFFFF << offset) 
+                      ^ (0xFFFFFFFFFFFFFFFF << (offset+width));  
+        }
+        return  (target & bitmask) >> offset;
+    }
+
+    public static uint32 getbits_32 (uint32 target, uint offset, uint width) throws Error
+    {
+        if (offset+width > 32) {
+            throw new IOError.FAILED ("Attempt to access bit %u in 32-bit field"
+                                      .printf (offset+width)); 
+        }
+        uint32 bitmask;
+        if ((offset+width) == 32) {
+            bitmask = ((uint32)0xFFFFFFFF << offset);
+        } else {
+            bitmask = ((uint32)0xFFFFFFFF << offset) ^ ((uint32)0xFFFFFFFF << (offset+width));  
+        }
+        return  (target & bitmask) >> offset;
+    }
+
+    public static uint16 getbits_16 (uint16 target, uint offset, uint width) throws Error
+    {
+        if (offset+width > 16) {
+            throw new IOError.FAILED ("Attempt to access bit %u in 16-bit field"
+                                      .printf (offset+width)); 
+        }
+        uint32 bitmask;
+        if ((offset+width) == 16) {
+            bitmask = ((uint32)0xFFFF << offset);
+        } else {
+            bitmask = ((uint32)0xFFFF << offset) ^ ((uint32)0xFFFFFFFF << (offset+width));  
+        }
+        return  (uint16)((target & bitmask) >> offset);
+    }
+    public static uint16 getbits_8 (uint8 target, uint offset, uint width) throws Error
+    {
+        if (offset+width > 8) {
+            throw new IOError.FAILED ("Attempt to access bit %u in 8-bit field"
+                                      .printf (offset+width)); 
+        }
+        uint32 bitmask;
+        if ((offset+width) == 16) {
+            bitmask = ((uint32)0xFFFF << offset);
+        } else {
+            bitmask = ((uint32)0xFFFF << offset) ^ ((uint32)0xFFFFFFFF << (offset+width));  
+        }
+        return  (uint8)((target & bitmask) >> offset);
+    }
+}
+
 public class Rygel.ExtDataInputStream : GLib.DataInputStream {
     public ExtDataInputStream (GLib.FileInputStream base_stream) {
         // Can't use: base (base_stream);

@@ -15,7 +15,8 @@ librygel_media_engine_odid_la_SOURCES = \
 	odid-util.vala \
 	odid-data-source.vala \
 	odid-mp4-parser.vala \
-	odid-stream-ext.vala
+	odid-stream-ext.vala \
+	odid-mp2-parser.vala
 
 librygel_media_engine_odid_la_VALAFLAGS = \
 	$(RYGEL_COMMON_LIBRYGEL_SERVER_VALAFLAGS) \
