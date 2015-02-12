@@ -7331,8 +7331,11 @@ public class Rygel.IsoTrackRunBox : IsoFullBox {
 } // END class IsoTrackRunBox
 
 // For testing
-class Rygel.IsoParsingTest : GLib.Object {
-    private static int main (string[] args) {
+class Rygel.IsoParsingTest {
+    // Can compile/run this using:
+    // valac --main=Rygel.IsoParsingTest.iso_test --disable-warnings --pkg gio-2.0 --pkg gee-0.8 --pkg posix -g  --target-glib=2.32 --disable-warnings  "odid-mp4-parser.vala" odid-stream-ext.vala 
+
+    public static int iso_test (string[] args) {
         int MICROS_PER_SEC = 1000000;
         try {
             bool trim_file = false;

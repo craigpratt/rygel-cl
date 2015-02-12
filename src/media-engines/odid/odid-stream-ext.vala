@@ -30,8 +30,8 @@
 using Gee;
 
 public class Rygel.Bits {    
-    public static uint64 getbits_64 (uint64 target, uint offset, uint width) throws Error
-    {
+    public static uint64 getbits_64 (uint64 target, uint offset, uint width) 
+            throws Error {
         if (offset+width > 64) {
             throw new IOError.FAILED ("Attempt to access bit %u in 64-bit field"
                                       .printf (offset+width)); 
@@ -46,8 +46,17 @@ public class Rygel.Bits {
         return  (target & bitmask) >> offset;
     }
 
-    public static uint32 getbits_32 (uint32 target, uint offset, uint width) throws Error
-    {
+    public static bool getbit_64 (uint64 target, uint offset) throws Error {
+        if (offset >= 64) {
+            throw new IOError.FAILED ("Attempt to access bit %u in 64-bit field"
+                                      .printf (offset)); 
+        }
+        uint64 bitmask = 1 << offset;
+        return (target & bitmask) == bitmask;
+    }
+
+    public static uint32 getbits_32 (uint32 target, uint offset, uint width) 
+            throws Error {
         if (offset+width > 32) {
             throw new IOError.FAILED ("Attempt to access bit %u in 32-bit field"
                                       .printf (offset+width)); 
@@ -61,8 +70,17 @@ public class Rygel.Bits {
         return  (target & bitmask) >> offset;
     }
 
-    public static uint16 getbits_16 (uint16 target, uint offset, uint width) throws Error
-    {
+    public static bool getbit_32 (uint32 target, uint offset) throws Error {
+        if (offset >= 32) {
+            throw new IOError.FAILED ("Attempt to access bit %u in 32-bit field"
+                                      .printf (offset)); 
+        }
+        uint64 bitmask = 1 << offset;
+        return (target & bitmask) == bitmask;
+    }
+
+    public static uint16 getbits_16 (uint16 target, uint offset, uint width) 
+            throws Error {
         if (offset+width > 16) {
             throw new IOError.FAILED ("Attempt to access bit %u in 16-bit field"
                                       .printf (offset+width)); 
@@ -75,8 +93,18 @@ public class Rygel.Bits {
         }
         return  (uint16)((target & bitmask) >> offset);
     }
-    public static uint16 getbits_8 (uint8 target, uint offset, uint width) throws Error
-    {
+
+    public static bool getbit_16 (uint16 target, uint offset) throws Error {
+        if (offset >= 16) {
+            throw new IOError.FAILED ("Attempt to access bit %u in 16-bit field"
+                                      .printf (offset)); 
+        }
+        uint64 bitmask = 1 << offset;
+        return (target & bitmask) == bitmask;
+    }
+
+    public static uint8 getbits_8 (uint8 target, uint offset, uint width) 
+            throws Error {
         if (offset+width > 8) {
             throw new IOError.FAILED ("Attempt to access bit %u in 8-bit field"
                                       .printf (offset+width)); 
@@ -88,6 +116,15 @@ public class Rygel.Bits {
             bitmask = ((uint32)0xFFFF << offset) ^ ((uint32)0xFFFFFFFF << (offset+width));  
         }
         return  (uint8)((target & bitmask) >> offset);
+    }
+
+    public static bool getbit_8 (uint8 target, uint offset) throws Error {
+        if (offset >= 8) {
+            throw new IOError.FAILED ("Attempt to access bit %u in 8-bit field"
+                                      .printf (offset)); 
+        }
+        uint64 bitmask = 1 << offset;
+        return (target & bitmask) == bitmask;
     }
 }
 
@@ -183,6 +220,30 @@ public class Rygel.ExtDataInputStream : GLib.DataInputStream {
         read_byte (); // Read the null
         bytes_read = string_len + 1;
         return read_string;
+    }
+    
+    public uint64 read_bytes_uint64 (uint count) throws Error {
+        if (count > 8) {
+            throw new IOError.FAILED ("Cannot read %u bytes into a uint64".printf(count));
+        }
+        uint64 result = 0;
+        for (int i=0; i<count; i++) {
+            result = result << 8;
+            result |= read_byte();
+        }
+        return result;
+    }
+
+    public uint32 read_bytes_uint32 (uint count) throws Error {
+        if (count > 4) {
+            throw new IOError.FAILED ("Cannot read %u bytes into a uint64".printf(count));
+        }
+        uint32 result = 0;
+        for (int i=0; i<count; i++) {
+            result = result << 8;
+            result |= read_byte();
+        }
+        return result;
     }
 
     public void seek_to_offset (uint64 offset) throws Error {
