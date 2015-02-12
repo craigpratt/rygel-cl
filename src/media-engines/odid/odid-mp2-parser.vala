@@ -66,8 +66,10 @@ public abstract class Rygel.MP2TransportStream {
     
     public virtual void to_printer (LinePrinter printer, string prefix) {
         if (this.loaded) {
+            uint64 pos = 0;
             foreach (var packet in this.ts_packets) {
-                printer (prefix + packet.to_string ());
+                printer (prefix + pos.to_string () + ": " + packet.to_string ());
+                pos++;
             }
         } else {
             printer (prefix + "[unloaded packets]");
@@ -165,23 +167,35 @@ public class Rygel.MP2TSPacket {
         return 188;
     }
     
-    public virtual string to_string () {
+    public string to_string () {
         var builder = new StringBuilder ("MP2TSPacket[");
+        append_fields_to (builder);
+        builder.append_c (']');
+        return builder.str;
+    }
+
+    protected void append_fields_to (StringBuilder builder) {
         if (!this.loaded) {
             builder.append ("fields_not_loaded");
         } else {
-            builder.append_printf ("offset %lld, pid %d (0x%x),sync %02x",
+            builder.append_printf ("offset %lld, pid %d (0x%x),sync %02x, flags[",
                                    this.source_offset, this.pid,this.pid,
                                    this.sync_byte);
+            bool first = true;
             if (this.transport_error_indicator) {
-                builder.append (",ERR");
+                builder.append ("ERR");
+                first = false;
             }
             if (this.payload_unit_start_indicator) {
-                builder.append (",PUSI");
+                if (!first) builder.append_c ('+');
+                builder.append ("PUSI");
+                first = false;
             }
             if (this.transport_priority) {
-                builder.append (",PRI");
+                if (!first) builder.append_c ('+');
+                builder.append ("PRI");
             }
+            builder.append_c (']');
             if (this.transport_scrambling_control != 0) {
                 builder.append_printf (",scram %x", 
                                        this.transport_scrambling_control);
@@ -192,9 +206,8 @@ public class Rygel.MP2TSPacket {
                 builder.append (this.adaptation_field.to_string ());
             }
         }
-        builder.append_c (']');
-        return builder.str;
     }
+
     protected class MP2TSAdaptationField {
         public uint8 adaptation_field_length;
         public bool discontinuity_indicator;
@@ -292,16 +305,28 @@ public class Rygel.MP2TSPacket {
 
         public string to_string () {
             var builder = new StringBuilder ("adaptation[");
-            builder.append_printf ("len %d",this.adaptation_field_length);
+            append_fields_to (builder);
+            builder.append_c (']');
+            return builder.str;
+        }
+
+        protected void append_fields_to (StringBuilder builder) {
+            builder.append_printf ("len %d, flags[",this.adaptation_field_length);
+            bool first = true;
             if (this.discontinuity_indicator) {
-                builder.append (",DIS");
+                builder.append ("DIS");
+                first = false;
             }
             if (this.random_access_indicator) {
-                builder.append (",RAN");
+                if (!first) builder.append_c ('+');
+                builder.append ("RAN");
+                first = false;
             }
             if (this.elementary_stream_priority_indicator) {
-                builder.append (",PRI");
+                if (!first) builder.append_c ('+');
+                builder.append (" PRI");
             }
+            builder.append_c (']');
             if (this.pcr_flag) {
                 try {
                     var pcr = get_pcr ();
@@ -327,9 +352,8 @@ public class Rygel.MP2TSPacket {
                 builder.append_c (',');
                 builder.append (this.adaptation_field_ext.to_string ());
             }
-            builder.append_c (']');
-            return builder.str;
         }
+
         protected class MP2TSAdaptationFieldExt {
             public uint8 adaptation_field_ext_length;
             public bool ltw_flag;
@@ -397,6 +421,12 @@ public class Rygel.MP2TSPacket {
 
             public string to_string () {
                 var builder = new StringBuilder ("adaptation-ext[");
+                append_fields_to (builder);
+                builder.append_c (']');
+                return builder.str;
+            }
+
+            protected void append_fields_to (StringBuilder builder) {
                 builder.append_printf ("len %d",this.adaptation_field_ext_length);
                 if (this.ltw_flag) {
                     builder.append_printf (",ltw_valid %s, ltw_offset %d",
@@ -409,8 +439,6 @@ public class Rygel.MP2TSPacket {
                 if (this.seamless_splice_flag) {
                     builder.append_printf (",splice_type %d,", this.splice_type);
                 }
-                builder.append_c (']');
-                return builder.str;
             }
         } // END class MP2TSAdaptationFieldExt 
     } // END class MP2TSAdaptationField
