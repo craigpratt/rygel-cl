@@ -279,8 +279,9 @@ public class Rygel.MP2TSPacket {
             // debug ("adaptation field length: %d", this.adaptation_field_length);
             // debug ("bytes consumed: %lld", bytes_consumed);
             if (bytes_consumed > this.adaptation_field_length+1) {
-                throw new IOError.FAILED ("Found %d bytes in adaptation field of %d bytes",
-                                          bytes_consumed, this.adaptation_field_length+1);
+                throw new IOError.FAILED ("Found %d bytes in adaptation field of %d bytes: %s",
+                                          bytes_consumed, this.adaptation_field_length+1,
+                                          to_string ());
             }
             uint8 padding_bytes = this.adaptation_field_length+1 - bytes_consumed;
             instream.skip_bytes (padding_bytes);
@@ -395,7 +396,7 @@ public class Rygel.MP2TSPacket {
                 if (this.seamless_splice_flag) {
                     var ss_field_1 = instream.read_byte ();
                     this.splice_type = (uint8)Bits.getbits_8 (ss_field_1, 4, 4);
-                    this.dts_next_au = Bits.getbits_64 (ss_field_1, 1, 3) << 30;
+                    this.dts_next_au = Bits.getbits_8 (ss_field_1, 1, 3) << 30;
                     var ss_field_2 = instream.read_uint16 ();
                     this.dts_next_au |= Bits.getbits_16 (ss_field_2, 1, 15) << 15;
                     ss_field_2 = instream.read_uint16 ();
@@ -406,13 +407,16 @@ public class Rygel.MP2TSPacket {
                 // debug ("bytes consumed: %lld", bytes_consumed);
 
                 if (bytes_consumed > this.adaptation_field_ext_length+1) {
-                    throw new IOError.FAILED ("Found %d bytes in adaptation field extension of %d bytes",
+                    throw new IOError.FAILED ("Found %d bytes in adaptation field extension of %d bytes: %s",
                                               bytes_consumed, 
-                                              this.adaptation_field_ext_length+1);
+                                              this.adaptation_field_ext_length+1,
+                                              to_string ());
                 }
-                assert (bytes_consumed <= this.adaptation_field_ext_length+1);
+                if (bytes_consumed > this.adaptation_field_ext_length+1) {
+                    throw new IOError.FAILED ("Found %d bytes in adaptation field extension of %d bytes",
+                                              bytes_consumed, this.adaptation_field_ext_length+1);
+                }
                 uint8 padding_bytes = this.adaptation_field_ext_length+1 - bytes_consumed;
-                assert (padding_bytes >= 0);
                 instream.skip_bytes (padding_bytes);
                 bytes_consumed += padding_bytes;
 
@@ -443,6 +447,520 @@ public class Rygel.MP2TSPacket {
         } // END class MP2TSAdaptationFieldExt 
     } // END class MP2TSAdaptationField
 } // END class MP2TSPacket
+
+public class Rygel.MP2PESPacket {
+    /**
+     * indicates that each sample has its own flags, otherwise the default is used.
+     */
+    public const uint8 STREAM_ID_PSM = 0xBC;
+    public const uint8 STREAM_ID_PRIVATE_1 = 0xBD;
+    public const uint8 STREAM_ID_PADDING = 0xBE;
+    public const uint8 STREAM_ID_PRIVATE_2 = 0xBF;
+    public const uint8 STREAM_ID_ECM = 0xF0;
+    public const uint8 STREAM_ID_EMM = 0xF1;
+    public const uint8 STREAM_ID_DSMCC = 0xF2;
+    public const uint8 STREAM_ID_ISO13522 = 0xF3;
+    public const uint8 STREAM_ID_H222_A = 0xF4;
+    public const uint8 STREAM_ID_H222_B = 0xF5;
+    public const uint8 STREAM_ID_H222_C = 0xF6;
+    public const uint8 STREAM_ID_H222_D = 0xF7;
+    public const uint8 STREAM_ID_H222_E = 0xF8;
+    public const uint8 STREAM_ID_ANCILLARY = 0xF9;
+    public const uint8 STREAM_ID_ISO14496_SL = 0xFA;
+    public const uint8 STREAM_ID_ISO14496_FLEXMUX = 0xFB;
+    public const uint8 STREAM_ID_PSD = 0xFF;
+    public const uint8 STREAM_ID_AUDIO = 0xC0;
+    public const uint8 STREAM_ID_AUDIO_MASK = 0xE0;
+    public const uint8 STREAM_ID_VIDEO = 0xE0;
+    public const uint8 STREAM_ID_VIDEO_MASK = 0xF0;
+
+    public static string stream_id_to_string (uint8 stream_id) {
+        switch (stream_id) {
+            case STREAM_ID_PSM:
+                return "PSM";
+            case STREAM_ID_PRIVATE_1:
+                return "private_1";
+            case STREAM_ID_PADDING:
+                return "padding";
+            case STREAM_ID_PRIVATE_2:
+                return "private 2";
+            case STREAM_ID_ECM:
+                return "ECM";
+            case STREAM_ID_EMM:
+                return "EMM";
+            case STREAM_ID_DSMCC:
+                return "DSMCC";
+            case STREAM_ID_ISO13522:
+                return "ISO13522";
+            case STREAM_ID_H222_A:
+                return "H222_A";
+            case STREAM_ID_H222_B:
+                return "H222_B";
+            case STREAM_ID_H222_C:
+                return "H222_C";
+            case STREAM_ID_H222_D:
+                return "H222_D";
+            case STREAM_ID_H222_E:
+                return "H222_E";
+            case STREAM_ID_ANCILLARY:
+                return "ancillary";
+            case STREAM_ID_ISO14496_SL:
+                return "ISO14496 SL";
+            case STREAM_ID_ISO14496_FLEXMUX:
+                return "ISO14496 FLEXMUX";
+            case STREAM_ID_PSD:
+                return "PSD";
+            default:
+                if ((stream_id & STREAM_ID_AUDIO_MASK) == STREAM_ID_AUDIO) {
+                    return "audio";
+                }
+                if ((stream_id & STREAM_ID_VIDEO_MASK) == STREAM_ID_VIDEO) {
+                    return "video";
+                }
+                
+                return "unknown";
+        }
+    }
+
+    public unowned ExtDataInputStream source_stream;
+    public uint64 source_offset;
+    public bool source_verbatim;
+
+    public uint32 start_code_prefix;
+    public uint8 stream_id;
+    public uint16 packet_length;
+    public MP2PESHeader pes_header;
+    public bool has_payload;
+    public uint8 payload_offset; // offset of the data portion of the TS packet
+
+    protected bool loaded; // Indicates the packet fields/children are populated/parsed
+
+    public MP2PESPacket () {
+    }
+
+    public MP2PESPacket.from_stream (ExtDataInputStream stream, uint64 offset)
+            throws Error {
+        this.source_stream = stream;
+        this.source_offset = offset;
+        this.source_verbatim = true;
+        this.loaded = false;
+    }
+
+    public virtual uint64 parse_from_stream () throws Error {
+        // debug ("parse_from_stream()", this.type_code);
+        // Note: This currently assumes the stream is pre-positioned for the PES packet
+        var instream = this.source_stream;
+
+        this.start_code_prefix = instream.read_bytes_uint32 (3);
+        this.stream_id = instream.read_byte ();
+        this.packet_length = instream.read_uint16 ();
+        uint8 bytes_consumed = 6;
+
+        if (!has_pes_header ()) {
+            this.pes_header = null;
+        } else {
+            this.pes_header = new MP2PESHeader ();
+            bytes_consumed += this.pes_header.parse_from_stream (instream);
+        }
+        this.has_payload = this.stream_id != STREAM_ID_PADDING;
+        this.payload_offset = bytes_consumed;
+        instream.skip_bytes (this.packet_length + 6 - bytes_consumed);
+
+        this.source_verbatim = false;
+        this.loaded = true;
+
+        return this.packet_length;
+    }
+    
+    public bool is_audio () {
+        return ((this.stream_id & STREAM_ID_AUDIO_MASK) == STREAM_ID_AUDIO);
+    }
+    
+    public bool is_video () {
+        return ((this.stream_id & STREAM_ID_VIDEO_MASK) == STREAM_ID_VIDEO);
+    }
+
+    public bool has_pes_header () {
+        switch (this.stream_id) {
+            case STREAM_ID_PSM:
+            case STREAM_ID_PADDING:
+            case STREAM_ID_PRIVATE_2:
+            case STREAM_ID_ECM:
+            case STREAM_ID_EMM:
+            case STREAM_ID_PSD:
+            case STREAM_ID_DSMCC:
+            case STREAM_ID_H222_E:
+                return false;
+            default:
+                return true;
+        }
+    }
+   
+    public string to_string () {
+        var builder = new StringBuilder ("MP2PESPacket[");
+        append_fields_to (builder);
+        builder.append_c (']');
+        return builder.str;
+    }
+
+    protected void append_fields_to (StringBuilder builder) {
+        if (!this.loaded) {
+            builder.append ("fields_not_loaded");
+        } else {
+            builder.append_printf ("offset %lld,stream_id %d (0x%x) (%s),length %d (0x%x),",
+                                   this.source_offset, 
+                                   this.stream_id, this.stream_id,
+                                   stream_id_to_string (this.stream_id),
+                                   this.packet_length, this.packet_length);
+            if (this.pes_header != null) {
+                builder.append_c (',');
+                this.pes_header.append_fields_to (builder);
+            }
+        }
+    }
+
+    public class MP2PESHeader {
+        public uint8 scrambling_control;
+        public bool priority;
+        public bool data_alignment_indicator;
+        public bool copyright;
+        public bool original_or_copy;
+        public bool pts_flag;
+        public bool dts_flag;
+        public bool escr_flag;
+        public bool es_rate_flag;
+        public bool dsm_trick_mode_flag;
+        public bool additional_copy_info_flag;
+        public bool crc_flag;
+        public bool extension_flag;
+        public uint8 header_data_length;
+        public uint64 pts;
+        public uint64 dts;
+        public uint64 escr_base;
+        public uint16 escr_ext;
+        public uint32 es_rate;
+        public uint8 dsm_trick_mode;
+        public uint8 additional_copy_info;
+        public uint16 previous_packet_crc;
+        public MP2PESExtension extension;
+        
+        public MP2PESHeader () {
+        }
+
+        public uint8 parse_from_stream (ExtDataInputStream instream)
+                throws Error {
+            var octet_1 = instream.read_byte ();
+            this.scrambling_control = Bits.getbits_8 (octet_1, 4, 2);
+            this.priority = Bits.getbit_8 (octet_1, 3);
+            this.data_alignment_indicator = Bits.getbit_8 (octet_1, 2);
+            this.copyright = Bits.getbit_8 (octet_1, 1);
+            this.original_or_copy = Bits.getbit_8 (octet_1, 0);
+
+            var octet_2 = instream.read_byte ();
+            this.pts_flag = Bits.getbit_8 (octet_2, 7);
+            this.dts_flag = Bits.getbit_8 (octet_2, 6);
+            this.escr_flag = Bits.getbit_8 (octet_2, 5);
+            this.es_rate_flag = Bits.getbit_8 (octet_2, 4);
+            this.dsm_trick_mode_flag = Bits.getbit_8 (octet_2, 3);
+            this.additional_copy_info_flag = Bits.getbit_8 (octet_2, 2);
+            this.crc_flag = Bits.getbit_8 (octet_2, 1);
+            this.extension_flag = Bits.getbit_8 (octet_2, 0);
+            
+            this.header_data_length = instream.read_byte ();
+            
+            uint8 bytes_consumed = 3;
+
+            if (this.pts_flag) {
+                var pts_field_1 = instream.read_byte ();
+                this.pts = Bits.getbits_8 (pts_field_1, 1, 3) << 30;
+                var pts_field_2 = instream.read_uint16 ();
+                this.pts |= Bits.getbits_16 (pts_field_2, 1, 15) << 15;
+                pts_field_2 = instream.read_uint16 ();
+                this.pts |= Bits.getbits_16 (pts_field_2, 1, 15);
+                bytes_consumed += 5;
+            }
+            if (this.dts_flag) {
+                var dts_field_1 = instream.read_byte ();
+                this.dts = Bits.getbits_8 (dts_field_1, 1, 3) << 30;
+                var dts_field_2 = instream.read_uint16 ();
+                this.dts |= Bits.getbits_16 (dts_field_2, 1, 15) << 15;
+                dts_field_2 = instream.read_uint16 ();
+                this.dts |= Bits.getbits_16 (dts_field_2, 1, 15);
+                bytes_consumed += 5;
+            }
+            if (this.escr_flag) {
+                var escr_fields = instream.read_bytes_uint64 (6); // 48 bits
+                this.escr_base = Bits.getbits_64 (escr_fields, 43, 3) << 30;
+                this.escr_base |= Bits.getbits_64 (escr_fields, 27, 15) << 15;
+                this.escr_base |= Bits.getbits_64 (escr_fields, 11, 15);
+                this.escr_ext = (uint16)Bits.getbits_64 (escr_fields, 1, 9);
+                bytes_consumed += 6;
+            }
+            if (this.es_rate_flag) {
+                this.es_rate = Bits.getbits_16 (instream.read_uint16 (), 1, 22);
+                bytes_consumed += 2;
+            }
+            if (this.dsm_trick_mode_flag) {
+                this.dsm_trick_mode = instream.read_byte ();
+            }
+            if (this.additional_copy_info_flag) {
+                this.additional_copy_info 
+                        = Bits.getbits_8 (instream.read_byte (), 0, 7);
+                bytes_consumed += 1;
+            }
+            if (this.crc_flag) {
+                this.previous_packet_crc = instream.read_uint16 ();
+                bytes_consumed += 2;
+            }
+            if (this.extension_flag) {
+                this.extension = new MP2PESExtension ();
+                bytes_consumed += this.extension.parse_from_stream (instream);
+            }
+
+            if (bytes_consumed > this.header_data_length+3) {
+                throw new IOError.FAILED ("Found %d bytes in PES extension of %d bytes: %s",
+                                          bytes_consumed, this.header_data_length+3,
+                                          to_string ());
+            }
+            uint8 stuffing_bytes = this.header_data_length+3 - bytes_consumed;
+            instream.skip_bytes (stuffing_bytes);
+            bytes_consumed += stuffing_bytes;
+
+            return bytes_consumed;
+        }
+
+        public uint64 get_escr () throws Error {
+            if (!this.escr_flag) {
+                throw new IOError.FAILED ("No ESCR found in PES header");
+            } 
+            return (this.escr_base*300 + this.escr_ext);
+        }
+
+        
+        public string to_string () {
+            var builder = new StringBuilder ("MP2PESHeader[");
+            append_fields_to (builder);
+            builder.append_c (']');
+            return builder.str;
+        }
+
+        public void append_fields_to (StringBuilder builder) {
+            builder.append_printf ("scram %d,flags[", this.scrambling_control);
+            bool first = true;
+            if (this.priority) {
+                builder.append ("PRI");
+                first = false;
+            }
+            if (this.data_alignment_indicator) {
+                if (!first) builder.append_c ('+');
+                builder.append ("ALIGN");
+                first = false;
+            }
+            if (this.copyright) {
+                if (!first) builder.append_c ('+');
+                builder.append ("CR");
+                first = false;
+            }
+            if (this.original_or_copy) {
+                if (!first) builder.append_c ('+');
+                builder.append ("COPY");
+                first = false;
+            }
+            if (this.pts_flag) {
+                if (!first) builder.append_c ('+');
+                builder.append ("PTS");
+                first = false;
+            }
+            if (this.dts_flag) {
+                if (!first) builder.append_c ('+');
+                builder.append ("DTS");
+                first = false;
+            }
+            if (this.escr_flag) {
+                if (!first) builder.append_c ('+');
+                builder.append ("ESCR");
+                first = false;
+            }
+            if (this.es_rate_flag) {
+                if (!first) builder.append_c ('+');
+                builder.append ("ESRATE");
+                first = false;
+            }
+            if (this.dsm_trick_mode_flag) {
+                if (!first) builder.append_c ('+');
+                builder.append ("DSMTRICK");
+                first = false;
+            }
+            if (this.additional_copy_info_flag) {
+                if (!first) builder.append_c ('+');
+                builder.append ("ADDCOPY");
+                first = false;
+            }
+            if (this.crc_flag) {
+                if (!first) builder.append_c ('+');
+                builder.append ("CRC");
+                first = false;
+            }
+            if (this.extension_flag) {
+                if (!first) builder.append_c ('+');
+                builder.append ("EXT");
+            }
+            builder.append_c (']');
+
+            if (this.pts_flag) {
+                builder.append_printf (",pts %lld (0x%llx)", this.pts, this.pts);
+            }
+            if (this.dts_flag) {
+                builder.append_printf (",dts %lld (0x%llx)", this.dts, this.dts);
+            }
+            if (this.escr_flag) {
+                try {
+                    var escr = get_escr ();
+                    builder.append_printf (",escr_%lld (0x%llx)", escr, escr);
+                } catch (Error err) {}
+            }
+            if (this.es_rate_flag) {
+                builder.append_printf (",es_Rate %ld (0x%lx)", this.es_rate, this.es_rate);
+            }
+            if (this.dsm_trick_mode_flag) {
+                builder.append_printf ("dsmcc_trick 0x%x", this.dsm_trick_mode);
+            }
+            if (this.additional_copy_info_flag) {
+                builder.append_printf (",add_copy %d (0x%x)", 
+                                       this.additional_copy_info,  
+                                       this.additional_copy_info);
+            }
+            if (this.crc_flag) {
+                builder.append_printf (",prev_pes_crc %d (0x%x)", 
+                                       this.previous_packet_crc,  
+                                       this.previous_packet_crc);
+            }
+            if (this.extension_flag) {
+                builder.append_c (',');
+                this.extension.append_fields_to (builder);
+            }
+        }
+
+        public class MP2PESExtension {
+            public bool private_data_flag;
+            public bool pack_header_field_flag;
+            public bool program_packet_sequence_counter_flag;
+            public bool p_std_buffer_flag;
+            public bool extension_flag_2;
+            public uint8 private_data[];
+            public uint8 pack_field_length;
+            public uint8 pack_header[];
+            public uint8 program_packet_sequence_counter;
+            public bool mpeg1_mpeg2_identifier;
+            public uint8 original_stuff_length;
+            public bool p_std_buffer_scale;
+            public uint16 p_std_buffer_size;
+            public uint8 extension_field_length;
+
+            public MP2PESExtension () {
+            }
+
+            public uint8 parse_from_stream (ExtDataInputStream instream)
+                    throws Error {
+                var octet_1 = instream.read_byte ();
+                this.private_data_flag = Bits.getbit_8 (octet_1, 7);
+                this.pack_header_field_flag = Bits.getbit_8 (octet_1, 6);
+                this.program_packet_sequence_counter_flag = Bits.getbit_8 (octet_1, 5);
+                this.p_std_buffer_flag = Bits.getbit_8 (octet_1, 4);
+                this.extension_flag_2 = Bits.getbit_8 (octet_1, 0);
+
+                uint8 bytes_consumed = 1;
+
+                if (this.private_data_flag) {
+                    instream.skip_bytes (16); // 128 bits
+                    bytes_consumed += 16;
+                }
+                if (this.pack_header_field_flag) {
+                    this.pack_field_length = instream.read_byte ();
+                    instream.skip_bytes (this.pack_field_length); // TODO: pack_header()
+                    bytes_consumed += this.pack_field_length + 1;
+                }
+                if (this.program_packet_sequence_counter_flag) {
+                    var ppsc_fields = instream.read_uint16 ();
+                    this.program_packet_sequence_counter 
+                            = (uint8)Bits.getbits_16 (ppsc_fields, 8, 7);
+                    this.mpeg1_mpeg2_identifier = Bits.getbit_16 (ppsc_fields, 6);
+                    this.original_stuff_length 
+                            = (uint8)Bits.getbits_16 (ppsc_fields, 0, 6);
+                    bytes_consumed += 6;
+                }
+                if (this.p_std_buffer_flag) {
+                    var pstdb_fields = instream.read_uint16 ();
+                    this.p_std_buffer_scale = Bits.getbit_16 (pstdb_fields, 13);
+                    this.p_std_buffer_size = Bits.getbits_16 (pstdb_fields, 0, 13);
+                    bytes_consumed += 2;
+                }
+                if (this.extension_flag_2) {
+                    this.extension_field_length 
+                            = Bits.getbits_8 (instream.read_byte (), 0, 7);
+                    instream.skip_bytes (this.extension_field_length);
+                    bytes_consumed += this.extension_field_length + 1;
+                }
+
+                return bytes_consumed;
+            }
+            
+            public string to_string () {
+                var builder = new StringBuilder ("MP2PESExtension[");
+                append_fields_to (builder);
+                builder.append_c (']');
+                return builder.str;
+            }
+            public void append_fields_to (StringBuilder builder) {
+                builder.append ("flags[");
+                bool first = true;
+                if (this.private_data_flag) {
+                    builder.append ("PRIV");
+                    first = false;
+                }
+                if (this.pack_header_field_flag) {
+                    if (!first) builder.append_c ('+');
+                    builder.append ("PACK");
+                    first = false;
+                }
+                if (this.program_packet_sequence_counter_flag) {
+                    if (!first) builder.append_c ('+');
+                    builder.append ("SEQ_COUNT");
+                    first = false;
+                }
+                if (this.p_std_buffer_flag) {
+                    if (!first) builder.append_c ('+');
+                    builder.append ("STD_BUF");
+                    first = false;
+                }
+                if (this.extension_flag_2) {
+                    if (!first) builder.append_c ('+');
+                    builder.append ("EXT2");
+                }
+                builder.append_c (']');
+
+                if (this.pack_header_field_flag) {
+                    builder.append_printf (",pack_field_len %d", this.pack_field_length);
+                }
+                if (this.program_packet_sequence_counter_flag) {
+                    builder.append_printf (",seq_counter %d,mpeg1/2_id %s,orig_stuff_len %d", 
+                                           this.program_packet_sequence_counter,
+                                           this.mpeg1_mpeg2_identifier ? "1" : "0",
+                                           this.original_stuff_length);
+                }
+                if (this.p_std_buffer_flag) {
+                    builder.append_printf (",buf_scale %s,buf_size %d", 
+                                           this.p_std_buffer_scale ? "1" : "0",
+                                           this.p_std_buffer_size);
+                }
+                if (this.extension_flag_2) {
+                    builder.append_printf (",ext_2_len %d",
+                                           this.extension_field_length);
+                }
+            }
+        } // END class MP2PESExtension
+    } // END class MP2PESHeader
+} // END class MP2PESPacket
 
 // For 192-byte TS packets
 public class Rygel.TimestampedMP2TSPacket : MP2TSPacket {
