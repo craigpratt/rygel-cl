@@ -323,6 +323,26 @@ public class Rygel.ExtDataOutputStream : DataOutputStream {
         put_uint16 ((uint16)(val * 256));
     }
 
+    public void put_bytes_uint64 (uint64 val, uint count) throws Error {
+        if (count > 8) {
+            throw new IOError.FAILED ("Cannot write %u bytes from a uint64".printf(count));
+        }
+        for (int8 i=(int8)count-1; count >= 0; i--) {
+            uint8 byte = (uint8)(val >> i*8);
+            put_byte (byte);
+        }
+    }
+
+    public void put_bytes_uint32 (uint32 val, uint count) throws Error {
+        if (count > 4) {
+            throw new IOError.FAILED ("Cannot write %u bytes from a uint32".printf(count));
+        }
+        for (int8 i=(int8)count-1; count >= 0; i--) {
+            uint8 byte = (uint8)(val >> i*8);
+            put_byte (byte);
+        }
+    }
+
     public void put_packed_language_code (string language) throws Error {
         uint16 packed_language = 0;
         packed_language |= (language.data[2] - 0x60);

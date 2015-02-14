@@ -178,7 +178,7 @@ public class Rygel.MP2TSPacket {
         if (!this.loaded) {
             builder.append ("fields_not_loaded");
         } else {
-            builder.append_printf ("offset %lld, pid %d (0x%x),sync %02x, flags[",
+            builder.append_printf ("offset %lld,pid %d (0x%x),sync %02x,flags[",
                                    this.source_offset, this.pid,this.pid,
                                    this.sync_byte);
             bool first = true;
@@ -201,6 +201,9 @@ public class Rygel.MP2TSPacket {
                                        this.transport_scrambling_control);
             }
             builder.append_printf (",cc %d", this.continuity_counter);
+            if (this.has_payload) {
+                builder.append_printf (",payload_offset %d", this.payload_offset);
+            }
             if (this.adaptation_field != null) {
                 builder.append_c (',');
                 builder.append (this.adaptation_field.to_string ());
@@ -526,7 +529,6 @@ public class Rygel.MP2PESPacket {
     public uint64 source_offset;
     public bool source_verbatim;
 
-    public uint32 start_code_prefix;
     public uint8 stream_id;
     public uint16 packet_length;
     public MP2PESHeader pes_header;
@@ -551,7 +553,13 @@ public class Rygel.MP2PESPacket {
         // Note: This currently assumes the stream is pre-positioned for the PES packet
         var instream = this.source_stream;
 
-        this.start_code_prefix = instream.read_bytes_uint32 (3);
+        var start_code_prefix = instream.read_bytes_uint32 (3);
+        
+        if (start_code_prefix != 0x000001) {
+            throw new IOError.FAILED ("PES start code mismatch: 0x%x",
+                                      start_code_prefix);
+        }
+        
         this.stream_id = instream.read_byte ();
         this.packet_length = instream.read_uint16 ();
         uint8 bytes_consumed = 6;
@@ -564,6 +572,11 @@ public class Rygel.MP2PESPacket {
         }
         this.has_payload = this.stream_id != STREAM_ID_PADDING;
         this.payload_offset = bytes_consumed;
+        if (bytes_consumed > this.packet_length+6) {
+            throw new IOError.FAILED ("Found %d bytes in PES packet of %d bytes: %s",
+                                      bytes_consumed, this.packet_length+6,
+                                      to_string ());
+        }
         instream.skip_bytes (this.packet_length + 6 - bytes_consumed);
 
         this.source_verbatim = false;
@@ -607,11 +620,14 @@ public class Rygel.MP2PESPacket {
         if (!this.loaded) {
             builder.append ("fields_not_loaded");
         } else {
-            builder.append_printf ("offset %lld,stream_id %d (0x%x) (%s),length %d (0x%x),",
+            builder.append_printf ("offset %lld,stream_id %d (0x%x) (%s),length %d (0x%x)",
                                    this.source_offset, 
                                    this.stream_id, this.stream_id,
                                    stream_id_to_string (this.stream_id),
                                    this.packet_length, this.packet_length);
+            if (this.has_payload) {
+                builder.append_printf ("payload_offset %lld", this.payload_offset);
+            }
             if (this.pes_header != null) {
                 builder.append_c (',');
                 this.pes_header.append_fields_to (builder);
@@ -702,6 +718,7 @@ public class Rygel.MP2PESPacket {
             }
             if (this.dsm_trick_mode_flag) {
                 this.dsm_trick_mode = instream.read_byte ();
+                bytes_consumed += 1;
             }
             if (this.additional_copy_info_flag) {
                 this.additional_copy_info 
@@ -847,9 +864,9 @@ public class Rygel.MP2PESPacket {
             public bool program_packet_sequence_counter_flag;
             public bool p_std_buffer_flag;
             public bool extension_flag_2;
-            public uint8 private_data[];
+            public ByteArray private_data;
             public uint8 pack_field_length;
-            public uint8 pack_header[];
+            public ByteArray pack_header; // TODO
             public uint8 program_packet_sequence_counter;
             public bool mpeg1_mpeg2_identifier;
             public uint8 original_stuff_length;
@@ -969,7 +986,7 @@ public class Rygel.TimestampedMP2TSPacket : MP2TSPacket {
 
 class Rygel.MP2ParsingTest : GLib.Object {
     // Can compile/run this with:
-    // valac --main=Rygel.MP2ParsingTest.mp2_test --disable-warnings --pkg gio-2.0 --pkg gee-0.8 --pkg posix -g  --target-glib=2.32 --disable-warnings  "odid-mp2-parser.vala" odid-stream-ext.vala 
+    // valac --main=Rygel.MP2ParsingTest.mp2_test --disable-warnings --pkg gio-2.0 --pkg gee-0.8 --pkg posix -g  --target-glib=2.32 "odid-mp2-parser.vala" odid-stream-ext.vala 
     public static int mp2_test (string[] args) {
         int MICROS_PER_SEC = 1000000;
         try {
