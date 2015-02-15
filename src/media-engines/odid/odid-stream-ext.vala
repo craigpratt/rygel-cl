@@ -29,7 +29,7 @@
 
 using Gee;
 
-public class Rygel.Bits {    
+public class Rygel.Bits {
     public static uint64 getbits_64 (uint64 target, uint offset, uint width) 
             throws Error {
         if (offset+width > 64) {
@@ -46,6 +46,12 @@ public class Rygel.Bits {
         return  (target & bitmask) >> offset;
     }
 
+    public static uint64 readbits_64 (Rygel.ExtDataInputStream instream, 
+                                     uint offset, uint width) 
+            throws Error {
+        return getbits_64 (instream.read_uint64 (), offset, width);
+    }
+
     public static bool getbit_64 (uint64 target, uint offset) throws Error {
         if (offset >= 64) {
             throw new IOError.FAILED ("Attempt to access bit %u in 64-bit field"
@@ -53,6 +59,12 @@ public class Rygel.Bits {
         }
         uint64 bitmask = 1 << offset;
         return (target & bitmask) == bitmask;
+    }
+
+    public static bool readbit_64 (Rygel.ExtDataInputStream instream, 
+                                     uint offset) 
+            throws Error {
+        return getbit_64 (instream.read_uint64 (), offset);
     }
 
     public static uint32 getbits_32 (uint32 target, uint offset, uint width) 
@@ -70,6 +82,12 @@ public class Rygel.Bits {
         return  (target & bitmask) >> offset;
     }
 
+    public static uint32 readbits_32 (Rygel.ExtDataInputStream instream, 
+                                     uint offset, uint width) 
+            throws Error {
+        return getbits_32 (instream.read_uint32 (), offset, width);
+    }
+
     public static bool getbit_32 (uint32 target, uint offset) throws Error {
         if (offset >= 32) {
             throw new IOError.FAILED ("Attempt to access bit %u in 32-bit field"
@@ -77,6 +95,12 @@ public class Rygel.Bits {
         }
         uint64 bitmask = 1 << offset;
         return (target & bitmask) == bitmask;
+    }
+
+    public static bool readbit_32 (Rygel.ExtDataInputStream instream, 
+                                     uint offset) 
+            throws Error {
+        return getbit_32 (instream.read_uint32 (), offset);
     }
 
     public static uint16 getbits_16 (uint16 target, uint offset, uint width) 
@@ -94,6 +118,12 @@ public class Rygel.Bits {
         return  (uint16)((target & bitmask) >> offset);
     }
 
+    public static uint16 readbits_16 (Rygel.ExtDataInputStream instream, 
+                                      uint offset, uint width) 
+            throws Error {
+        return getbits_16 (instream.read_uint16 (), offset, width);
+    }
+
     public static bool getbit_16 (uint16 target, uint offset) throws Error {
         if (offset >= 16) {
             throw new IOError.FAILED ("Attempt to access bit %u in 16-bit field"
@@ -101,6 +131,12 @@ public class Rygel.Bits {
         }
         uint64 bitmask = 1 << offset;
         return (target & bitmask) == bitmask;
+    }
+
+    public static bool readbit_16 (Rygel.ExtDataInputStream instream, 
+                                      uint offset) 
+            throws Error {
+        return getbit_16 (instream.read_uint16 (), offset);
     }
 
     public static uint8 getbits_8 (uint8 target, uint offset, uint width) 
@@ -118,6 +154,12 @@ public class Rygel.Bits {
         return  (uint8)((target & bitmask) >> offset);
     }
 
+    public static uint8 readbits_8 (Rygel.ExtDataInputStream instream, 
+                                     uint offset, uint width) 
+            throws Error {
+        return getbits_8 (instream.read_byte (), offset, width);
+    }
+
     public static bool getbit_8 (uint8 target, uint offset) throws Error {
         if (offset >= 8) {
             throw new IOError.FAILED ("Attempt to access bit %u in 8-bit field"
@@ -125,6 +167,12 @@ public class Rygel.Bits {
         }
         uint64 bitmask = 1 << offset;
         return (target & bitmask) == bitmask;
+    }
+
+    public static bool readbit_8 (Rygel.ExtDataInputStream instream, 
+                                    uint offset) 
+            throws Error {
+        return getbit_8 (instream.read_byte (), offset);
     }
 }
 
