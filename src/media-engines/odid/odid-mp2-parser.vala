@@ -533,6 +533,43 @@ public class Rygel.MP2Table {
     public bool sections_aquired () {
         return this.all_sections_acquired;
     }
+
+    public virtual string to_string () {
+        var builder = new StringBuilder ("MP2Table[");
+        append_fields_to (builder);
+        builder.append_c (']');
+        return builder.str;
+    }
+
+    public virtual void append_fields_to (StringBuilder builder) {
+        builder.append_printf ("version %u,num_sections %u,sections:[",
+                               this.version_number, this.total_sections);
+        uint num=1;
+        foreach (var section in this.section_list) {
+            builder.append_printf ("%u:[",num++);
+            section.append_fields_to (builder);
+            builder.append ("],");
+        }
+        builder.truncate (builder.len-1);
+        builder.append_c (']');
+    }
+
+    public virtual void sections_to_printer (MP2TransportStream.LinePrinter printer, 
+                                    string prefix, string table_name) {
+        printer ("%s%s: version %u,num_sections %u"
+                 .printf (prefix, table_name, this.version_number, 
+                          this.total_sections));
+        uint index=1;
+        foreach (var section in this.section_list) {
+            printer ("%s   Section %u: ".printf (prefix, index++));
+            section.to_printer (printer, prefix + "      ");;
+        }
+    }
+
+    public virtual void to_printer (MP2TransportStream.LinePrinter printer, 
+                                    string prefix) {
+        sections_to_printer (printer, prefix, "MP2Table");
+    }
 } // END class MP2Table
 
 public abstract class Rygel.MP2Section {
@@ -541,6 +578,22 @@ public abstract class Rygel.MP2Section {
     public bool source_verbatim;
     protected bool loaded; // Indicates the packet fields/children are populated/parsed
     public uint16 section_length;
+
+    public virtual string to_string () {
+        var builder = new StringBuilder ("MP2TSPacket[");
+        append_fields_to (builder);
+        builder.append_c (']');
+        return builder.str;
+    }
+
+    public virtual void append_fields_to (StringBuilder builder) {
+        builder.append_printf ("offset %lld,length %lld",
+                               this.source_offset, this.section_length);
+    }
+
+    public virtual void to_printer (MP2TransportStream.LinePrinter printer, string prefix) {
+        printer ("%s%s".printf (prefix,this.to_string ()));
+    }
 } // END class MP2Section
 
 public abstract class Rygel.MP2TableSection : MP2Section {
@@ -565,6 +618,18 @@ public class Rygel.MP2PATSection : MP2TableSection {
             this.program_number = instream.read_uint16 ();
             this.pid = Bits.readbits_16 (instream, 0, 13);
             return 4;
+        }
+        public string to_string () {
+            var builder = new StringBuilder ("PATProgram[");
+            append_fields_to (builder);
+            builder.append_c (']');
+            return builder.str;
+        }
+
+        public void append_fields_to (StringBuilder builder) {
+            builder.append_printf ("program_num %u (0x%x),pmt_pid %d (0x%x)",
+                                   this.program_number, this.program_number,
+                                   this.pid, this.pid);
         }
     }
 
@@ -616,14 +681,14 @@ public class Rygel.MP2PATSection : MP2TableSection {
         return bytes_consumed;
     }
     
-    public string to_string () {
+    public override string to_string () {
         var builder = new StringBuilder ("MP2PATSection[");
         append_fields_to (builder);
         builder.append_c (']');
         return builder.str;
     }
 
-    protected void append_fields_to (StringBuilder builder) {
+    public override void append_fields_to (StringBuilder builder) {
         if (!this.loaded) {
             builder.append ("fields_not_loaded");
         } else {
@@ -632,45 +697,35 @@ public class Rygel.MP2PATSection : MP2TableSection {
                                    this.version_number, this.section_number,
                                    this.last_section_number);
             if ((this.program_list != null) && (this.program_list.size > 0)) {
-                uint num=1;
+                uint index=1;
                 foreach (var program in this.program_list) {
-                    builder.append_printf ("%u:[program %u (0x%x),pmt_pid %d (0x%x)],",
-                                           num++, program.program_number, 
-                                           program.program_number,
-                                           program.pid, program.pid);
+                    builder.append_printf ("%u:[", index++);
+                    program.append_fields_to (builder);
+                    builder.append ("],");
                 }
                 builder.truncate (builder.len-1);
             }
             builder.append_printf ("],crc 0x%x", this.crc);
         }
     }
+
+    public override void to_printer (MP2TransportStream.LinePrinter printer, 
+                                     string prefix) {
+        printer ("%sMP2PATSection: offset %llu,tsid %u (0x%x),version %u,sect_num %u of %u, crc 0x%x"
+                 .printf (prefix, this.source_offset, this.tsid, this.tsid,
+                          this.version_number, this.section_number,
+                          this.last_section_number, this.crc));
+        uint index=1;
+        foreach (var program in this.program_list) {
+            var builder = new StringBuilder ();
+            builder.append_printf ("%s   program %u: ", prefix, index++);
+            program.append_fields_to (builder);
+            printer (builder.str);
+        }
+    }
 } // END class Rygel.MP2PATSection
 
 public class Rygel.MP2PATTable : MP2Table {
-    public string to_string () {
-        var builder = new StringBuilder ("MP2PATTable[");
-        append_fields_to (builder);
-        builder.append_c (']');
-        return builder.str;
-    }
-
-    protected void append_fields_to (StringBuilder builder) {
-        builder.append_printf ("version %u,num_sections %u,programs:[",
-                               this.version_number, this.total_sections);
-        uint num=1;
-        foreach (var section in this.section_list) {
-            MP2PATSection pat_section = (MP2PATSection)section;
-            foreach (var program in pat_section.program_list) {
-                builder.append_printf ("%u:[program %u (0x%x),pmt_pid %d (0x%x)],",
-                                       num++, program.program_number, 
-                                       program.program_number,
-                                       program.pid, program.pid);
-            }
-        }
-        builder.truncate (builder.len-1);
-        builder.append_c (']');
-    }
-    
     public uint16 get_program_count () {
         uint16 total = 0;
         foreach (var section in this.section_list) {
@@ -679,6 +734,7 @@ public class Rygel.MP2PATTable : MP2Table {
         }
         return total;
     }
+
     public MP2PATSection.Program get_program_by_index (int index) throws Error {
         foreach (var section in this.section_list) {
             MP2PATSection pat_section = (MP2PATSection)section;
@@ -692,6 +748,10 @@ public class Rygel.MP2PATTable : MP2Table {
                                   this.to_string ());
     }
 
+    public override void to_printer (MP2TransportStream.LinePrinter printer, 
+                                    string prefix) {
+        sections_to_printer (printer, prefix, "PAT Table");
+    }
 } // END class MP2PATTable
 
 public class Rygel.MP2PMTSection : MP2TableSection {
@@ -741,20 +801,21 @@ public class Rygel.MP2PMTSection : MP2TableSection {
         }
 
         public void append_fields_to (StringBuilder builder) {
-            builder.append_printf ("stream_type %u (0x%x),pid %d (0x%x),desc:[",
+            builder.append_printf ("stream_type %u (0x%x),pid %d (0x%x)",
                                    this.stream_type, this.stream_type,
                                    this.pid, this.pid);
-            uint num=0;
+            uint num=1;
             if ((this.descriptor_list != null) 
                  && (this.descriptor_list.size > 0)) {
+                builder.append (",descriptors:[");
                 foreach (var desc in this.descriptor_list) {
                     builder.append_printf ("%u:[", num++);
                     desc.append_fields_to (builder);
                     builder.append ("],");
                 }
                 builder.truncate (builder.len-1);
+                builder.append_c (']');
             }
-            builder.append_c (']');
         }
     } // END class StreamInfo
 
@@ -835,18 +896,18 @@ public class Rygel.MP2PMTSection : MP2TableSection {
         return bytes_consumed;
     }
     
-    public string to_string () {
+    public override string to_string () {
         var builder = new StringBuilder ("MP2PMTSection[");
         append_fields_to (builder);
         builder.append_c (']');
         return builder.str;
     }
 
-    protected void append_fields_to (StringBuilder builder) {
+    public override void append_fields_to (StringBuilder builder) {
         if (!this.loaded) {
             builder.append ("fields_not_loaded");
         } else {
-            builder.append_printf ("offset %llu,program %u (0x%x),pcr_pid %u (0x%x),version %u,sect_num %u of %u,descriptors:[",
+            builder.append_printf ("offset %llu,program %u (0x%x),pcr_pid %u (0x%x),version %u,sect_num %u of %u",
                                    this.source_offset, this.program_number, 
                                    this.program_number, this.pcr_pid, 
                                    this.pcr_pid, this.version_number, 
@@ -855,12 +916,14 @@ public class Rygel.MP2PMTSection : MP2TableSection {
             uint num=1;
             if ((this.descriptor_list != null) 
                  && (this.descriptor_list.size > 0)) {
+                builder.append (",descriptors:[");
                 foreach (var descriptor in this.descriptor_list) {
                     builder.append_printf ("%u:[", num);
                     builder.append (descriptor.to_string ());
                     builder.append ("],");
                 }
                 builder.truncate (builder.len-1);
+                builder.append_c (']');
             }
             builder.append (",streams:[");
             if ((this.stream_info_list != null)
@@ -876,30 +939,49 @@ public class Rygel.MP2PMTSection : MP2TableSection {
             builder.append_printf ("],crc 0x%x", this.crc);
         }
     }
+
+    public override void to_printer (MP2TransportStream.LinePrinter printer, 
+                                     string prefix) {
+        printer ("%sMP2PMTSection: offset %llu,program %u (0x%x),pcr_pid %u (0x%x),version %u,sect_num %u of %u, crc 0x%x"
+                 .printf (prefix,this.source_offset, this.program_number, 
+                          this.program_number, this.pcr_pid, this.pcr_pid, 
+                          this.version_number, this.section_number, 
+                          this.last_section_number, this.crc));
+        uint index=1;
+        foreach (var stream_info in this.stream_info_list) {
+            var builder = new StringBuilder ();
+            builder.append_printf ("%s   estream %u: ", prefix, index++);
+            stream_info.append_fields_to (builder);
+            printer (builder.str);
+        }
+    }
 } // END class Rygel.MP2PMTSection
 
 public class Rygel.MP2PMTTable : MP2Table {
-    public string to_string () {
+    public override string to_string () {
         var builder = new StringBuilder ("MP2PMTTable[");
         append_fields_to (builder);
         builder.append_c (']');
         return builder.str;
     }
 
-    protected void append_fields_to (StringBuilder builder) {
+    protected override void append_fields_to (StringBuilder builder) {
         builder.append_printf ("version %u,num_sections %u,streams:[",
                                this.version_number, this.total_sections);
         uint num=1;
         foreach (var section in this.section_list) {
             MP2PMTSection pmt_section = (MP2PMTSection)section;
-            foreach (var stream_info in pmt_section.stream_info_list) {
-                builder.append_printf ("%u:[", num++);
-                stream_info.append_fields_to (builder);
-                builder.append ("],");
-            }
+            builder.append_printf ("%u:[",num++);
+            pmt_section.append_fields_to (builder);
+            builder.append ("],");
         }
         builder.truncate (builder.len-1);
         builder.append_c (']');
+    }
+
+    public override void to_printer (MP2TransportStream.LinePrinter printer, 
+                                    string prefix) {
+        sections_to_printer (printer, prefix, "PMT Table");
     }
 } // END class MP2PMTTable
 
@@ -961,7 +1043,7 @@ public class Rygel.MP2Descriptor {
         if (!this.loaded) {
             builder.append ("fields_not_loaded");
         } else {
-            builder.append_printf ("offset %llu, tag %u,len %u", 
+            builder.append_printf ("offset %llu,tag %u,len %u", 
                                    this.source_offset, this.tag, this.length);
         }
     }
@@ -1683,12 +1765,16 @@ class Rygel.MP2ParsingTest : GLib.Object {
                 mp2_file.parse_from_stream (num_packets);
                 stdout.printf ("\nPARSED INPUT FILE (%s levels):\n",
                                ((num_packets == 0) ? "all" : num_packets.to_string ()));
-                mp2_file.to_printer ( (l) => {stdout.puts (l); stdout.putc ('\n');}, "  ");
+                MP2TransportStream.LinePrinter my_printer 
+                        = (l) =>  {stdout.puts (l); stdout.putc ('\n');};
+                mp2_file.to_printer ( my_printer, "  ");
                 var pat = mp2_file.get_first_pat_table ();
-                stdout.printf ("\nFOUND PAT: %s\n", pat.to_string () );
+                stdout.printf ("\nFOUND PAT:\n");
+                pat.to_printer (my_printer, "   ");
                 var pmt_pid = pat.get_program_by_index (0).pid;
                 var pmt = mp2_file.get_first_pmt_table (pmt_pid);
-                stdout.printf ("\nFOUND PMT: %s\n", pmt.to_string () );
+                stdout.printf ("\nFOUND PMT ON PID %u:\n", pmt_pid);
+                pmt.to_printer (my_printer, "   ");
                 stdout.flush ();
             }
        } catch (Error err) {
