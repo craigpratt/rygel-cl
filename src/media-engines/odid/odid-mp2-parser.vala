@@ -100,8 +100,8 @@ public abstract class Rygel.MP2TransportStream {
                 }
             }
         }
-        throw new IOError.FAILED ("No PAT table found in %d packets",
-                                  this.ts_packets.size);
+        throw new IOError.FAILED ("No PMT table found on PID %u (0x%x) in %d packets",
+                                  pmt_pid, pmt_pid, this.ts_packets.size);
     }
     
     public virtual void to_printer (LinePrinter printer, string prefix) {
@@ -748,6 +748,14 @@ public class Rygel.MP2PATTable : MP2Table {
                                   this.to_string ());
     }
 
+    public Gee.List<MP2PATSection.Program> get_programs () throws Error {
+        var program_list = new Gee.ArrayList<MP2PATSection.Program> ();
+        foreach (var section in this.section_list) {
+            MP2PATSection pat_section = (MP2PATSection)section;
+            program_list.add_all (pat_section.program_list);
+        }
+        return program_list;
+    }
     public override void to_printer (MP2TransportStream.LinePrinter printer, 
                                     string prefix) {
         sections_to_printer (printer, prefix, "PAT Table");
@@ -1771,11 +1779,17 @@ class Rygel.MP2ParsingTest : GLib.Object {
                 var pat = mp2_file.get_first_pat_table ();
                 stdout.printf ("\nFOUND PAT:\n");
                 pat.to_printer (my_printer, "   ");
-                var pmt_pid = pat.get_program_by_index (0).pid;
-                var pmt = mp2_file.get_first_pmt_table (pmt_pid);
-                stdout.printf ("\nFOUND PMT ON PID %u:\n", pmt_pid);
-                pmt.to_printer (my_printer, "   ");
-                stdout.flush ();
+                foreach (var program in pat.get_programs ()) {
+                    try {
+                        var pmt = mp2_file.get_first_pmt_table (program.pid);
+                        stdout.printf ("\nFOUND PMT ON PID %u:\n", program.pid);
+                        pmt.to_printer (my_printer, "   ");
+                        stdout.flush ();
+                    } catch (Error err) {
+                        error ("Error getting PMT for %s: %s", 
+                               program.to_string (), err.message);
+                    }
+                }
             }
        } catch (Error err) {
             error ("Error: %s", err.message);
