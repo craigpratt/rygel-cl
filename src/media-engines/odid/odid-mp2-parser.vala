@@ -83,6 +83,26 @@ public abstract class Rygel.MP2TransportStream {
         throw new IOError.FAILED ("No PAT table found in %d packets",
                                   this.ts_packets.size);
     }
+
+    public virtual MP2PMTTable get_first_pmt_table (uint16 pmt_pid) throws Error {
+        var pmt_table = new MP2PMTTable ();
+        foreach (var ts_packet in this.ts_packets) {
+            if (ts_packet.pid == pmt_pid) {
+                var offset = ts_packet.source_offset + ts_packet.payload_offset;
+                this.source_stream.seek_to_offset (offset);
+                var pointer_field = this.source_stream.read_byte ();
+                offset += 1 + pointer_field;
+                var pmt_section 
+                    = new MP2PMTSection.from_stream (this.source_stream, offset);
+                pmt_section.parse_from_stream ();
+                if (pmt_table.add_section (pmt_section)) {
+                    return pmt_table;
+                }
+            }
+        }
+        throw new IOError.FAILED ("No PAT table found in %d packets",
+                                  this.ts_packets.size);
+    }
     
     public virtual void to_printer (LinePrinter printer, string prefix) {
         if (this.loaded) {
@@ -515,32 +535,6 @@ public class Rygel.MP2Table {
     }
 } // END class MP2Table
 
-public class Rygel.MP2PATTable : MP2Table {
-    public string to_string () {
-        var builder = new StringBuilder ("MP2PATTable[");
-        append_fields_to (builder);
-        builder.append_c (']');
-        return builder.str;
-    }
-
-    protected void append_fields_to (StringBuilder builder) {
-        builder.append_printf ("version %u,num_sections %u,programs:[",
-                               this.version_number, this.total_sections);
-        uint num=1;
-        foreach (var section in this.section_list) {
-            MP2PATSection pat_section = (MP2PATSection)section;
-            foreach (var program in pat_section.program_list) {
-                builder.append_printf ("%u:[program %u (0x%x),pmt_pid %d (0x%x)],",
-                                       num++, program.program_number, 
-                                       program.program_number,
-                                       program.pid, program.pid);
-            }
-        }
-        builder.truncate (builder.len-1);
-        builder.append_c (']');
-    }
-} // END class MP2PATTable
-
 public abstract class Rygel.MP2Section {
     public unowned ExtDataInputStream source_stream;
     public uint64 source_offset;
@@ -587,7 +581,6 @@ public class Rygel.MP2PATSection : MP2TableSection {
 
     public virtual uint64 parse_from_stream () throws Error {
         // debug ("parse_from_stream()", this.type_code);
-        // Note: This currently assumes the stream is pre-positioned for the PES packet
         var instream = this.source_stream;
         instream.seek_to_offset (this.source_offset);
 
@@ -638,21 +631,341 @@ public class Rygel.MP2PATSection : MP2TableSection {
                                    this.source_offset, this.tsid, this.tsid,
                                    this.version_number, this.section_number,
                                    this.last_section_number);
-            uint num=1;
-            foreach (var program in this.program_list) {
-                builder.append_printf ("%u:[program %u (0x%x),pmt_pid %d (0x%x)],",
-                                       num++, program.program_number, 
-                                       program.program_number,
-                                       program.pid, program.pid);
+            if ((this.program_list != null) && (this.program_list.size > 0)) {
+                uint num=1;
+                foreach (var program in this.program_list) {
+                    builder.append_printf ("%u:[program %u (0x%x),pmt_pid %d (0x%x)],",
+                                           num++, program.program_number, 
+                                           program.program_number,
+                                           program.pid, program.pid);
+                }
+                builder.truncate (builder.len-1);
             }
-            builder.truncate (builder.len-1);
             builder.append_printf ("],crc 0x%x", this.crc);
         }
     }
 } // END class Rygel.MP2PATSection
 
-public class Rygel.MP2PMTSection {
+public class Rygel.MP2PATTable : MP2Table {
+    public string to_string () {
+        var builder = new StringBuilder ("MP2PATTable[");
+        append_fields_to (builder);
+        builder.append_c (']');
+        return builder.str;
+    }
+
+    protected void append_fields_to (StringBuilder builder) {
+        builder.append_printf ("version %u,num_sections %u,programs:[",
+                               this.version_number, this.total_sections);
+        uint num=1;
+        foreach (var section in this.section_list) {
+            MP2PATSection pat_section = (MP2PATSection)section;
+            foreach (var program in pat_section.program_list) {
+                builder.append_printf ("%u:[program %u (0x%x),pmt_pid %d (0x%x)],",
+                                       num++, program.program_number, 
+                                       program.program_number,
+                                       program.pid, program.pid);
+            }
+        }
+        builder.truncate (builder.len-1);
+        builder.append_c (']');
+    }
+    
+    public uint16 get_program_count () {
+        uint16 total = 0;
+        foreach (var section in this.section_list) {
+            MP2PATSection pat_section = (MP2PATSection)section;
+            total += (uint16) pat_section.program_list.size;
+        }
+        return total;
+    }
+    public MP2PATSection.Program get_program_by_index (int index) throws Error {
+        foreach (var section in this.section_list) {
+            MP2PATSection pat_section = (MP2PATSection)section;
+            var programs_in_section = pat_section.program_list.size;
+            if (index < programs_in_section) {
+                return (pat_section.program_list.get (index));
+            }
+            index -= programs_in_section;
+        }
+        throw new IOError.FAILED ("Bad program index %u: %s", index,
+                                  this.to_string ());
+    }
+
+} // END class MP2PATTable
+
+public class Rygel.MP2PMTSection : MP2TableSection {
+    public bool section_syntax_indicator;
+    public uint16 program_number;
+    public bool current_next;
+    public uint16 pcr_pid;
+    public uint16 program_info_length;
+    public Gee.List<MP2Descriptor> descriptor_list;
+    public Gee.List<StreamInfo> stream_info_list = null;
+    public uint32 crc;
+
+    public class StreamInfo {
+        public uint16 stream_type;
+        public uint16 pid;
+        public uint16 es_info_length;
+        public Gee.List<MP2Descriptor> descriptor_list;
+
+        public uint16 parse_from_stream (ExtDataInputStream instream)
+                throws Error {
+            this.stream_type = instream.read_byte ();
+            this.pid = Bits.readbits_16 (instream, 0, 13);
+            this.es_info_length = Bits.readbits_16 (instream, 0, 12);
+            uint16 bytes_consumed = 5;
+            this.descriptor_list = new ArrayList <MP2Descriptor> ();
+            uint64 desc_bytes_read = 0;
+            while (desc_bytes_read < this.es_info_length) {
+                var desc = new MP2Descriptor.from_stream (instream, 
+                                                          instream.tell ());
+                desc_bytes_read += desc.parse_from_stream ();
+                this.descriptor_list.add (desc);
+            }
+            if (desc_bytes_read != this.es_info_length) {
+                throw new IOError.FAILED ("Found more descriptor bytes than expected (found %u, expected %u)", 
+                                          desc_bytes_read, 
+                                          this.es_info_length);
+            }
+            bytes_consumed += this.es_info_length;
+            return bytes_consumed;
+        }
+
+        public string to_string () {
+            var builder = new StringBuilder ("StreamInfo[");
+            append_fields_to (builder);
+            builder.append_c (']');
+            return builder.str;
+        }
+
+        public void append_fields_to (StringBuilder builder) {
+            builder.append_printf ("stream_type %u (0x%x),pid %d (0x%x),desc:[",
+                                   this.stream_type, this.stream_type,
+                                   this.pid, this.pid);
+            uint num=0;
+            if ((this.descriptor_list != null) 
+                 && (this.descriptor_list.size > 0)) {
+                foreach (var desc in this.descriptor_list) {
+                    builder.append_printf ("%u:[", num++);
+                    desc.append_fields_to (builder);
+                    builder.append ("],");
+                }
+                builder.truncate (builder.len-1);
+            }
+            builder.append_c (']');
+        }
+    } // END class StreamInfo
+
+    public MP2PMTSection () {
+    }
+
+    public MP2PMTSection.from_stream (ExtDataInputStream stream, uint64 offset)
+            throws Error {
+        base.source_stream = stream;
+        this.source_offset = offset;
+        this.source_verbatim = true;
+        this.loaded = false;
+    }
+
+    public virtual uint64 parse_from_stream () throws Error {
+        // debug ("parse_from_stream()", this.type_code);
+        var instream = this.source_stream;
+        instream.seek_to_offset (this.source_offset);
+
+        var table_id = instream.read_byte ();
+        
+        if (table_id != 0x02) {
+            throw new IOError.FAILED ("PMT table_id not 2 (found 0x%x)", table_id);
+        }
+        var octet_2_3 = instream.read_uint16 ();
+        this.section_syntax_indicator = Bits.getbit_16 (octet_2_3, 15);
+        this.section_length = Bits.getbits_16 (octet_2_3, 0, 12);
+
+        this.program_number = instream.read_uint16 ();
+
+        var octet_6 = instream.read_byte ();
+        this.version_number = Bits.getbits_8 (octet_6, 1, 5);
+        this.current_next = Bits.getbit_8 (octet_6, 0);
+
+        this.section_number = instream.read_byte ();
+        this.last_section_number = instream.read_byte ();
+        this.pcr_pid = Bits.readbits_16 (instream, 0, 13);
+        this.program_info_length = Bits.readbits_16 (instream, 0, 12);
+        uint16 bytes_consumed = 12;
+        {
+            uint64 descriptor_bytes_read = 0;
+            while (descriptor_bytes_read < this.program_info_length) {
+                var descriptor = new MP2Descriptor.from_stream 
+                                  (instream, this.source_offset 
+                                             + bytes_consumed 
+                                             + descriptor_bytes_read);
+                this.descriptor_list.add (descriptor);
+                descriptor_bytes_read += descriptor.parse_from_stream ();
+            }
+            if (descriptor_bytes_read != this.program_info_length) {
+                throw new IOError.FAILED ("Found more descriptor bytes than expected (found %u, expected %u)", 
+                                          descriptor_bytes_read, 
+                                          this.program_info_length);
+            }
+            bytes_consumed += this.program_info_length;
+        }
+        {
+            this.stream_info_list = new ArrayList <StreamInfo> ();
+            uint16 total_stream_bytes = this.section_length - bytes_consumed - 1;
+            uint64 stream_bytes_read = 0;
+            while (stream_bytes_read < total_stream_bytes) {
+                var stream_info = new StreamInfo ();
+                stream_bytes_read += stream_info.parse_from_stream (instream);
+                this.stream_info_list.add (stream_info);
+                
+            }
+            if (stream_bytes_read != total_stream_bytes) {
+                throw new IOError.FAILED ("Found more es stream bytes than expected (found %u, expected %u)", 
+                                          stream_bytes_read, 
+                                          total_stream_bytes);
+            }
+            bytes_consumed += total_stream_bytes;
+        }
+
+        this.crc = instream.read_uint32 ();
+        bytes_consumed += 4;
+        this.loaded = true;
+        return bytes_consumed;
+    }
+    
+    public string to_string () {
+        var builder = new StringBuilder ("MP2PMTSection[");
+        append_fields_to (builder);
+        builder.append_c (']');
+        return builder.str;
+    }
+
+    protected void append_fields_to (StringBuilder builder) {
+        if (!this.loaded) {
+            builder.append ("fields_not_loaded");
+        } else {
+            builder.append_printf ("offset %llu,program %u (0x%x),pcr_pid %u (0x%x),version %u,sect_num %u of %u,descriptors:[",
+                                   this.source_offset, this.program_number, 
+                                   this.program_number, this.pcr_pid, 
+                                   this.pcr_pid, this.version_number, 
+                                   this.section_number, 
+                                   this.last_section_number);
+            uint num=1;
+            if ((this.descriptor_list != null) 
+                 && (this.descriptor_list.size > 0)) {
+                foreach (var descriptor in this.descriptor_list) {
+                    builder.append_printf ("%u:[", num);
+                    builder.append (descriptor.to_string ());
+                    builder.append ("],");
+                }
+                builder.truncate (builder.len-1);
+            }
+            builder.append (",streams:[");
+            if ((this.stream_info_list != null)
+                && (this.stream_info_list.size > 0)) {
+                num = 1;
+                foreach (var stream_info in this.stream_info_list) {
+                    builder.append_printf ("%u:[", num++);
+                    stream_info.append_fields_to (builder);
+                    builder.append ("],");
+                }
+                builder.truncate (builder.len-1);
+            }
+            builder.append_printf ("],crc 0x%x", this.crc);
+        }
+    }
 } // END class Rygel.MP2PMTSection
+
+public class Rygel.MP2PMTTable : MP2Table {
+    public string to_string () {
+        var builder = new StringBuilder ("MP2PMTTable[");
+        append_fields_to (builder);
+        builder.append_c (']');
+        return builder.str;
+    }
+
+    protected void append_fields_to (StringBuilder builder) {
+        builder.append_printf ("version %u,num_sections %u,streams:[",
+                               this.version_number, this.total_sections);
+        uint num=1;
+        foreach (var section in this.section_list) {
+            MP2PMTSection pmt_section = (MP2PMTSection)section;
+            foreach (var stream_info in pmt_section.stream_info_list) {
+                builder.append_printf ("%u:[", num++);
+                stream_info.append_fields_to (builder);
+                builder.append ("],");
+            }
+        }
+        builder.truncate (builder.len-1);
+        builder.append_c (']');
+    }
+} // END class MP2PMTTable
+
+public class Rygel.MP2DescriptorFactory {
+    public static MP2Descriptor create_descriptor_from_stream (
+                                    ExtDataInputStream instream) 
+            throws Error {
+        uint8 peek_buf[1];
+        instream.peek (peek_buf);
+        var cur_offset = instream.tell ();
+        switch (peek_buf[0]) { // the descriptor tag
+            // TODO: Add specific descriptor subclass references here...
+            default:
+            return new MP2Descriptor.from_stream (instream, cur_offset);
+        }
+    }
+} // END MP2DescriptorFactory
+
+public class Rygel.MP2Descriptor {
+    public unowned ExtDataInputStream source_stream;
+    public uint64 source_offset;
+    public bool source_verbatim;
+    public bool loaded;
+
+    public uint8 tag;
+    public uint8 length;
+
+    public MP2Descriptor () {
+    }
+
+    public MP2Descriptor.from_stream (ExtDataInputStream stream, uint64 offset)
+            throws Error {
+        this.source_stream = stream;
+        this.source_offset = offset;
+        this.source_verbatim = true;
+        this.loaded = false;
+    }
+
+    public virtual uint64 parse_from_stream () throws Error {
+        // debug ("parse_from_stream()", this.type_code);
+        // Note: This currently assumes the stream is pre-positioned for the PES packet
+        var instream = this.source_stream;
+
+        this.tag = instream.read_byte ();
+        this.length = instream.read_byte ();
+        instream.skip_bytes (this.length);
+        this.loaded = true;
+        return (this.length + 2);
+    }
+    
+    public string to_string () {
+        var builder = new StringBuilder ("MP2Descriptor[");
+        append_fields_to (builder);
+        builder.append_c (']');
+        return builder.str;
+    }
+
+    public void append_fields_to (StringBuilder builder) {
+        if (!this.loaded) {
+            builder.append ("fields_not_loaded");
+        } else {
+            builder.append_printf ("offset %llu, tag %u,len %u", 
+                                   this.source_offset, this.tag, this.length);
+        }
+    }
+} // END class MP2Descriptor
 
 public class Rygel.MP2PESPacket {
     /**
@@ -1373,6 +1686,9 @@ class Rygel.MP2ParsingTest : GLib.Object {
                 mp2_file.to_printer ( (l) => {stdout.puts (l); stdout.putc ('\n');}, "  ");
                 var pat = mp2_file.get_first_pat_table ();
                 stdout.printf ("\nFOUND PAT: %s\n", pat.to_string () );
+                var pmt_pid = pat.get_program_by_index (0).pid;
+                var pmt = mp2_file.get_first_pmt_table (pmt_pid);
+                stdout.printf ("\nFOUND PMT: %s\n", pmt.to_string () );
                 stdout.flush ();
             }
        } catch (Error err) {
