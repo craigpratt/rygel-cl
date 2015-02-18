@@ -125,6 +125,21 @@ public abstract class Rygel.MP2TransportStream {
             printer (prefix + "[unloaded packets]");
         }
     }
+
+    public virtual void to_printer_with_pid (LinePrinter printer, string prefix, 
+                                             int16 pid) {
+        if (this.loaded) {
+            uint64 pos = 0;
+            foreach (var packet in this.ts_packets) {
+                if (packet.pid == pid) {
+                    printer (prefix + pos.to_string () + ": " + packet.to_string ());
+                    pos++;
+                }
+            }
+        } else {
+            printer (prefix + "[unloaded packets]");
+        }
+    }
 } // END class MP2TransportStream
 
 public class Rygel.MP2TransportStreamFile : MP2TransportStream {
@@ -1719,6 +1734,7 @@ class Rygel.MP2ParsingTest : GLib.Object {
             int64 print_outfile_packets = -1, print_infile_packets = -1;
             bool print_pat_pmt = false;
             bool print_av_pes_headers = false;
+            int16 only_pid = -1;
             bool print_access_points = false;
             bool print_movie_duration = false;
             string adhoc_test_name = null;
@@ -1826,6 +1842,17 @@ class Rygel.MP2ParsingTest : GLib.Object {
                                 case "av_pes_headers":
                                     print_av_pes_headers = true;
                                     break;
+                                case "only_pid":
+                                    if (i++ == args.length) {
+                                        throw new OptionError.BAD_VALUE (option + " requires a parameter");
+                                    }
+                                    int64 pid;
+                                    if (!int64.try_parse (args[i], out pid) 
+                                        || (pid < 0) || (pid > 0x1FFF)) {
+                                        throw new OptionError.BAD_VALUE ("Bad PID value: " + args[i]);
+                                    }
+                                    only_pid = (int16) pid;
+                                    break;
                                 case "access-points":
                                     print_access_points = true;
                                     break;
@@ -1895,7 +1922,7 @@ class Rygel.MP2ParsingTest : GLib.Object {
                 stderr.printf ("Error: %s\n\n", e.message);
                 stderr.printf ("Usage: %s -infile <filename>\n", args[0]);
                 stderr.printf ("\t[-timerange x-y]: Reduce the samples in the MP2 to those falling between time range x-y (decimal seconds)\n");
-                stderr.printf ("\t[-print (infile [levels]|outfile [levels]|pat_pmt|av_pes_headers|access-points|movie-duration|track-duration|track-for-time [time])]: Print various details to the standard output\n");
+                stderr.printf ("\t[-print (infile [levels]|outfile [levels]|pat_pmt|av_pes_headers|only_pid <pid>|access-points|movie-duration|track-duration|track-for-time [time])]: Print various details to the standard output\n");
                 stderr.printf ("\t[-outfile <filename>]: Write the resulting MP2 to the given filename\n");
                 stderr.printf ("\t[-bufoutstream [buffer_size]]: Test running the resulting MP2 through the BufferGeneratingOutputStream\n");
                 return 1;
@@ -1912,8 +1939,10 @@ class Rygel.MP2ParsingTest : GLib.Object {
             MP2TransportStream.LinePrinter my_printer 
                     = (l) =>  {stdout.puts (l); stdout.putc ('\n');};
 
-            if (print_infile) {
+            if (print_infile && only_pid < 0) {
                 mp2_file.to_printer (my_printer, "  ");
+            } else {
+                mp2_file.to_printer_with_pid (my_printer, "  ", only_pid);
             }
             
             if (print_pat_pmt) {
@@ -1937,32 +1966,37 @@ class Rygel.MP2ParsingTest : GLib.Object {
                 foreach (var program in pat.get_programs ()) {
                     try {
                         var pmt = mp2_file.get_first_pmt_table (program.pid);
-                        MP2PMTSection.StreamInfo video_stream = null;
+                        MP2PMTSection.StreamInfo target_stream = null;
                         foreach (var stream_info in pmt.get_streams ()) {
-                            if (stream_info.stream_type 
-                                == MP2PMTSection.STREAM_TYPE_MPEG2_VIDEO) {
-                                video_stream = stream_info;
+                            if ((only_pid < 0) 
+                                && (stream_info.stream_type 
+                                    == MP2PMTSection.STREAM_TYPE_MPEG2_VIDEO)) {
+                                target_stream = stream_info;
                                 break;
+                            } else {
+                                if (stream_info.pid == only_pid) {
+                                    target_stream = stream_info;
+                                }
                             }
                         }
-                        if (video_stream == null) {
-                            stdout.printf ("\nNo video stream found in program %d\n", 
+                        if (target_stream == null) {
+                            stdout.printf ("\nNo stream found in program %d\n", 
                                            program.program_number);
                         } else {
-                            stdout.printf ("\nVideo PES packets on %s\n\n", 
-                                           video_stream.to_string ());
-                            var video_packets = mp2_file.get_packets_for_pid 
-                                                    (video_stream.pid);
-                            foreach (var ts_packet in video_packets) {
+                            stdout.printf ("\nPES packets on %s\n\n", 
+                                           target_stream.to_string ());
+                            var ts_packets = mp2_file.get_packets_for_pid 
+                                                    (target_stream.pid);
+                            foreach (var ts_packet in ts_packets) {
                                 if (ts_packet.payload_unit_start_indicator) {
                                     var pes_offset = ts_packet.source_offset 
                                                      + ts_packet.payload_offset;
-                                    var video_pes_packet 
+                                    var pes_packet 
                                         = new MP2PESPacket.from_stream (mp2_file.source_stream, 
                                                                         pes_offset);
-                                    video_pes_packet.parse_from_stream ();
+                                    pes_packet.parse_from_stream ();
                                     stdout.printf ("   %s\n", 
-                                                   video_pes_packet.to_string ());
+                                                   pes_packet.to_string ());
                                 }
                             } 
                         }
