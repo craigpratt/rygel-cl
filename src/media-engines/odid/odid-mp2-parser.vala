@@ -156,7 +156,6 @@ public class Rygel.MP2TSPacket {
     public uint64 source_offset;
     public bool source_verbatim;
 
-    public uint8 sync_byte;
     public bool transport_error_indicator;
     public bool payload_unit_start_indicator;
     public bool transport_priority;
@@ -171,7 +170,6 @@ public class Rygel.MP2TSPacket {
     protected bool loaded; // Indicates the packet fields/children are populated/parsed
 
     public MP2TSPacket () {
-        this.sync_byte = 0x47;
     }
 
     public MP2TSPacket.from_stream (ExtDataInputStream stream, uint64 offset)
@@ -186,7 +184,13 @@ public class Rygel.MP2TSPacket {
         // debug ("parse_from_stream()", this.type_code);
         // Note: This currently assumes the stream is pre-positioned for the TS packet
         var instream = this.source_stream;
-        this.sync_byte = instream.read_byte ();
+        var sync_byte = instream.read_byte ();
+        
+        if (sync_byte != 0x47) {
+            throw new IOError.FAILED ("TS packet sync_byte mismatch at %lld (0x%llx): found 0x%x, expected 0x47",
+                                      this.source_offset, this.source_offset,
+                                      sync_byte);
+        }
 
         var octet_2_3 = instream.read_uint16 ();
         this.transport_error_indicator = Bits.getbit_16 (octet_2_3, 15);
@@ -228,9 +232,8 @@ public class Rygel.MP2TSPacket {
         if (!this.loaded) {
             builder.append ("fields_not_loaded");
         } else {
-            builder.append_printf ("offset %lld,pid %d (0x%x),sync %02x,flags[",
-                                   this.source_offset, this.pid,this.pid,
-                                   this.sync_byte);
+            builder.append_printf ("offset %lld,pid %d (0x%x),flags[",
+                                   this.source_offset, this.pid,this.pid);
             bool first = true;
             if (this.transport_error_indicator) {
                 builder.append ("ERR");
@@ -261,7 +264,7 @@ public class Rygel.MP2TSPacket {
         }
     }
 
-    protected class MP2TSAdaptationField {
+    public class MP2TSAdaptationField {
         public uint8 adaptation_field_length;
         public bool discontinuity_indicator;
         public bool random_access_indicator;
@@ -364,7 +367,7 @@ public class Rygel.MP2TSPacket {
             return builder.str;
         }
 
-        protected void append_fields_to (StringBuilder builder) {
+        public void append_fields_to (StringBuilder builder) {
             builder.append_printf ("len %d,flags[",this.adaptation_field_length);
             bool first = true;
             if (this.discontinuity_indicator) {
@@ -408,7 +411,7 @@ public class Rygel.MP2TSPacket {
             }
         }
 
-        protected class MP2TSAdaptationFieldExt {
+        public class MP2TSAdaptationFieldExt {
             public uint8 adaptation_field_ext_length;
             public bool ltw_flag;
             public bool piecewise_rate_flag;
@@ -483,7 +486,7 @@ public class Rygel.MP2TSPacket {
                 return builder.str;
             }
 
-            protected void append_fields_to (StringBuilder builder) {
+            public void append_fields_to (StringBuilder builder) {
                 builder.append_printf ("len %d",this.adaptation_field_ext_length);
                 if (this.ltw_flag) {
                     builder.append_printf (",ltw_valid %s, ltw_offset %d",
@@ -1711,9 +1714,11 @@ class Rygel.MP2ParsingTest : GLib.Object {
         int MICROS_PER_SEC = 1000000;
         try {
             bool print_infile = false;
-            uint64 num_packets = 0;
+            uint64 packets_to_parse = 0;
             bool print_outfile = false;
-            int64 print_outfile_levels = -1;
+            int64 print_outfile_packets = -1, print_infile_packets = -1;
+            bool print_pat_pmt = false;
+            bool print_av_pes_headers = false;
             bool print_access_points = false;
             bool print_movie_duration = false;
             string adhoc_test_name = null;
@@ -1737,6 +1742,12 @@ class Rygel.MP2ParsingTest : GLib.Object {
                                 throw new OptionError.BAD_VALUE (option + " requires a parameter");
                             }
                             in_file = File.new_for_path (args[++i]);
+                            if ((i+1 < args.length)
+                                 && uint64.try_parse (args[i+1], out packets_to_parse)) {
+                                i++;
+                            } else { // Default to parsing all packets
+                                packets_to_parse = 0;
+                            }
                             break;
                         case "-outfile":
                             if (out_file != null) {
@@ -1794,20 +1805,26 @@ class Rygel.MP2ParsingTest : GLib.Object {
                                 case "infile":
                                     print_infile = true;
                                     if ((i+1 < args.length)
-                                         && uint64.try_parse (args[i+1], out num_packets)) {
+                                         && int64.try_parse (args[i+1], out print_infile_packets)) {
                                         i++;
-                                    } else { // Default to loading/printing all levels
-                                        num_packets = 0;
+                                    } else { // Default to printing all levels
+                                        print_infile_packets = -1;
                                     }
                                     break;
                                 case "outfile":
                                     print_outfile = true;
                                     if ((i+1 < args.length)
-                                         && int64.try_parse (args[i+1], out print_outfile_levels)) {
+                                         && int64.try_parse (args[i+1], out print_outfile_packets)) {
                                         i++;
-                                    } else { // Default to printing whatever level is loaded
-                                        print_outfile_levels = -1;
+                                    } else { // Default to printing all levels
+                                        print_outfile_packets = -1;
                                     }
+                                    break;
+                                case "pat_pmt":
+                                    print_pat_pmt = true;
+                                    break;
+                                case "av_pes_headers":
+                                    print_av_pes_headers = true;
                                     break;
                                 case "access-points":
                                     print_access_points = true;
@@ -1878,7 +1895,7 @@ class Rygel.MP2ParsingTest : GLib.Object {
                 stderr.printf ("Error: %s\n\n", e.message);
                 stderr.printf ("Usage: %s -infile <filename>\n", args[0]);
                 stderr.printf ("\t[-timerange x-y]: Reduce the samples in the MP2 to those falling between time range x-y (decimal seconds)\n");
-                stderr.printf ("\t[-print (infile [levels]|outfile [levels]|access-points|movie-duration|track-duration|track-for-time [time])]: Print various details to the standard output\n");
+                stderr.printf ("\t[-print (infile [levels]|outfile [levels]|pat_pmt|av_pes_headers|access-points|movie-duration|track-duration|track-for-time [time])]: Print various details to the standard output\n");
                 stderr.printf ("\t[-outfile <filename>]: Write the resulting MP2 to the given filename\n");
                 stderr.printf ("\t[-bufoutstream [buffer_size]]: Test running the resulting MP2 through the BufferGeneratingOutputStream\n");
                 return 1;
@@ -1887,14 +1904,19 @@ class Rygel.MP2ParsingTest : GLib.Object {
             stdout.printf ("\nINPUT FILE: %s\n", in_file.get_path ());
             stdout.flush ();
             var mp2_file = new Rygel.MP2TransportStreamFile (in_file);
+            mp2_file.parse_from_stream (packets_to_parse);
+            stdout.printf ("\nPARSED TS INPUT FILE (%s packets)\n",
+                           ((packets_to_parse == 0) 
+                            ? "all" : packets_to_parse.to_string ()));
+
+            MP2TransportStream.LinePrinter my_printer 
+                    = (l) =>  {stdout.puts (l); stdout.putc ('\n');};
 
             if (print_infile) {
-                mp2_file.parse_from_stream (num_packets);
-                stdout.printf ("\nPARSED INPUT FILE (%s levels):\n",
-                               ((num_packets == 0) ? "all" : num_packets.to_string ()));
-                MP2TransportStream.LinePrinter my_printer 
-                        = (l) =>  {stdout.puts (l); stdout.putc ('\n');};
                 mp2_file.to_printer (my_printer, "  ");
+            }
+            
+            if (print_pat_pmt) {
                 var pat = mp2_file.get_first_pat_table ();
                 stdout.printf ("\nFOUND PAT:\n");
                 pat.to_printer (my_printer, "   ");
@@ -1904,6 +1926,17 @@ class Rygel.MP2ParsingTest : GLib.Object {
                         stdout.printf ("\nFOUND PMT ON PID %u:\n", program.pid);
                         pmt.to_printer (my_printer, "   ");
                         stdout.flush ();
+                    } catch (Error err) {
+                        error ("Error getting PMT/video PES: %s", err.message);
+                    }
+                }
+            }
+
+            if (print_av_pes_headers) {
+                var pat = mp2_file.get_first_pat_table ();
+                foreach (var program in pat.get_programs ()) {
+                    try {
+                        var pmt = mp2_file.get_first_pmt_table (program.pid);
                         MP2PMTSection.StreamInfo video_stream = null;
                         foreach (var stream_info in pmt.get_streams ()) {
                             if (stream_info.stream_type 
@@ -1916,20 +1949,22 @@ class Rygel.MP2ParsingTest : GLib.Object {
                             stdout.printf ("\nNo video stream found in program %d\n", 
                                            program.program_number);
                         } else {
+                            stdout.printf ("\nVideo PES packets on %s\n\n", 
+                                           video_stream.to_string ());
                             var video_packets = mp2_file.get_packets_for_pid 
                                                     (video_stream.pid);
-                            var first_video_packet = video_packets.first ();
-                            stdout.printf ("\nFirst video packet: %s\n", 
-                                           first_video_packet.to_string ());
-                            var pes_offset = first_video_packet.source_offset 
-                                             + first_video_packet.payload_offset;
-                            stdout.printf ("\n  PES Offset: %llu\n", pes_offset);
-                            var video_pes_packet 
-                                = new MP2PESPacket.from_stream (mp2_file.source_stream, 
-                                                                pes_offset);
-                            video_pes_packet.parse_from_stream ();
-                            stdout.printf ("\nFirst video PES packet: %s\n", 
-                                           video_pes_packet.to_string ());
+                            foreach (var ts_packet in video_packets) {
+                                if (ts_packet.payload_unit_start_indicator) {
+                                    var pes_offset = ts_packet.source_offset 
+                                                     + ts_packet.payload_offset;
+                                    var video_pes_packet 
+                                        = new MP2PESPacket.from_stream (mp2_file.source_stream, 
+                                                                        pes_offset);
+                                    video_pes_packet.parse_from_stream ();
+                                    stdout.printf ("   %s\n", 
+                                                   video_pes_packet.to_string ());
+                                }
+                            } 
                         }
                     } catch (Error err) {
                         error ("Error getting PMT/video PES: %s", err.message);
