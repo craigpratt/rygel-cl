@@ -763,6 +763,105 @@ public class Rygel.MP2PATTable : MP2Table {
 } // END class MP2PATTable
 
 public class Rygel.MP2PMTSection : MP2TableSection {
+
+    public const uint8 STREAM_TYPE_RESERVED = 0x00;
+    public const uint8 STREAM_TYPE_MPEG1_VIDEO = 0x01;
+    public const uint8 STREAM_TYPE_MPEG2_VIDEO = 0x02;
+    public const uint8 STREAM_TYPE_MPEG1_AUDIO = 0x03;
+    public const uint8 STREAM_TYPE_MPEG2_AUDIO = 0x04;
+    public const uint8 STREAM_TYPE_PRIVATE_SECTIONS = 0x05;
+    public const uint8 STREAM_TYPE_PRIVATE_PES = 0x06;
+    public const uint8 STREAM_TYPE_MHEG = 0x07;
+    public const uint8 STREAM_TYPE_DSMCC = 0x08;
+    public const uint8 STREAM_TYPE_AUX_PES = 0x09;
+    public const uint8 STREAM_TYPE_DSMCC_A = 0x0A;
+    public const uint8 STREAM_TYPE_DSMCC_B = 0x0B;
+    public const uint8 STREAM_TYPE_DSMCC_C = 0x0C;
+    public const uint8 STREAM_TYPE_DSMCC_D = 0x0D;
+    public const uint8 STREAM_TYPE_AUX_PES_2 = 0x0E;
+    public const uint8 STREAM_TYPE_AAC_ADTS = 0x0F;
+    public const uint8 STREAM_TYPE_MPEG4_H263 = 0x10;
+    public const uint8 STREAM_TYPE_MPEG4_LOAS = 0x11;
+    public const uint8 STREAM_TYPE_MPEG4_FLEXMUX_PES = 0x12;
+    public const uint8 STREAM_TYPE_MPEG4_FLEXMUX_SECTIONS = 0x13;
+    public const uint8 STREAM_TYPE_DSMCC_DOWNLOAD = 0x14;
+    public const uint8 STREAM_TYPE_METADATA_PES = 0x15;
+    public const uint8 STREAM_TYPE_METADATA_SECTIONS = 0x16;
+    public const uint8 STREAM_TYPE_METADATA_DSMCC_DATA = 0x17;
+    public const uint8 STREAM_TYPE_METADATA_DSMCC_OBJECT = 0x18;
+    public const uint8 STREAM_TYPE_DSMCC_DOWNLOAD_2 = 0x19;
+    public const uint8 STREAM_TYPE_IPMP = 0x1A;
+    public const uint8 STREAM_TYPE_H264_VIDEO = 0x1B;
+    public const uint8 STREAM_TYPE_H265_VIDEO = 0x24;
+    public const uint8 STREAM_TYPE_CHINESE_VIDEO = 0x42;
+    public const uint8 STREAM_TYPE_DCII_VIDEO = 0x80;
+    public const uint8 STREAM_TYPE_ATSC_AC3_AUDIO = 0x81;
+    public const uint8 STREAM_TYPE_SCTE_SUBTITLE = 0x82;
+    public const uint8 STREAM_TYPE_TRUEHD_AUDIO = 0x83;
+    public const uint8 STREAM_TYPE_DDPLUS_AUDIO = 0x84;
+    public const uint8 STREAM_TYPE_DTS8_AUDIO = 0x85;
+    public const uint8 STREAM_TYPE_DTS8_LOSSLESS_AUDIO = 0x86;
+    public const uint8 STREAM_TYPE_DDPLUS_ATSC_AUDIO = 0x87;
+    public const uint8 STREAM_TYPE_BLURAY_SUBTITLE = 0x90;
+    public const uint8 STREAM_TYPE_DSMCC_NET_RESOURCE = 0x95;
+    public const uint8 STREAM_TYPE_DCII_TEXT = 0xC0;
+    public const uint8 STREAM_TYPE_PRIVATE = 0xC1;
+    public const uint8 STREAM_TYPE_DSMCC_SYNCRONOUS_DATA = 0xC2;
+    public const uint8 STREAM_TYPE_DIRAC_VIDEO = 0xD1;
+    public const uint8 STREAM_TYPE_MSWM9_VIDEO = 0xEA;
+
+
+    public static string stream_type_to_string (uint8 stream_type) {
+        switch (stream_type) {
+            case STREAM_TYPE_RESERVED: return "RESERVED";
+            case STREAM_TYPE_MPEG1_VIDEO: return "MPEG1_VIDEO";
+            case STREAM_TYPE_MPEG2_VIDEO: return "MPEG2_VIDEO";
+            case STREAM_TYPE_MPEG1_AUDIO: return "MPEG1_AUDIO";
+            case STREAM_TYPE_MPEG2_AUDIO: return "MPEG2_AUDIO";
+            case STREAM_TYPE_PRIVATE_SECTIONS: return "PRIVATE_SECTIONS";
+            case STREAM_TYPE_PRIVATE_PES: return "PRIVATE_PES";
+            case STREAM_TYPE_MHEG: return "MHEG";
+            case STREAM_TYPE_DSMCC: return "DSMCC";
+            case STREAM_TYPE_AUX_PES: return "AUX_PES";
+            case STREAM_TYPE_DSMCC_A: return "DSMCC_A";
+            case STREAM_TYPE_DSMCC_B: return "DSMCC_B";
+            case STREAM_TYPE_DSMCC_C: return "DSMCC_C";
+            case STREAM_TYPE_DSMCC_D: return "DSMCC_D";
+            case STREAM_TYPE_AUX_PES_2: return "AUX_PES_2";
+            case STREAM_TYPE_AAC_ADTS: return "AAC_ADTS";
+            case STREAM_TYPE_MPEG4_H263: return "MPEG4_H263";
+            case STREAM_TYPE_MPEG4_LOAS: return "MPEG4_LOAS";
+            case STREAM_TYPE_MPEG4_FLEXMUX_PES: return "MPEG4_FLEXMUX_PES";
+            case STREAM_TYPE_MPEG4_FLEXMUX_SECTIONS: return "MPEG4_FLEXMUX_SECTIONS";
+            case STREAM_TYPE_DSMCC_DOWNLOAD: return "DSMCC_DOWNLOAD";
+            case STREAM_TYPE_METADATA_PES: return "METADATA_PES";
+            case STREAM_TYPE_METADATA_SECTIONS: return "METADATA_SECTIONS";
+            case STREAM_TYPE_METADATA_DSMCC_DATA: return "METADATA_DSMCC_DATA";
+            case STREAM_TYPE_METADATA_DSMCC_OBJECT: return "METADATA_DSMCC_OBJECT";
+            case STREAM_TYPE_DSMCC_DOWNLOAD_2: return "DSMCC_DOWNLOAD_2";
+            case STREAM_TYPE_IPMP: return "IPMP";
+            case STREAM_TYPE_H264_VIDEO: return "H264_VIDEO";
+            case STREAM_TYPE_H265_VIDEO: return "H265_VIDEO";
+            case STREAM_TYPE_CHINESE_VIDEO: return "CHINESE_VIDEO";
+            case STREAM_TYPE_DCII_VIDEO: return "DCII_VIDEO";
+            case STREAM_TYPE_ATSC_AC3_AUDIO: return "ATSC_AC3_AUDIO";
+            case STREAM_TYPE_SCTE_SUBTITLE: return "SCTE_SUBTITLE";
+            case STREAM_TYPE_TRUEHD_AUDIO: return "TRUEHD_AUDIO";
+            case STREAM_TYPE_DDPLUS_AUDIO: return "DDPLUS_AUDIO";
+            case STREAM_TYPE_DTS8_AUDIO: return "DTS8_AUDIO";
+            case STREAM_TYPE_DTS8_LOSSLESS_AUDIO: return "DTS8_LOSSLESS_AUDIO";
+            case STREAM_TYPE_DDPLUS_ATSC_AUDIO: return "DDPLUS_ATSC_AUDIO";
+            case STREAM_TYPE_BLURAY_SUBTITLE: return "BLURAY_SUBTITLE";
+            case STREAM_TYPE_DSMCC_NET_RESOURCE: return "DSMCC_NET_RESOURCE";
+            case STREAM_TYPE_DCII_TEXT: return "DCII_TEXT";
+            case STREAM_TYPE_PRIVATE: return "PRIVATE";
+            case STREAM_TYPE_DSMCC_SYNCRONOUS_DATA: return "DSMCC_SYNCRONOUS_DATA";
+            case STREAM_TYPE_DIRAC_VIDEO: return "DIRAC_VIDEO";
+            case STREAM_TYPE_MSWM9_VIDEO: return "MSWM9_VIDEO";
+            default: return "UNKNOWN";
+        }
+    }
+
     public bool section_syntax_indicator;
     public uint16 program_number;
     public bool current_next;
@@ -773,7 +872,7 @@ public class Rygel.MP2PMTSection : MP2TableSection {
     public uint32 crc;
 
     public class StreamInfo {
-        public uint16 stream_type;
+        public uint8 stream_type;
         public uint16 pid;
         public uint16 es_info_length;
         public Gee.List<MP2Descriptor> descriptor_list;
@@ -809,8 +908,9 @@ public class Rygel.MP2PMTSection : MP2TableSection {
         }
 
         public void append_fields_to (StringBuilder builder) {
-            builder.append_printf ("stream_type %u (0x%x),pid %d (0x%x)",
+            builder.append_printf ("stream_type %u (0x%x) (%s),pid %d (0x%x)",
                                    this.stream_type, this.stream_type,
+                                   stream_type_to_string (this.stream_type),
                                    this.pid, this.pid);
             uint num=1;
             if ((this.descriptor_list != null) 
@@ -1058,9 +1158,6 @@ public class Rygel.MP2Descriptor {
 } // END class MP2Descriptor
 
 public class Rygel.MP2PESPacket {
-    /**
-     * indicates that each sample has its own flags, otherwise the default is used.
-     */
     public const uint8 STREAM_ID_PSM = 0xBC;
     public const uint8 STREAM_ID_PRIVATE_1 = 0xBD;
     public const uint8 STREAM_ID_PADDING = 0xBE;
