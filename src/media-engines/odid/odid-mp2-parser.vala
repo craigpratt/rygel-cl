@@ -1737,7 +1737,8 @@ class Rygel.MP2ParsingTest : GLib.Object {
             bool print_outfile = false;
             int64 print_outfile_packets = -1, print_infile_packets = -1;
             bool print_pat_pmt = false;
-            bool print_av_pes_headers = false;
+            bool print_pes_headers = false;
+            bool print_ts_packets_with_pes = false;
             int16 only_pid = -1;
             bool print_access_points = false;
             bool print_movie_duration = false;
@@ -1843,8 +1844,15 @@ class Rygel.MP2ParsingTest : GLib.Object {
                                 case "pat_pmt":
                                     print_pat_pmt = true;
                                     break;
-                                case "av_pes_headers":
-                                    print_av_pes_headers = true;
+                                case "pes_headers":
+                                    print_pes_headers = true;
+                                    if ((i+1 < args.length)
+                                         && (args[i+1] == "+ts")) {
+                                        i++;
+                                        print_ts_packets_with_pes = true;
+                                    } else { // Default to printing all levels
+                                        print_infile_packets = -1;
+                                    }
                                     break;
                                 case "only_pid":
                                     if (i++ == args.length) {
@@ -1926,7 +1934,7 @@ class Rygel.MP2ParsingTest : GLib.Object {
                 stderr.printf ("Error: %s\n\n", e.message);
                 stderr.printf ("Usage: %s -infile <filename>\n", args[0]);
                 stderr.printf ("\t[-timerange x-y]: Reduce the samples in the MP2 to those falling between time range x-y (decimal seconds)\n");
-                stderr.printf ("\t[-print (infile [levels]|outfile [levels]|pat_pmt|av_pes_headers|only_pid <pid>|access-points|movie-duration|track-duration|track-for-time [time])]: Print various details to the standard output\n");
+                stderr.printf ("\t[-print (infile [levels]|outfile [levels]|pat_pmt|pes_headers [+ts]|only_pid <pid>|access-points|movie-duration|track-duration|track-for-time [time])]: Print various details to the standard output\n");
                 stderr.printf ("\t[-outfile <filename>]: Write the resulting MP2 to the given filename\n");
                 stderr.printf ("\t[-bufoutstream [buffer_size]]: Test running the resulting MP2 through the BufferGeneratingOutputStream\n");
                 return 1;
@@ -1965,7 +1973,7 @@ class Rygel.MP2ParsingTest : GLib.Object {
                 }
             }
 
-            if (print_av_pes_headers) {
+            if (print_pes_headers) {
                 var pat = mp2_file.get_first_pat_table ();
                 foreach (var program in pat.get_programs ()) {
                     try {
@@ -1993,6 +2001,10 @@ class Rygel.MP2ParsingTest : GLib.Object {
                                                     (target_stream.pid);
                             foreach (var ts_packet in ts_packets) {
                                 if (ts_packet.payload_unit_start_indicator) {
+                                    if (print_ts_packets_with_pes) {
+                                        stdout.printf (" %s\n",
+                                                       ts_packet.to_string ());
+                                    }
                                     var pes_offset = ts_packet.source_offset 
                                                      + ts_packet.payload_offset;
                                     var pes_packet 
