@@ -402,13 +402,15 @@ public class Rygel.MP2TSPacket {
             if (this.pcr_flag) {
                 try {
                     var pcr = get_pcr ();
-                    builder.append_printf (",pcr %lld (0x%llx)", pcr, pcr);
+                    builder.append_printf (",pcr %lld (0x%llx) (%0.3fs)", 
+                                           pcr, pcr, pcr/27000000.0);
                 } catch (Error err) {};
             }
             if (this.opcr_flag) {
                 try {
                     var opcr = get_original_pcr ();
-                    builder.append_printf (",orig_pcr %lld (0x%llx)", opcr, opcr);
+                    builder.append_printf (",orig_pcr %lld (0x%llx) (%0.3fs)", 
+                                           opcr, opcr, opcr/27000000.0);
                 } catch (Error err) {};
             }
             if (this.splicing_point_flag) {
@@ -1568,10 +1570,12 @@ public class Rygel.MP2PESPacket {
             builder.append_c (']');
 
             if (this.pts_flag) {
-                builder.append_printf (",pts %lld (0x%llx)", this.pts, this.pts);
+                builder.append_printf (",pts %lld (0x%llx)(%0.3fs)", 
+                                       this.pts, this.pts, this.pts/90000.0);
             }
             if (this.dts_flag) {
-                builder.append_printf (",dts %lld (0x%llx)", this.dts, this.dts);
+                builder.append_printf (",dts %lld (0x%llx)(%0.3fs)", 
+                                       this.dts, this.dts, this.dts/90000.0);
             }
             if (this.escr_flag) {
                 try {
