@@ -146,15 +146,6 @@ public class Rygel.HTTPGetTest : GLib.Object {
         requests.add (new TestRequestFactory (request, Soup.Status.OK));
 
         request = new Soup.Message ("GET", this.server.uri);
-        request.request_headers.append ("transferMode.dlna.org", "Streaming");
-        requests.add (new TestRequestFactory (request, Soup.Status.OK));
-
-        request = new Soup.Message ("GET", this.server.uri);
-        request.request_headers.append ("transferMode.dlna.org", "Interactive");
-        requests.add (new TestRequestFactory (request,
-                      Soup.Status.NOT_ACCEPTABLE));
-
-        request = new Soup.Message ("GET", this.server.uri);
         request.request_headers.append ("Range", "bytes=1-2");
         requests.add (new TestRequestFactory (request,
                       Soup.Status.OK));
@@ -364,8 +355,23 @@ public class Rygel.MediaContainer : Rygel.MediaObject {
 }
 
 internal abstract class Rygel.HTTPGetHandler {
+    private MediaObject object;
+
     public HTTPResponse render_body (HTTPGet get_request) {
+        this.object = get_request.object;
         return new HTTPResponse (get_request);
+    }
+
+    public string get_default_transfer_mode () {
+        return "Streaming";
+    }
+
+    public bool supports_transfer_mode (string transfer_mode) {
+        return true;
+    }
+
+    public int64 get_resource_size () {
+        return -1;
     }
 
     public void add_response_headers (HTTPGet get_request) {}
@@ -384,11 +390,24 @@ internal class Rygel.HTTPIdentityHandler : Rygel.HTTPGetHandler {
 
 internal class Rygel.HTTPPlaylistHandler : Rygel.HTTPGetHandler {
     public HTTPPlaylistHandler (string? arg, Cancellable cancellable) {}
-
-    public static bool is_supported (string? arg) { return true; }
 }
 
-public abstract class Rygel.MediaItem : Rygel.MediaObject {
+internal class Rygel.HTTPSubtitleHandler : Rygel.HTTPGetHandler {
+    public HTTPSubtitleHandler (MediaFileItem item, int index, Cancellable
+            cancellable) {}
+}
+
+internal class Rygel.HTTPThumbnailHandler : Rygel.HTTPGetHandler {
+    public HTTPThumbnailHandler (MediaFileItem item, int index, Cancellable
+            cancellable) {}
+}
+
+internal class Rygel.HTTPMediaResourceHandler : Rygel.HTTPGetHandler {
+    public HTTPMediaResourceHandler (MediaObject object, string resource,
+            Cancellable cancellable) {}
+}
+
+public abstract class Rygel.MediaFileItem : Rygel.MediaObject {
     public long size = 1024;
     public ArrayList<string> uris = new ArrayList<string> ();
 
@@ -408,7 +427,7 @@ public abstract class Rygel.MediaItem : Rygel.MediaObject {
     }
 }
 
-private class Rygel.AudioItem : MediaItem {
+private class Rygel.AudioItem : MediaFileItem {
     public int64 duration = 2048;
 
     public AudioItem () {
@@ -416,7 +435,7 @@ private class Rygel.AudioItem : MediaItem {
     }
 }
 
-private interface Rygel.VisualItem : MediaItem {
+private interface Rygel.VisualItem : MediaFileItem {
     public abstract int width { get; set; }
     public abstract int height { get; set; }
     public abstract int color_depth { get; set; }
@@ -500,9 +519,17 @@ internal class Rygel.HTTPResponse : Rygel.StateMachine, GLib.Object {
     }
 }
 
+public class Rygel.MediaResource : GLib.Object {
+    public string extension;
+}
+
 public class Rygel.MediaObject {
     public string id;
     public string mime_type = "";
+
+    public MediaResource? get_resource_by_name (string name) {
+        return null;
+    }
 }
 
 public class Rygel.Transcoder : GLib.Object {

@@ -110,15 +110,19 @@ public class Rygel.HTTPItemURI : Object {
                     StringBuilder builder = new StringBuilder ();
                     builder.append ((string) data);
                     this.item_id = builder.str;
+
                     break;
                 case "th":
                     this.thumbnail_index = int.parse (parts[i + 1]);
+
                     break;
                 case "sub":
                     this.subtitle_index = int.parse (parts[i + 1]);
+
                     break;
                 case "res":
                     this.resource_name = Soup.URI.decode (parts[i + 1]);
+
                     break;
                 default:
                     break;
@@ -130,7 +134,7 @@ public class Rygel.HTTPItemURI : Object {
         }
     }
 
-    public string to_string () {
+    public string to_string() {
         // there seems to be a problem converting strings properly to arrays
         // you need to call to_utf8() and assign it to a variable to make it
         // work properly

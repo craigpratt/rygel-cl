@@ -86,7 +86,7 @@ public abstract class Rygel.Tracker.ItemFactory {
                                           string          uri,
                                           SearchContainer parent,
                                           Sparql.Cursor   metadata)
-                                      throws GLib.Error;
+                                          throws GLib.Error;
 
     protected void set_ref_id (MediaFileItem item, string prefix) {
         if (item.id.has_prefix (prefix)) {

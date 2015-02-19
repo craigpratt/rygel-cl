@@ -34,7 +34,7 @@ public errordomain Rygel.MediaEngineError {
  * produce by returning MediaResource objects which will, in turn, be
  * used to express to endpoints representations can be streamed from
  * the MediaServer. These representations may include transformations,
- * time-scaled representations, and/or encrypted representations. 
+ * time-scaled representations, and/or encrypted representations.
  *
  * See, for instance, Rygel's built-in "gstreamer" and "simple" media engines,
  * or the external rygel-gst-0-10-media-engine module.
@@ -93,17 +93,17 @@ public abstract class Rygel.MediaEngine : GLib.Object {
      * The MediaResources returned may include formats/profiles that do not match the
      * source content byte-for-byte (e.g. transcodes, encrypted formats, etc). The
      * MediaEngine must return a MediaResource for the raw MediaObject content if it
-     * can support streaming the content directly. 
+     * can support streaming the content directly.
      *
      * The order of MediaResources in the returned List should be from most-preferred to
      * least-preferred and each must have a unique alphanumeric "name" field.
-     * 
+     *
      * Note: The engine should set all delivery-related flags assuming all delivery forms are
      * supported (e.g. the protocol fields and delivery flags of the ProtocolInfo). And the
-     * resource uri should be set to the empty string for http-delivered resources. The 
+     * resource uri should be set to the empty string for http-delivered resources. The
      * effective delivery options and uri will be established by the HTTP server.
      *
-     * @return A list of #MediaResources<!-- -->s or null if no representations 
+     * @return A list of #MediaResources<!-- -->s or null if no representations
      *         are provided by the engine for the item.
      */
     public abstract async Gee.List<MediaResource> ? get_resources_for_item (MediaObject item);

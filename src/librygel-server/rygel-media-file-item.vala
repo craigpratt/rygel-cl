@@ -123,14 +123,15 @@ public abstract class Rygel.MediaFileItem : MediaItem {
         }
     }
 
-    public override DataSource? create_stream_source_for_resource (HTTPRequest request,
-                                                                   MediaResource resource)
-        throws Error {
+    public override DataSource? create_stream_source_for_resource
+                                        (HTTPRequest request,
+                                         MediaResource resource)
+                                         throws Error {
         if (this.get_uris ().is_empty) {
             return null;
         }
-
-        return MediaEngine.get_default ().create_data_source_for_resource (this, resource);
+        return MediaEngine.get_default ().create_data_source_for_resource
+                                        (this, resource);
     }
 
     internal override DIDLLiteObject? serialize (Serializer serializer,
@@ -153,7 +154,7 @@ public abstract class Rygel.MediaFileItem : MediaItem {
 
     /**
      * Subclasses override this method to create the type-specific primary MediaResource.
-     * 
+     *
      * The resource returned is presumed to represent the "internal" file resource and
      * a uri referring to the source file. Transport-specific variants can be created
      * by the caller.
@@ -246,6 +247,7 @@ public abstract class Rygel.MediaFileItem : MediaItem {
      *
      * Note: Implementations should add both internal/file-based resources and HTTP-accessible
      *       resources to the MediaResource list.
+     * FIXME: Will be renamed once we can safely remove old add_resources
      */
     internal abstract void add_resources (HTTPServer server);
 }

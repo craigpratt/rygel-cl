@@ -3,5 +3,5 @@ Version = @VERSION@
 Module = ruih
 Name = Ruih
 License = LGPL
-Description = A RemoteUIServer 
+Description = A Remote UI Server
 Copyright = Copyright © Rygel maintainers

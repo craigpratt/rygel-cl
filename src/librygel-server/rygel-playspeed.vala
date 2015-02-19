@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  *
  * Author: Craig Pratt <craig@ecaspia.com>
@@ -29,7 +29,7 @@
 
 /**
  * This is a container for a PlaySpeed value.
- * 
+ *
  * A Playspeed can be positive or negative whole numbers or fractions.
  * e.g. "2". "1/2", "-1/4"
  */
@@ -98,4 +98,3 @@ public class Rygel.PlaySpeed {
         }
     }
 }
-

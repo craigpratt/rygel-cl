@@ -31,7 +31,7 @@ PLAYBIN = playbin
 endif
 
 if BUILD_RUIH_PLUGIN
-RUIH = ruih 
+RUIH = ruih
 endif
 
 SUBDIRS = $(TRACKER_PLUGIN) \

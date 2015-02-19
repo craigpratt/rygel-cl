@@ -918,14 +918,14 @@ public class Rygel.MediaExport.MediaCache : Object {
                     var added_resources = media_engine
                                           .get_resources_for_item.end (res);
                     debug ("Adding %d resources to item source %s",
-                           added_resources.size, item.get_primary_uri ());    
-                    foreach (var resrc in added_resources) {     
+                           added_resources.size, item.get_primary_uri ());
+                    foreach (var resrc in added_resources) {
                        debug ("Media-export item media resource %s",
                               resrc.get_name ());
                     }
                     item.get_resource_list ().add_all (added_resources);
                   });
-                break;
+               break;
             default:
                 assert_not_reached ();
         }

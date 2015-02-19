@@ -26,6 +26,8 @@ private errordomain Rygel.TestError {
 }
 
 private class Rygel.HTTPTranscodeHandler : GLib.Object {}
+private class Rygel.HTTPSubtitleHandler : GLib.Object {}
+private class Rygel.HTTPThumbnailHandler : GLib.Object {}
 
 public class Rygel.MediaObject : GLib.Object {
     public int64 size = -1;
@@ -34,13 +36,13 @@ public class Rygel.MediaObject : GLib.Object {
 public class Rygel.MediaContainer : MediaObject {
 }
 
-private abstract class Rygel.MediaItem : MediaObject {
+private abstract class Rygel.MediaFileItem : MediaObject {
     public bool is_live_stream () {
         return true;
     }
 }
 
-private class Rygel.AudioItem : MediaItem {
+private class Rygel.AudioItem : MediaFileItem {
     public int64 duration = 2048;
 }
 

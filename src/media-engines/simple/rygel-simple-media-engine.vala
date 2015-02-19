@@ -47,7 +47,7 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
             return null;
         }
 
-        var item = object as MediaFileItem; 
+        var item = object as MediaFileItem;
 
         // For MediaFileItems, uri 0 is the file URI referring directly to the content
         string source_uri = item.get_primary_uri ();
@@ -64,7 +64,7 @@ internal class Rygel.SimpleMediaEngine : MediaEngine {
         // The SimpleMediaEngine supports only byte-based seek
         primary_res.dlna_operation = GUPnP.DLNAOperation.RANGE;
 
-        // The SimpleMediaEngine supports connection stalling on 
+        // The SimpleMediaEngine supports connection stalling on
         primary_res.dlna_flags |= DLNAFlags.CONNECTION_STALL;
 
         // Add a resource for http consumption (as SimpleMediaEngine can handle http)

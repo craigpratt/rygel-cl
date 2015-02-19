@@ -92,7 +92,7 @@ internal abstract class Rygel.VideoTranscoder : Rygel.AudioTranscoder {
         return enc_container_profile;
     }
 
-    public override MediaResource? get_resource_for_item (MediaFileItem item) {    
+    public override MediaResource? get_resource_for_item (MediaFileItem item) {
         var resource = base.get_resource_for_item (item);
         if (resource == null) {
             return null;

@@ -26,12 +26,14 @@ private errordomain Rygel.TestError {
 }
 
 private class Rygel.HTTPIdentityHandler : GLib.Object {}
+private class Rygel.HTTPSubtitleHandler : GLib.Object {}
+private class Rygel.HTTPThumbnailHandler : GLib.Object {}
 
 public class Rygel.MediaObject : GLib.Object {
     public int64 size = 2048;
 }
 
-private class Rygel.MediaItem : MediaObject {
+private class Rygel.MediaFileItem : MediaObject {
 }
 
 private class Rygel.Thumbnail : GLib.Object {
@@ -67,7 +69,7 @@ private class Rygel.HTTPGet : GLib.Object {
 
     public HTTPGet (Thumbnail? thumbnail, Subtitle? subtitle) {
         this.msg = new Soup.Message ("HTTP", ITEM_URI);
-        this.object = new MediaItem ();
+        this.object = new MediaFileItem ();
         this.handler = new HTTPIdentityHandler ();
         this.thumbnail = thumbnail;
         this.subtitle = subtitle;

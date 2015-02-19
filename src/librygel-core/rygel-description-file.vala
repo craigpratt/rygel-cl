@@ -1,9 +1,7 @@
 /*
  * Copyright (C) 2011 Jens Georg
- * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Jens Georg <mail@jensge.org>
- *         Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  *
  * This file is part of Rygel.
  *
@@ -58,26 +56,6 @@ public class Rygel.DescriptionFile : Object {
      * modify_service_type()
      */
     private const string SERVICE_TYPE_TEMPLATE = "//*[.='%s']";
-
-    private const string X_DLNADOC_NODE = "X_DLNADOC";
-
-    // Get the local name of X_DLNADOC that does not contain +DIAGE+
-    private const string X_DLNADOC_NON_DEVCAP_XPATH = "//*[local-name()="+
-                                              " 'X_DLNADOC'"+
-                                              " and not(contains(.,\"DIAGE\"))"+
-                                              " and not(contains(.,\"LPE\"))]";
-
-    // Get the local name of X_DLNADOC that does contain +DIAGE+
-    private const string X_DLNADOC_DIAGE_XPATH = "//*[local-name()='X_DLNADOC'"+
-                                                 " and contains(.,\"DIAGE\")]";
-
-    private const string DIAGE_DEV_CAP = "+DIAGE+";
-
-    // Get the local name of X_DLNADOC that does contain +LPE+
-    private const string X_DLNADOC_LPE_XPATH = "//*[local-name()='X_DLNADOC'"+
-                                                 " and contains(.,\"LPE\")]";
-
-    private const string LPE_DEV_CAP = "+LPE+";
 
     /**
      * Constructor to load a description file from disk
@@ -250,33 +228,34 @@ public class Rygel.DescriptionFile : Object {
                     flags += "create-item-with-OCM-destroy-item";
                 }
             }
-
         }
 
         if (PluginCapabilities.DIAGNOSTICS in capabilities) {
+            flags += DIAGE_DEV_CAP;
 
             // Add X_DLNADOC element that holds DIAGE capability
             // in the device template
-            add_dlna_doc_element (X_DLNADOC_DIAGE_XPATH,
-                                  X_DLNADOC_NON_DEVCAP_XPATH,
-                                  DIAGE_DEV_CAP);
+            this.add_dlna_doc_element (X_DLNADOC_DIAGE_XPATH,
+                                       X_DLNADOC_NON_DEVCAP_XPATH,
+                                       DIAGE_DEV_CAP);
         } else {
             // Remove X_DLNADOC element that holds DIAGE capability
             // in the device template if it is disabled
-            remove_dlna_doc_element (X_DLNADOC_DIAGE_XPATH);
+            this.remove_dlna_doc_element (X_DLNADOC_DIAGE_XPATH);
         }
 
-        if (PluginCapabilities.LPE in capabilities) {
+        if (PluginCapabilities.ENERGY_MANAGEMENT in capabilities) {
+            flags += LPE_DEV_CAP;
 
             // Add X_DLNADOC element that holds LPE capability
             // in the device template
-            add_dlna_doc_element (X_DLNADOC_LPE_XPATH,
-                                  X_DLNADOC_NON_DEVCAP_XPATH,
-                                  LPE_DEV_CAP);
+            this.add_dlna_doc_element (X_DLNADOC_LPE_XPATH,
+                                       X_DLNADOC_NON_DEVCAP_XPATH,
+                                       LPE_DEV_CAP);
         } else {
             // Remove X_DLNADOC element that holds LPE capability
             // in the device template if it is disabled
-            remove_dlna_doc_element (X_DLNADOC_LPE_XPATH);
+            this.remove_dlna_doc_element (X_DLNADOC_LPE_XPATH);
         }
 
         // Add CVP2 capability for server
@@ -309,47 +288,59 @@ public class Rygel.DescriptionFile : Object {
         Xml.XPath.Object* dlna_doc_object = null;
 
         // Check if the X_DLNADOC node has already dev_cap
-        if (is_node_unavailable (dlnadoc_xpath)) {
-            // Get all X_DLNADOC node and extract the 'capability host & version'
-            if (get_dlna_doc_nodes (dlnadoc_non_xpath, ref dlna_doc_object)) {
-                for (int i=0; i < dlna_doc_object->nodesetval->length(); i++) {
-                    Xml.Node* node = dlna_doc_object->nodesetval->item (i);
-                    string node_content = node->get_content ();
-                    int doc_index = node_content.last_index_of ("/");
-                    string devcap_content;
-
-                    // Add X_DLNADOC sibbling element for
-                    // each unique capability-host
-                    var devcap_element = get_device_element ()
-                                        ->new_child (node->ns, X_DLNADOC_NODE);
-                    if (doc_index != -1) {
-                        devcap_content = (string)node_content
-                                                [doc_index+1:node_content.length];
-                    } else {
-                        devcap_content = node_content;
-                    }
-                    message (dev_cap + "/" + devcap_content);
-                    devcap_element->set_content (dev_cap +
-                                                 "/" +
-                                                 devcap_content);
-                    node->add_next_sibling (devcap_element);
-                }
-            }
+        // dlnadoc_xpath checks for a X_DLNADOC element that contains a
+        // capablity. We can return if that's the case.
+        if (this.apply_xpath (dlnadoc_xpath, null)) {
+            return;
         }
+
+        // Get all X_DLNADOC node and extract the 'capability host & version'
+        if (!this.apply_xpath (dlnadoc_non_xpath, out dlna_doc_object)) {
+            return;
+        }
+
+        for (var i = 0; i < dlna_doc_object->nodesetval->length (); i++) {
+            var node = dlna_doc_object->nodesetval->item (i);
+            var node_content = node->get_content ();
+            var doc_index = node_content.last_index_of ("/");
+            string devcap_content;
+
+            // Add X_DLNADOC sibbling element for
+            // each unique capability-host
+            var device = this.get_device_element ();
+            var devcap_element = device->new_child (node->ns, X_DLNADOC_NODE);
+            if (doc_index != -1) {
+                devcap_content = node_content[doc_index+1:node_content.length];
+            } else {
+                devcap_content = node_content;
+            }
+            debug (dev_cap + "/" + devcap_content);
+            devcap_element->set_content (dev_cap + "/" + devcap_content);
+            node->add_next_sibling (devcap_element);
+        }
+
+        delete dlna_doc_object;
     }
 
     // Remove the X_DLNADOC element with DEV CAP if disabled.
     public void remove_dlna_doc_element (string dlnadoc_xpath) {
         Xml.XPath.Object* devcap_object = null;
-        if (get_nodes (dlnadoc_xpath, ref devcap_object)) {
-            for (int i=0; i < devcap_object->nodesetval->length(); i++) {
-                Xml.Node* node = devcap_object->nodesetval->item (i);
-                if (node != null) {
-                    node->unlink ();
-                    delete node;
-                }
-            }
+        if (!this.apply_xpath (dlnadoc_xpath, out devcap_object)) {
+            return;
         }
+
+        for (var i = 0; i < devcap_object->nodesetval->length (); i++) {
+            var node = devcap_object->nodesetval->item (i);
+            if (node == null) {
+                continue;
+            }
+
+            node->unlink ();
+
+            delete node;
+        }
+
+        delete devcap_object;
     }
 
     private Xml.Node* get_device_element () {
@@ -359,30 +350,17 @@ public class Rygel.DescriptionFile : Object {
                                "device");
     }
 
-    private bool is_node_unavailable (string devcap_node_xpath) {
+    private bool apply_xpath (string xpath, out Xml.XPath.Object *xpo) {
         var context = new XPath.Context (this.doc.doc);
-        var devcap_node = context.eval_expression (devcap_node_xpath);
-        return (devcap_node != null &&
-                devcap_node->type == XPath.ObjectType.NODESET &&
-                devcap_node->nodesetval->is_empty ());
-    }
+        var result = context.eval_expression (xpath);
 
-    private bool get_nodes (string devcap_node_xpath,
-                                 ref Xml.XPath.Object* devcap_object) {
-        var context = new XPath.Context (this.doc.doc);
-        devcap_object = context.eval_expression (devcap_node_xpath);
-        return (devcap_object != null &&
-                devcap_object->type == XPath.ObjectType.NODESET &&
-                !devcap_object->nodesetval->is_empty ());
-    }
+        var retval = result != null &&
+                     result->type == XPath.ObjectType.NODESET &&
+                     !result->nodesetval->is_empty ();
 
-    private bool get_dlna_doc_nodes (string dlna_doc_xpath,
-                                     ref Xml.XPath.Object* dlna_doc_object) {
-        var context = new XPath.Context (this.doc.doc);
-        dlna_doc_object = context.eval_expression (dlna_doc_xpath);
-        return (dlna_doc_object != null &&
-                dlna_doc_object->type == XPath.ObjectType.NODESET &&
-                !dlna_doc_object->nodesetval->is_empty ());
+        xpo = result;
+
+        return retval;
     }
 
     public void add_service (string device_name, ResourceInfo resource_info) {
@@ -451,16 +429,14 @@ public class Rygel.DescriptionFile : Object {
      */
     public void modify_service_type (string old_type,
                                      string new_type) {
-        var context = new XPath.Context (this.doc.doc);
+        Xml.XPath.Object *xpath_object = null;
 
         var xpath = SERVICE_TYPE_TEMPLATE.printf (old_type);
-        var xpath_object = context.eval_expression (xpath);
-        assert (xpath_object != null);
-        assert (xpath_object->type == XPath.ObjectType.NODESET);
-        assert (!xpath_object->nodesetval->is_empty ());
+        if (this.apply_xpath (xpath, out xpath_object)) {
+            xpath_object->nodesetval->item (0)->set_content (new_type);
 
-        xpath_object->nodesetval->item (0)->set_content (new_type);
-        delete xpath_object;
+            delete xpath_object;
+        }
     }
 
     /**

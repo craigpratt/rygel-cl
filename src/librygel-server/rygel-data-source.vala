@@ -72,7 +72,7 @@ public interface Rygel.DataSource : GLib.Object {
      *         optional seek/playspeed (e.g. Content-Range, TimeSeekRange.dlna.org,
      *         etc) or null/empty list if none are appropriate. Note: the list will
      *         be processed in-order by the caller.
-     * 
+     *
      * @throws Error if anything goes wrong while prerolling the stream.
      *         Throws DataSourceError.SEEK_FAILED if a seek method is not supported or the
      *         range is not fulfillable.
@@ -84,8 +84,8 @@ public interface Rygel.DataSource : GLib.Object {
 
     /**
      * Start producing the data.
-     * 
-     * @throws Error if anything goes wrong while starting the stream. 
+     *
+     * @throws Error if anything goes wrong while starting the stream.
      */
     public abstract void start () throws Error;
 

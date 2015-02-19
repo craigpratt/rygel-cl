@@ -77,7 +77,7 @@ public abstract class Rygel.GstTranscoder : GLib.Object {
      * Get the supported (transcoded) MediaResource for the given content item
      *
      * @return A MediaResources or null if the transcoder cannot
-     * transcode this media item 
+     * transcode this media item
      */
     public virtual MediaResource? get_resource_for_item (MediaFileItem item) {
         MediaResource res = new MediaResource(this.name);
@@ -90,7 +90,7 @@ public abstract class Rygel.GstTranscoder : GLib.Object {
                          | DLNAFlags.STREAMING_TRANSFER_MODE
                          | DLNAFlags.BACKGROUND_TRANSFER_MODE
                          | DLNAFlags.CONNECTION_STALL;
-        // For transcoded content only support time seek           
+        // For transcoded content only support time seek
         res.dlna_operation = DLNAOperation.TIMESEEK;
 
         // Retrieve the duration from primary media resource
@@ -99,11 +99,11 @@ public abstract class Rygel.GstTranscoder : GLib.Object {
         }
 
         return res;
-    }        
+    }
 
     /**
      * Gets a numeric value that gives an gives an estimate of how hard
-     * it would be for this transcoder to trancode @item to the target profile of 
+     * it would be for this transcoder to trancode @item to the target profile of
      * this transcoder.
      *
      * @param item the media item to calculate the distance for

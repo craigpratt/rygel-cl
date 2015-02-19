@@ -105,19 +105,6 @@ internal class Rygel.AVTransport : Service {
         }
     }
 
-    private string _mode = "NORMAL";
-    public string mode {
-        get {
-            return this._mode;
-        }
-
-        set {
-            this._mode = value;
-
-            this.changelog.log ("CurrentPlayMode", this._mode);
-        }
-    }
-
     private ChangeLog changelog;
     private MediaPlayer player;
     private PlayerController controller;
@@ -154,6 +141,7 @@ internal class Rygel.AVTransport : Service {
         action_invoked["Previous"].connect (this.previous_cb);
         action_invoked["X_DLNA_GetBytePositionInfo"].connect
                                         (this.x_dlna_get_byte_position_info_cb);
+        action_invoked["SetPlayMode"].connect (this.set_play_mode_cb);
 
         this.controller.notify["playback-state"].connect (this.notify_state_cb);
         this.controller.notify["n-tracks"].connect (this.notify_n_tracks_cb);
@@ -164,6 +152,7 @@ internal class Rygel.AVTransport : Service {
         this.controller.notify["track-metadata"].connect (this.notify_track_meta_data_cb);
         this.controller.notify["next-uri"].connect (this.notify_next_uri_cb);
         this.controller.notify["next-metadata"].connect (this.notify_next_meta_data_cb);
+        this.controller.notify["play-mode"].connect (this.notify_play_mode_cb);
 
         this.player.notify["duration"].connect (this.notify_duration_cb);
 
@@ -192,7 +181,7 @@ internal class Rygel.AVTransport : Service {
         log.log ("RecordStorageMedium",          "NOT_IMPLEMENTED");
         log.log ("PossiblePlaybackStorageMedia", "None,Network");
         log.log ("PossibleRecordStorageMedia",   "NOT_IMPLEMENTED");
-        log.log ("CurrentPlayMode",              this.mode);
+        log.log ("CurrentPlayMode",              this.controller.play_mode);
         log.log ("TransportPlaySpeed",           this.player.playback_speed);
         log.log ("RecordMediumWriteStatus",      "NOT_IMPLEMENTED");
         log.log ("CurrentRecordQualityMode",     "NOT_IMPLEMENTED");
@@ -480,7 +469,7 @@ internal class Rygel.AVTransport : Service {
 
         action.set ("PlayMode",
                         typeof (string),
-                        this.mode,
+                        this.controller.play_mode,
                     "RecQualityMode",
                         typeof (string),
                         "NOT_IMPLEMENTED");
@@ -672,6 +661,28 @@ internal class Rygel.AVTransport : Service {
         action.return ();
     }
 
+    private void set_play_mode_cb (Service       service,
+                                   ServiceAction action) {
+        if (!this.check_instance_id (action)) {
+            return;
+        }
+
+        string play_mode;
+
+        action.get ("NewPlayMode",
+                        typeof (string),
+                        out play_mode);
+
+        if (!this.controller.is_play_mode_valid(play_mode)) {
+            action.return_error (712, _("Play mode not supported"));
+            return;
+        }
+
+        this.controller.play_mode = play_mode;
+
+        action.return ();
+    }
+
     private void notify_state_cb (Object controller, ParamSpec p) {
         var state = this.controller.playback_state;
         this.changelog.log ("TransportState", state);
@@ -721,6 +732,10 @@ internal class Rygel.AVTransport : Service {
     private void notify_next_meta_data_cb (Object player, ParamSpec p) {
         this.changelog.log ("NextAVTransportURIMetaData",
                             Markup.escape_text (this.controller.next_metadata));
+    }
+
+    private void notify_play_mode_cb (Object player, ParamSpec p) {
+	this.changelog.log ("CurrentPlayMode", this.controller.play_mode);
     }
 
     private async void handle_playlist (ServiceAction action,

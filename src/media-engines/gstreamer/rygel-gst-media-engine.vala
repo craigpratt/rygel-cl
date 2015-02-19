@@ -122,7 +122,7 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
             return null;
         }
 
-        var item = object as MediaFileItem; 
+        var item = object as MediaFileItem;
 
         // For MediaFileItems, the primary URI refers directly to the content
         string source_uri = item.get_primary_uri ();
@@ -150,7 +150,7 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
         http_res.uri = ""; // The URI needs to be assigned by the MediaServer
         resources.add (http_res);
 
-        var list = new GLib.List<GstTranscoder> ();        
+        var list = new GLib.List<GstTranscoder> ();
         foreach (var transcoder in transcoders) {
             if (transcoder.get_distance (item) != uint.MAX) {
                 list.append (transcoder);
@@ -164,7 +164,7 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
         // Put all Transcoders in the list according to their sorted rank
         foreach (var transcoder in list) {
             MediaResource res = transcoder.get_resource_for_item (item);
-            if (res != null) 
+            if (res != null)
                 resources.add (res);
         }
 
@@ -181,7 +181,7 @@ public class Rygel.GstMediaEngine : Rygel.MediaEngine {
             warning ("Can only process file-based MediaObjects (MediaFileItems)");
             return null;
         }
-        var item = object as MediaFileItem; 
+        var item = object as MediaFileItem;
 
         // For MediaFileItems, the primary URI refers directly to the content
         string source_uri = item.get_primary_uri ();

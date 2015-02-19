@@ -48,13 +48,16 @@ public class Rygel.HTTPServer : Rygel.StateMachine, GLib.Object {
         this.context = content_dir.context;
         this.requests = new ArrayList<HTTPRequest> ();
         this.cancellable = content_dir.cancellable;
-        this.locally_hosted = this.context.interface == "lo"
-                              || this.context.host_ip == "127.0.0.1";
+
+        // FIXME: Needs adaptation for IPv6
+        this.locally_hosted = this.context.interface == "lo" ||
+                              this.context.host_ip == "127.0.0.1";
+
         this.path_root = "/" + name;
         this.replacements = new HashTable <string, string> (str_hash, str_equal);
-        this.replacements.insert ("@SERVICE_ADDRESS@", 
+        this.replacements.insert ("@SERVICE_ADDRESS@",
                                   this.context.host_ip);
-        this.replacements.insert ("@SERVICE_INTERFACE@", 
+        this.replacements.insert ("@SERVICE_INTERFACE@",
                                   this.context.interface);
         this.replacements.insert ("@SERVICE_PORT@",
                                   this.context.port.to_string ());

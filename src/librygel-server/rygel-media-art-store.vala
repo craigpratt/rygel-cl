@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Jens Georg <mail@jensge.org>.
+ * Copyright (C) 2010-2014 Jens Georg <mail@jensge.org>.
  * Copyright (C) 2012 Intel Corporation.
  *
  * Author: Jens Georg <mail@jensge.org>
@@ -34,13 +34,14 @@ internal errordomain MediaArtStoreError {
 public class Rygel.MediaArtStore : GLib.Object {
     private static MediaArtStore media_art_store;
     private static bool first_time = true;
+    private const string[] types = { "track", "album", "artist", "podcast", "radio", "video" };
 
-    private string directory;
+    private MediaArt.Process? media_art_process;
 
     public static MediaArtStore? get_default () {
         if (first_time) {
             try {
-                MediaArt.init ();
+                MediaArt.plugin_init (128);
                 media_art_store = new MediaArtStore ();
             } catch (MediaArtStoreError error) {
                 warning ("No media art available: %s", error.message);
@@ -52,13 +53,15 @@ public class Rygel.MediaArtStore : GLib.Object {
         return media_art_store;
     }
 
-    public Thumbnail? find_media_art (MusicItem item,
-                                      bool      simple = false) throws Error {
-        string[] types = { "track", "album", "artist", "podcast", "radio" };
+    public Thumbnail? lookup_media_art (MusicItem item) throws Error {
         File file = null;
 
-        foreach (var type in types) {
-            file = this.get_media_art_file (type, item, simple);
+        foreach (var type in MediaArtStore.types) {
+            MediaArt.get_file (item.artist,
+                               type == "album" ? item.album : item.title,
+                               type,
+                               out file);
+
             if (file != null && file.query_exists (null)) {
                 break;
             } else {
@@ -85,42 +88,46 @@ public class Rygel.MediaArtStore : GLib.Object {
         return thumb;
     }
 
-    public Thumbnail? find_media_art_any (MusicItem item) throws Error {
-        var thumb = this.find_media_art (item);
+    public void add (MusicItem item, File file, uint8[] data, string mime) {
+        if (this.media_art_process == null) {
+            return;
+        }
 
-        return thumb;
+        try {
+            this.media_art_process.buffer (MediaArt.Type.ALBUM,
+                                           MediaArt.ProcessFlags.NONE,
+                                           file,
+                                           data,
+                                           mime,
+                                           item.artist,
+                                           item.album);
+        } catch (Error error) {
+            warning (_("Failed to add album art for %s: %s"),
+                     file.get_uri (),
+                     error.message);
+        }
     }
 
-    public File? get_media_art_file (string    type,
-                                     MusicItem item,
-                                     bool      simple = false) {
-        File file;
-
-        MediaArt.get_file (item.artist,
-                           type == "album" ? item.album : item.title,
-                           type,
-                           null,
-                           out file,
-                           null);
-
-        return file;
-    }
-
-    public void add (MusicItem item, File file, uint8[]? data) {
-        MediaArt.process_file (data, item.mime_type,
-                               MediaArt.Type.ALBUM, item.artist, item.album,
-                               file);
+    public void search_media_art_for_file (MusicItem item, File file) {
+        try {
+            this.media_art_process.file (MediaArt.Type.ALBUM,
+                                         MediaArt.ProcessFlags.NONE,
+                                         file,
+                                         item.artist,
+                                         item.album);
+        } catch (Error error) {
+            warning (_("Failed to find media art for %s: %s"),
+                     file.get_uri (),
+                     error.message);
+        }
     }
 
     private MediaArtStore () throws MediaArtStoreError {
-        var dir = Path.build_filename (Environment.get_user_cache_dir (),
-                                       "media-art");
-        var file = File.new_for_path (dir);
-
-        if (!file.query_exists (null)) {
-            DirUtils.create_with_parents (dir, 0750);
+        try {
+            this.media_art_process = new MediaArt.Process ();
+        } catch (Error error) {
+            this.media_art_process = null;
+            throw new MediaArtStoreError.NO_MEDIA_ART ("%s", error.message);
         }
-
-        this.directory = dir;
     }
 }

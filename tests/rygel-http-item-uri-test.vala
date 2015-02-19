@@ -33,7 +33,7 @@ private errordomain Rygel.TestError {
     SKIP
 }
 
-private class Rygel.Transcoder : GLib.Object {
+public class Rygel.Transcoder : GLib.Object {
     public string extension { get; protected set; }
 
     public Transcoder (string extension) {
@@ -41,7 +41,7 @@ private class Rygel.Transcoder : GLib.Object {
     }
 }
 
-private class Rygel.HTTPServer : GLib.Object {
+public class Rygel.HTTPServer : GLib.Object {
     private const string SERVER_PATH = "/Test";
 
     public string path_root { get; private set; }
@@ -72,11 +72,19 @@ private class Rygel.HTTPServer : GLib.Object {
     }
 }
 
-private class Rygel.MediaObject : GLib.Object {
-    public string id;
+public class Rygel.MediaResource : GLib.Object {
+    public string extension;
 }
 
-private class Rygel.MediaItem : Rygel.MediaObject {
+public class Rygel.MediaObject : GLib.Object {
+    public string id;
+
+    public MediaResource? get_resource_by_name (string name) {
+        return null;
+    }
+}
+
+public class Rygel.MediaFileItem : Rygel.MediaObject {
     public ArrayList<string> uris = new ArrayList<string> ();
     public string mime_type;
     public Gee.ArrayList<string> get_uris () { return this.uris; }
@@ -86,7 +94,7 @@ private class Rygel.Thumbnail {
     public string file_extension;
 }
 
-private class Rygel.VisualItem : MediaItem {
+private class Rygel.VisualItem : MediaFileItem {
     public ArrayList<Thumbnail> thumbnails = new ArrayList<Thumbnail> ();
 }
 
@@ -98,7 +106,7 @@ private class Rygel.VideoItem : VisualItem {
     public ArrayList<Subtitle> subtitles = new ArrayList<Subtitle> ();
 }
 
-private class Rygel.MusicItem : MediaItem {
+private class Rygel.MusicItem : MediaFileItem {
     public Thumbnail album_art;
 }
 

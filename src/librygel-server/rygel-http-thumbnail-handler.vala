@@ -36,6 +36,7 @@ internal class Rygel.HTTPThumbnailHandler : Rygel.HTTPGetHandler {
                                  int thumbnail_index,
                                  Cancellable? cancellable) throws HTTPRequestError 
     {
+
         this.media_item = media_item;
         this.thumbnail_index = thumbnail_index;
         this.cancellable = cancellable;

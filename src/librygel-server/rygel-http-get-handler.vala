@@ -49,24 +49,15 @@ public abstract class Rygel.HTTPGetHandler: GLib.Object {
         // must be treated as Streaming mode or Interactive, depending upon the content
         if (mode == null) {
             request.msg.response_headers.append (TRANSFER_MODE_HEADER,
-                                                 get_default_transfer_mode ());
+                                                 this.get_default_transfer_mode ());
         } else {
             request.msg.response_headers.append (TRANSFER_MODE_HEADER, mode);
         }
 
-        // Handle Samsung DLNA TV proprietary subtitle headers
-        if (request.msg.request_headers.get_one ("getCaptionInfo.sec") != null
-            && (request.object is VideoItem)
-            && (request.object as VideoItem).subtitles.size > 0) {
-                var caption_uri = request.http_server.create_uri_for_item
-                                        (request.object,
-                                         (request.object as VideoItem).get_extension (),
-                                         -1,
-                                         0, // FIXME: offer first subtitle only?
-                                         null);
-
-                request.msg.response_headers.append ("CaptionInfo.sec",
-                                                     caption_uri);
+        // Handle device-specific hacks that need to change the response
+        // headers such as Samsung's subtitle stuff.
+        if (request.hack != null) {
+            request.hack.modify_headers (request);
         }
     }
 
@@ -121,4 +112,5 @@ public abstract class Rygel.HTTPGetHandler: GLib.Object {
      */
     public abstract HTTPResponse render_body (HTTPGet request)
                                               throws HTTPRequestError;
+
 }

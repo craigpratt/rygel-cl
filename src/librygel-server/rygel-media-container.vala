@@ -36,6 +36,99 @@ public enum Rygel.ObjectEventType {
 }
 
 /**
+ * Implementation of RygelDataSource to serve generated playlists to a client.
+ */
+internal class Rygel.PlaylistDatasource : Rygel.DataSource, Object {
+    private MediaContainer container;
+    private uint8[] data;
+    private HTTPServer server;
+    private ClientHacks hacks;
+    private SerializerType playlist_type;
+
+    public PlaylistDatasource (SerializerType playlist_type,
+                               MediaContainer container,
+                               HTTPServer     server,
+                               ClientHacks?   hacks) {
+        this.playlist_type = playlist_type;
+        this.container = container;
+        this.server = server;
+        this.hacks = hacks;
+        this.generate_data.begin ();
+    }
+
+    public signal void data_ready ();
+
+    public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
+                                                     PlaySpeedRequest? playspeed_request)
+       throws Error {
+        if (seek_request != null) {
+            throw new DataSourceError.SEEK_FAILED
+                                        (_("Seeking not supported"));
+        }
+
+        if (playspeed_request != null) {
+            throw new DataSourceError.PLAYSPEED_FAILED
+                                    (_("Speed not supported"));
+        }
+
+        return null;
+    }
+
+    public void start () throws Error {
+        if (this.data == null) {
+            this.data_ready.connect ( () => {
+                try {
+                    this.start ();
+                } catch (Error error) { }
+            });
+
+            return;
+        }
+
+        Idle.add ( () => {
+            this.data_available (this.data);
+            this.done ();
+
+            return false;
+        });
+    }
+
+    public void freeze () { }
+
+    public void thaw () { }
+
+    public void stop () { }
+
+    public async void generate_data () {
+        try {
+            var sort_criteria = this.container.sort_criteria;
+            var count = this.container.child_count;
+
+            var children = yield this.container.get_children (0,
+                                                              count,
+                                                              sort_criteria,
+                                                              null);
+
+            if (children != null) {
+                var serializer = new Serializer (this.playlist_type);
+                children.serialize (serializer, this.server, this.hacks);
+
+                var xml = serializer.get_string ();
+
+                this.data = xml.data;
+                this.data_ready ();
+            } else {
+                this.error (new DataSourceError.GENERAL
+                                        (_("Failed to generate playlist")));
+            }
+        } catch (Error error) {
+            warning ("Could not generate playlist: %s", error.message);
+            this.error (error);
+        }
+    }
+}
+
+/**
  * This is a container (folder) for media items and child containers.
  *
  * It provides a basic serialization implementation (to DIDLLiteWriter).
@@ -77,16 +170,16 @@ public abstract class Rygel.MediaContainer : MediaObject {
                                               "+upnp:originalTrackNumber," +
                                               "+dc:title";
 
-    private const string DIDL_S_PLAYLIST_RESNAME = "dldl_s_playlist";
+    private const string DIDL_S_PLAYLIST_RESNAME = "didl_s_playlist";
     private const string M3U_PLAYLIST_RESNAME = "m3u_playlist";
 
-    /* TODO: When we implement ContentDirectory v4, this will be emitted also
-     * when child _items_ are updated.
-     */
+    public static bool equal_func (MediaContainer a, MediaContainer b) {
+        return a.id == b.id;
+    }
 
     /**
-     * The container_updated signal is emitted if a child container under the
-     * tree of this container has been updated. The object parameter is set to
+     * The container_updated signal is emitted if the subtree unter this
+     * container has been modified. The object parameter is set to
      * the MediaObject that is the source of the container update. Note that
      * it may even be set to the container itself.
      *
@@ -209,9 +302,10 @@ public abstract class Rygel.MediaContainer : MediaObject {
         this.total_deleted_child_count = 0;
         this.upnp_class = UPNP_CLASS;
         this.create_mode_enabled = false;
+
         this.container_updated.connect (on_container_updated);
         this.sub_tree_updates_finished.connect (on_sub_tree_updates_finished);
-        add_playlist_resources ();
+        this.add_playlist_resources ();
     }
 
     /**
@@ -271,6 +365,7 @@ public abstract class Rygel.MediaContainer : MediaObject {
                                 event_type,
                                 sub_tree_update);
     }
+
 
     /**
      * Add playlist resources to the MediaObject resource list
@@ -350,15 +445,16 @@ public abstract class Rygel.MediaContainer : MediaObject {
         }
 
         if (this.child_count > 0) {
-            serialize_resource_list (didl_container, http_server);
+            this.serialize_resource_list (didl_container, http_server);
         }
 
         return didl_container;
     }
 
-    public override DataSource? create_stream_source_for_resource (HTTPRequest request,
-                                                                   MediaResource resource)
-        throws Error {
+    public override DataSource? create_stream_source_for_resource
+                                         (HTTPRequest request,
+                                          MediaResource resource)
+                                          throws Error {
         SerializerType playlist_type;
 
         switch (resource.get_name ()) {
@@ -369,14 +465,17 @@ public abstract class Rygel.MediaContainer : MediaObject {
                 playlist_type = SerializerType.M3UEXT;
                 break;
             default:
-                warning ("Unknown MediaContainer resource: %s", resource.get_name ());
+                warning (_("Unknown MediaContainer resource: %s"), resource.get_name ());
+
                 return null;
         }
+
         return new PlaylistDatasource (playlist_type,
                                        this,
                                        request.http_server,
                                        request.hack);
     }
+
 
     /**
      * The handler for the container_updated signal on this container. We only forward

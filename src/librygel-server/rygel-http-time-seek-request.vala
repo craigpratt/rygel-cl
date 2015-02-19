@@ -2,7 +2,7 @@
  * Copyright (C) 2009 Nokia Corporation.
  * Copyright (C) 2012 Intel Corporation.
  * Copyright (C) 2013 Cable Television Laboratories, Inc.
- * 
+ *
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jens Georg <jensg@openismus.com>
@@ -63,7 +63,7 @@ public class Rygel.HTTPTimeSeekRequest : Rygel.HTTPSeekRequest {
      *       be checked according to playspeed direction (with rate +1.0 assumed when speed
      *       is not provided). When speed is provided, the range end parameter check is
      *       relaxed when the rate is not +1.0 (per DLNA 7.5.4.3.2.24.4).
-     * 
+     *
      * @param request The HTTP GET/HEAD request
      * @speed speed An associated speed request
      */

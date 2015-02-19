@@ -29,7 +29,7 @@ using GUPnP;
 
 public class Rygel.HTTPByteSeekResponse : Rygel.HTTPResponseElement {
     /**
-     * The start of the range in bytes 
+     * The start of the range in bytes
      */
     public int64 start_byte { get; set; }
 

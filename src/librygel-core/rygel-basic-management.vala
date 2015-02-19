@@ -131,18 +131,15 @@ public class Rygel.BasicManagement : Service {
     private void add_test_and_return_action (BasicManagementTest bm_test,
                                              ServiceAction       action) {
         var id = this.add_test (bm_test);
+
         /* NOTE: it might be useful queue the execution but this is not
          * currently done: if "BandwidthTest" is implemented queueing is
          * practically required. */
         bm_test.run.begin ((obj,res) => {
             bm_test.run.end (res);
-            this.freeze_notify();
-            bm_test.execution_state = BasicManagementTest.ExecutionState.COMPLETED;
-            Thread.usleep(1000000);
             this.notify ("ActiveTestIDs",
                          typeof (string),
                          create_test_ids_list (true));
-            this.thaw_notify ();
         });
 
         action.set ("TestID", typeof (string), id);
@@ -258,8 +255,9 @@ public class Rygel.BasicManagement : Service {
                         out dscp);
 
         if (host == "") {
-            message ("Ping action : Host is empty !");
+            warning (_("Cannot run 'Ping' action: Host is empty"));
             action.return_error (402, _("Invalid argument"));
+
             return;
         }
 
@@ -350,8 +348,9 @@ public class Rygel.BasicManagement : Service {
                         out interval_time_out);
 
         if (hostname == "") {
-            message ("NSLookup action : Host is empty !");
+            warning (_("Cannot run 'NSLookup' action: HostName is empty"));
             action.return_error (402, _("Invalid argument"));
+
             return;
         }
 
@@ -431,8 +430,9 @@ public class Rygel.BasicManagement : Service {
                         out dscp);
 
         if (host == "") {
-            message ("Traceroute action : Host is empty !");
+            warning (_("Cannot run 'Traceroute' action: Host is empty"));
             action.return_error (402, _("Invalid argument"));
+
             return;
         }
 

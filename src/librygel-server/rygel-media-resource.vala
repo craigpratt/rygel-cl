@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  *
  * Author: Craig Pratt <craig@ecaspia.com>
@@ -147,7 +147,7 @@ public class Rygel.MediaResource : GLib.Object {
         return this.name;
     }
 
-    public DIDLLiteResource serialize  
+    public DIDLLiteResource serialize
                                (DIDLLiteResource didl_resource,
                                 HashTable<string, string> ? replacements) {
         // Note: For a DIDLLiteResource, a values -1/null also signal "not set"
@@ -182,7 +182,7 @@ public class Rygel.MediaResource : GLib.Object {
         this.play_speeds = copy_speeds (pi.play_speeds);
     }
 
-    public ProtocolInfo get_protocol_info 
+    public ProtocolInfo get_protocol_info
                             (HashTable<string, string> ? replacements = null) {
         var new_pi = new ProtocolInfo ();
 
@@ -381,7 +381,7 @@ public class Rygel.MediaResource : GLib.Object {
             strbuf.append ("cleartext-lop ");
         }
         strbuf.overwrite (strbuf.len-1,"],"); // Replace space
- 
+
         if (this.dlna_conversion != DLNAConversion.NONE) {
             strbuf.append_printf ("dlna_conversion %1d,", this.dlna_conversion);
         }

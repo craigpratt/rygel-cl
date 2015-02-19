@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  *
  * Author: Craig Pratt <craig@ecaspia.com>
@@ -36,7 +36,7 @@ public abstract class Rygel.HTTPResponseElement : GLib.Object {
     public static const int64 UNSPECIFIED = -1;
 
     /**
-     * Set the type-appropriate headers on the associated HTTP Message 
+     * Set the type-appropriate headers on the associated HTTP Message
      */
     public abstract void add_response_headers (Rygel.HTTPRequest request);
 

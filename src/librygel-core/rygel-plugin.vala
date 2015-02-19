@@ -1,10 +1,8 @@
 /*
  * Copyright (C) 2008 Nokia Corporation.
- * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
- *         Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  *
  * This file is part of Rygel.
  *
@@ -34,22 +32,18 @@ using GUPnP;
 public enum Rygel.PluginCapabilities {
     NONE = 0,
     /* Server caps */
-    
-    // Diasbling Audio and Image Upload Caps
 
     /// Server plugin supports upload of images
-    //IMAGE_UPLOAD,
+    IMAGE_UPLOAD,
 
     /// Server plugin supports upload of video files
     VIDEO_UPLOAD,
 
     /// Server plugin supports upload of audio files
-    //AUDIO_UPLOAD,
+    AUDIO_UPLOAD,
 
-    /// Disabling Server supports upload of all kind of items.
-    /// Enabling only av-upload
-    //UPLOAD = IMAGE_UPLOAD | VIDEO_UPLOAD | AUDIO_UPLOAD,
-    UPLOAD = VIDEO_UPLOAD,
+    /// Server supports upload of all kind of items
+    UPLOAD = IMAGE_UPLOAD | VIDEO_UPLOAD | AUDIO_UPLOAD,
 
     /// Server supports tracking changes
     TRACK_CHANGES,
@@ -59,10 +53,13 @@ public enum Rygel.PluginCapabilities {
 
     /* Renderer caps */
 
+    /// General capabilities
+
     /* Diagnostics (DIAGE) support */
     DIAGNOSTICS,
 
-    LPE,
+    /* EnergyManagement (LPE) support */
+    ENERGY_MANAGEMENT
 }
 
 /**
@@ -158,9 +155,9 @@ public class Rygel.Plugin : GUPnP.ResourceFactory {
 
         this.resource_infos = new ArrayList<ResourceInfo> ();
 
+        /* Enable BasicManagement service on this device if needed */
         var config = MetaConfig.get_default ();
         try {
-        /* Enable BasicManagement service on this device if needed */
             if (config.get_bool (this.name, "diagnostics")) {
                 var resource = new ResourceInfo (BasicManagement.UPNP_ID,
                                                  BasicManagement.UPNP_TYPE,
@@ -170,8 +167,14 @@ public class Rygel.Plugin : GUPnP.ResourceFactory {
 
                 this.capabilities |= PluginCapabilities.DIAGNOSTICS;
             }
+        } catch (GLib.Error error) {
+            if (!(error is ConfigurationError.NO_VALUE_SET))
+                warning ("Failed to read configuration: %s", error.message);
+        }
 
         /* Enable EnergyManagement service on this device if needed */
+        config = MetaConfig.get_default ();
+        try {
             if (config.get_bool (this.name, "energy-management")) {
                 var resource = new ResourceInfo (EnergyManagement.UPNP_ID,
                                                  EnergyManagement.UPNP_TYPE,
@@ -179,9 +182,13 @@ public class Rygel.Plugin : GUPnP.ResourceFactory {
                                                  typeof (EnergyManagement));
                 this.add_resource (resource);
 
-                this.capabilities |= PluginCapabilities.LPE;
+                this.capabilities |= PluginCapabilities.ENERGY_MANAGEMENT;
+
             }
-        } catch (GLib.Error error) {}
+        } catch (GLib.Error error) {
+            if (!(error is ConfigurationError.NO_VALUE_SET))
+                warning ("Failed to read configuration: %s", error.message);
+        }
 
         this.icon_infos = new ArrayList<IconInfo> ();
         this.default_icons = new ArrayList<IconInfo> ();

@@ -150,5 +150,4 @@ public class Rygel.MusicItem : AudioItem {
 
         return "";
     }
-
 }

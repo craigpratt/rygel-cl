@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  *
  * Author: Craig Pratt <craig@ecaspia.com>
@@ -33,7 +33,7 @@ public class Rygel.DTCPCleartextResponse : Rygel.HTTPResponseElement {
     public static const string DTCP_CONTENT_RANGE_HEADER = "Content-Range.dtcp.com";
 
     /**
-     * The start of the response range in bytes 
+     * The start of the response range in bytes
      */
     public int64 start_byte { get; private set; }
 

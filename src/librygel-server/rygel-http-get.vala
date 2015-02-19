@@ -101,6 +101,11 @@ public class Rygel.HTTPGet : HTTPRequest {
     protected override async void find_item () throws Error {
         yield base.find_item ();
 
+        // No need to do anything here, will be done in PlaylistHandler
+        if (this.object is MediaContainer) {
+            return;
+        }
+
         if (unlikely ((this.object is MediaFileItem)
                       && (this.object as MediaFileItem).place_holder)) {
             throw new HTTPRequestError.NOT_FOUND ("MediaFileItem '%s' is empty",
@@ -174,7 +179,6 @@ public class Rygel.HTTPGet : HTTPRequest {
             debug ("Error processing PlaySpeed: %s", error.message);
             return;
         }
-
         try {
             // Order is intentional here
             if (supports_cleartext_seek && requested_cleartext_seek) {
@@ -201,7 +205,7 @@ public class Rygel.HTTPGet : HTTPRequest {
             this.server.unpause_message (this.msg);
             this.end (error.code, error.message); // All seek error codes are Soup.Status codes
             return;
-        }
+         }
 
         // Add headers
         this.handler.add_response_headers (this);
@@ -314,12 +318,6 @@ public class Rygel.HTTPGet : HTTPRequest {
             this.msg.set_status (response_code);
         }
 
-        // Set the response version to HTTP 1.1 (see DLNA 7.5.4.3.2.7.2)
-        if (msg.get_http_version () == Soup.HTTPVersion.@1_0) {
-            msg.set_http_version (Soup.HTTPVersion.@1_1);
-            msg.response_headers.append ("Connection", "close");
-        }
-
         if (msg.get_http_version () == Soup.HTTPVersion.@1_0) {
             // Set the response version to HTTP 1.1 (see DLNA 7.5.4.3.2.7.2)
             msg.set_http_version (Soup.HTTPVersion.@1_1);
@@ -328,7 +326,7 @@ public class Rygel.HTTPGet : HTTPRequest {
 
         debug ("Following HTTP headers appended to response:");
         this.msg.response_headers.foreach ((name, value) => {
-            debug ("    %s : %s", name, value);
+            debug ("%s : %s", name, value);
         });
 
         if (this.msg.method == "HEAD") {

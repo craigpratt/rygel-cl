@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2013  Cable Television Laboratories, Inc.
  *
  * Author: Craig Pratt <craig@ecaspia.com>
@@ -33,7 +33,7 @@ public class Rygel.DTCPCleartextRequest : Rygel.HTTPSeekRequest {
     public static const string DTCP_RANGE_HEADER = "Range.dtcp.com";
 
     /**
-     * The start of the cleartext range in bytes 
+     * The start of the cleartext range in bytes
      */
     public int64 start_byte { get; private set; }
 
@@ -122,7 +122,7 @@ public class Rygel.DTCPCleartextRequest : Rygel.HTTPSeekRequest {
         if ((total_size != UNSPECIFIED) && (end > total_size-1)) {
             // It's not clear from the DLNA link protection spec if the range end can be beyond
             //  the total length. We'll assume RFC 2616 14.35.1 semantics. But note that having
-            //  an end with an unspecified size will be normal for live/in-progress content 
+            //  an end with an unspecified size will be normal for live/in-progress content
             end = total_size-1;
         }
 

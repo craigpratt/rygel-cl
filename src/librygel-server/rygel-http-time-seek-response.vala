@@ -5,7 +5,7 @@
  * Author: Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
- * 
+ *
  * Rygel is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -76,7 +76,7 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
      *
      * if total_duration and total_size are UNSPECIFIED, then the content duration/size
      * will be signaled as unknown ("*")
-     * 
+     *
      * if end_time is UNSPECIFIED, then the time range end will be omitted from the
      * response. If the end_byte is UNSPECIFIED, the entire byte range response will be
      * omitted. (see DLNA 7.5.4.3.2.24.3)
@@ -122,7 +122,7 @@ public class Rygel.HTTPTimeSeekResponse : Rygel.HTTPResponseElement {
      *
      * If total_duration and total_size are UNSPECIFIED, then the content duration/size
      * will be signaled as unknown ("*")
-     * 
+     *
      * if end_time is UNSPECIFIED, then the time range end will be omitted from the
      * response. If the end_byte is UNSPECIFIED, the entire byte range response will be
      * omitted. (see DLNA 7.5.4.3.2.24.3)
