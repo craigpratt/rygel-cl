@@ -375,7 +375,7 @@ public class Rygel.ExtDataOutputStream : DataOutputStream {
         if (count > 8) {
             throw new IOError.FAILED ("Cannot write %u bytes from a uint64".printf(count));
         }
-        for (int8 i=(int8)count-1; count >= 0; i--) {
+        for (int8 i=(int8)count-1; i >= 0; i--) {
             uint8 byte = (uint8)(val >> i*8);
             put_byte (byte);
         }
@@ -385,7 +385,7 @@ public class Rygel.ExtDataOutputStream : DataOutputStream {
         if (count > 4) {
             throw new IOError.FAILED ("Cannot write %u bytes from a uint32".printf(count));
         }
-        for (int8 i=(int8)count-1; count >= 0; i--) {
+        for (int8 i=(int8)count-1; i >= 0; i--) {
             uint8 byte = (uint8)(val >> i*8);
             put_byte (byte);
         }
@@ -407,6 +407,27 @@ public class Rygel.ExtDataOutputStream : DataOutputStream {
     public void put_zero_bytes (uint64 num_bytes) throws Error {
         for (uint64 i=0; i<num_bytes; i++) {
             put_byte (0);
+        }
+    }
+    
+    public void put_from_instream (ExtDataInputStream instream, uint64 length)
+            throws Error {
+        var copy_buf = new uint8 [1024*8]; // 8K
+        uint64 total_to_copy = length;
+        while (total_to_copy > 0) {
+            var bytes_to_copy = uint64.min (copy_buf.length, total_to_copy);
+            unowned uint8[] target_slice = copy_buf [0:bytes_to_copy];
+            var read_bytes = instream.read (target_slice);
+            if (read_bytes != bytes_to_copy) {
+                throw new IOError.FAILED ("Failed to read " + bytes_to_copy.to_string ()
+                                          + " bytes");
+            }
+            var written_bytes = this.write (target_slice);
+            if (written_bytes != bytes_to_copy) {
+                throw new IOError.FAILED ("Failed to write " + bytes_to_copy.to_string ()
+                                          + " bytes");
+            }
+            total_to_copy -= bytes_to_copy;
         }
     }
 }

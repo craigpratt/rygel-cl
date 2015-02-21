@@ -49,7 +49,7 @@ public abstract class Rygel.MP2TransportStream {
         uint64 packet_count = 0, offset = this.first_packet_offset;
         uint bytes_per_packet = 188;
         this.source_stream.seek_to_offset (offset);
-        while (offset + bytes_per_packet < this.source_size) {
+        while (offset + bytes_per_packet <= this.source_size) {
             // debug ("Parsing packet %lld at offset %lld", packet_count, offset);
             var ts_packet = new MP2TSPacket.from_stream (this.source_stream, offset);
             ts_packets.add (ts_packet);
@@ -181,6 +181,7 @@ public class Rygel.MP2TSPacket {
     MP2TSAdaptationField adaptation_field;
     public bool has_payload;
     public uint8 payload_offset; // offset of the data portion of the TS packet
+    public uint8 payload_size; // bytes of payload in this packet
 
     protected bool loaded; // Indicates the packet fields/children are populated/parsed
 
@@ -199,8 +200,8 @@ public class Rygel.MP2TSPacket {
         // debug ("parse_from_stream()", this.type_code);
         // Note: This currently assumes the stream is pre-positioned for the TS packet
         var instream = this.source_stream;
+
         var sync_byte = instream.read_byte ();
-        
         if (sync_byte != 0x47) {
             throw new IOError.FAILED ("TS packet sync_byte mismatch at %lld (0x%llx): found 0x%x, expected 0x47",
                                       this.source_offset, this.source_offset,
@@ -227,8 +228,9 @@ public class Rygel.MP2TSPacket {
         }
         this.has_payload = (this.adaptation_field_control & 1) == 1;
         this.payload_offset = bytes_consumed;
+        this.payload_size = 188 - bytes_consumed;
         assert (bytes_consumed <= 188);
-        instream.skip_bytes (188 - bytes_consumed);
+        instream.skip_bytes (payload_size);
 
         this.source_verbatim = false;
         this.loaded = true;
@@ -236,6 +238,51 @@ public class Rygel.MP2TSPacket {
         return 188;
     }
     
+    public virtual uint64 to_stream (ExtDataOutputStream outstream) throws Error {
+        if (this.source_verbatim) {
+            // debug ("to_stream(%s): Writing from source stream: %s",
+            //        this.type_code, this.to_string ());
+            this.source_stream.seek_to_offset (this.source_offset);
+            outstream.put_from_instream (this.source_stream, 188);
+        } else {
+            // debug ("to_stream(%s): Writing from fields: %s",
+            //        this.type_code, this.to_string ());
+            fields_to_stream (outstream);
+        }
+        return 188;
+    }
+
+    public virtual uint64 fields_to_stream (ExtDataOutputStream outstream) 
+            throws Error {
+        outstream.put_byte (0x47);
+
+        uint16 octet_2_3 = (this.transport_error_indicator ? 1 : 0) << 15;
+        octet_2_3 |= (this.payload_unit_start_indicator ? 1 : 0) << 14;
+        octet_2_3 |= (this.transport_priority ? 1 : 0) << 13;
+        octet_2_3 |= this.pid;
+        outstream.put_uint16 (octet_2_3);
+        
+        uint8 octet_4 = (this.transport_scrambling_control) << 6;
+        octet_4 |= this.adaptation_field_control << 4;
+        octet_4 |= this.continuity_counter;
+        outstream.put_byte (octet_4);
+        
+        uint64 bytes_written = 4;
+        
+        if (this.adaptation_field != null) {
+            bytes_written += this.adaptation_field.fields_to_stream 
+                                                    (outstream);
+        }
+        return bytes_written;
+    }
+    
+    public virtual uint64 payload_to_stream (ExtDataOutputStream outstream) 
+            throws Error {
+        this.source_stream.seek_to_offset (this.source_offset + this.payload_offset);
+        outstream.put_from_instream (this.source_stream, this.payload_size);
+        return this.payload_size;
+    }
+
     public string to_string () {
         var builder = new StringBuilder ("MP2TSPacket[");
         append_fields_to (builder);
@@ -280,7 +327,7 @@ public class Rygel.MP2TSPacket {
     }
 
     public class MP2TSAdaptationField {
-        public uint8 adaptation_field_length;
+        public bool is_empty;
         public bool discontinuity_indicator;
         public bool random_access_indicator;
         public bool elementary_stream_priority_indicator;
@@ -289,12 +336,12 @@ public class Rygel.MP2TSPacket {
         public bool splicing_point_flag;
         public bool transport_private_data_flag;
         public bool adaptation_field_extension_flag;
-        public uint64 pcr_base;
-        public uint16 pcr_extension;
-        public uint64 original_pcr_base;
-        public uint16 original_pcr_extension;
+        public uint64 pcr;
+        public uint64 opcr;
         public uint8 splice_countdown;
         public uint8 private_data_length;
+        public Bytes private_data;
+        public uint8 num_stuffing_bytes;
         public MP2TSAdaptationFieldExt adaptation_field_ext;
 
         public MP2TSAdaptationField () {
@@ -302,8 +349,13 @@ public class Rygel.MP2TSPacket {
 
         public uint8 parse_from_stream (ExtDataInputStream instream)
                 throws Error {
-            this.adaptation_field_length = instream.read_byte ();
+            var adaptation_field_length = instream.read_byte ();
             // Note: length doesn't include the 1-byte length field
+            
+            if (adaptation_field_length == 0) {
+                this.is_empty = true;
+                return 1;
+            }
 
             var octet_2 = instream.read_byte ();
             this.discontinuity_indicator = Bits.getbit_8 (octet_2, 7);
@@ -318,16 +370,15 @@ public class Rygel.MP2TSPacket {
 
             if (this.pcr_flag) {
                 var pcr_fields = instream.read_bytes_uint64 (6); // 48 bits
-                this.pcr_base = Bits.getbits_64 (pcr_fields, 15, 33);
-                this.pcr_extension = (uint16)Bits.getbits_64 (pcr_fields, 0, 9);
+                this.pcr = Bits.getbits_64 (pcr_fields, 15, 33) * 300;
+                this.pcr += (uint16)Bits.getbits_64 (pcr_fields, 0, 9);
                 bytes_consumed += 6;
             }
 
             if (this.opcr_flag) {
                 var opcr_fields = instream.read_bytes_uint64 (6); // 48 bits
-                this.original_pcr_base = Bits.getbits_64 (opcr_fields, 15, 33);
-                this.original_pcr_extension 
-                        = (uint16)Bits.getbits_64 (opcr_fields, 0, 9);
+                this.opcr = Bits.getbits_64 (opcr_fields, 15, 33) * 300;
+                this.opcr += (uint16)Bits.getbits_64 (opcr_fields, 0, 9);
                 bytes_consumed += 6;
             }
             
@@ -339,7 +390,7 @@ public class Rygel.MP2TSPacket {
             if (this.transport_private_data_flag) {
                 this.private_data_length = instream.read_byte ();
                 bytes_consumed += 1;
-                instream.skip_bytes (this.private_data_length);
+                this.private_data = instream.read_bytes (this.private_data_length);
                 bytes_consumed += this.private_data_length;
             }
             
@@ -349,30 +400,102 @@ public class Rygel.MP2TSPacket {
             }
             // debug ("adaptation field length: %d", this.adaptation_field_length);
             // debug ("bytes consumed: %lld", bytes_consumed);
-            if (bytes_consumed > this.adaptation_field_length+1) {
+            if (bytes_consumed > adaptation_field_length+1) {
                 throw new IOError.FAILED ("Found %d bytes in adaptation field of %d bytes: %s",
-                                          bytes_consumed, this.adaptation_field_length+1,
+                                          bytes_consumed, adaptation_field_length+1,
                                           to_string ());
             }
-            uint8 padding_bytes = this.adaptation_field_length+1 - bytes_consumed;
-            instream.skip_bytes (padding_bytes);
-            bytes_consumed += padding_bytes;
+            this.num_stuffing_bytes = adaptation_field_length + 1 
+                                      - bytes_consumed;
+            instream.skip_bytes (this.num_stuffing_bytes);
+            bytes_consumed += num_stuffing_bytes;
 
             return bytes_consumed;
         }
 
-        public uint64 get_pcr () throws Error {
-            if (!this.pcr_flag) {
-                throw new IOError.FAILED ("No PCR found in adaptation header");
-            } 
-            return (this.pcr_base*300 + this.pcr_extension);
+        public virtual uint8 get_size () {
+            if (this.is_empty) {
+                return 1;
+            } else {
+                return (2 + (this.pcr_flag ? 6 : 0) 
+                          + (this.opcr_flag ? 6 : 0)
+                          + (this.splicing_point_flag ? 1 : 0)
+                          + (this.transport_private_data_flag 
+                             ? (this.private_data.length + 1) : 0)
+                          + (this.adaptation_field_extension_flag ?
+                            this.adaptation_field_ext.get_size () : 0)
+                          + this.num_stuffing_bytes);
+            }
         }
 
-        public uint64 get_original_pcr () throws Error {
-            if (!this.opcr_flag) {
-                throw new IOError.FAILED ("No original PCR found in adaptation header");
-            } 
-            return (this.original_pcr_base*300 + this.original_pcr_extension);
+        public virtual uint8 fields_to_stream (ExtDataOutputStream outstream) 
+                throws Error {
+            if (this.is_empty) {
+                outstream.put_byte (get_size () - 1);
+            }
+            var header_size = get_size ();
+            outstream.put_byte (header_size - 1);
+            uint8 bytes_written = 1;
+            if (!this.is_empty) {
+                uint8 octet_2 
+                    = (this.discontinuity_indicator ? 1 : 0) << 7
+                      | (this.random_access_indicator ? 1 : 0) << 6
+                      | (this.elementary_stream_priority_indicator ? 1 : 0) << 5
+                      | (this.pcr_flag ? 1 : 0) << 4
+                      | (this.opcr_flag ? 1 : 0) << 3
+                      | (this.splicing_point_flag ? 1 : 0) << 2
+                      | (this.transport_private_data_flag ? 1 : 0) << 1
+                      | this.adaptation_field_extension_flag;
+                outstream.put_byte (octet_2);
+                bytes_written++;
+                if (this.pcr_flag) {
+                    uint64 pcr_fields;
+                    uint64 pcr_base = this.pcr / 300;
+                    pcr_fields = pcr_base << 15
+                                 | 0x3F << 9 // reserved bits
+                                 | (this.pcr - pcr_base*300);
+                    outstream.put_bytes_uint64 (pcr_fields, 6); // 48 bits
+                    bytes_written += 6;
+                }
+                if (this.opcr_flag) {
+                    uint64 opcr_fields;
+                    uint64 opcr_base = this.opcr / 300;
+                    opcr_fields = opcr_base << 15
+                                  | 0x3F << 9 // reserved bits
+                                  | (this.opcr - opcr_base*300);
+                    outstream.put_bytes_uint64 (opcr_fields, 6); // 48 bits
+                    bytes_written += 6;
+                }
+
+                if (this.splicing_point_flag) {
+                    outstream.put_byte (this.splice_countdown);
+                    bytes_written++;
+                }
+
+                if (this.transport_private_data_flag) {
+                    if (this.private_data.length > 255) {
+                        throw new IOError.FAILED ("private_data too large for adaptation field (%d)" 
+                                                  .printf (this.private_data.length));
+                    }
+                    outstream.put_byte ((uint8)this.private_data.length);
+                    outstream.write_bytes (this.private_data);
+                    bytes_written +=  (uint8)this.private_data.length + 1;
+                }
+                
+                if (this.adaptation_field_extension_flag) {
+                    if (this.adaptation_field_ext == null) {
+                        throw new IOError.FAILED ("adaptation_field_extension_flag set with null adaptation_field_ext");
+                    }
+                    bytes_written += this.adaptation_field_ext
+                                            .fields_to_stream (outstream);
+                }
+                for (uint8 i=0; i<this.num_stuffing_bytes; i++) {
+                    outstream.put_byte (0xFF);
+                    bytes_written++;
+                }
+            }
+            
+            return bytes_written;
         }
 
         public string to_string () {
@@ -383,7 +506,7 @@ public class Rygel.MP2TSPacket {
         }
 
         public void append_fields_to (StringBuilder builder) {
-            builder.append_printf ("len %d,flags[",this.adaptation_field_length);
+            builder.append_printf ("len %d,flags[",this.get_size ());
             bool first = true;
             if (this.discontinuity_indicator) {
                 builder.append ("DIS");
@@ -400,18 +523,12 @@ public class Rygel.MP2TSPacket {
             }
             builder.append_c (']');
             if (this.pcr_flag) {
-                try {
-                    var pcr = get_pcr ();
-                    builder.append_printf (",pcr %lld (0x%llx) (%0.3fs)", 
-                                           pcr, pcr, pcr/27000000.0);
-                } catch (Error err) {};
+                builder.append_printf (",pcr %lld (0x%llx) (%0.3fs)", 
+                                       this.pcr, this.pcr, this.pcr/27000000.0);
             }
             if (this.opcr_flag) {
-                try {
-                    var opcr = get_original_pcr ();
-                    builder.append_printf (",orig_pcr %lld (0x%llx) (%0.3fs)", 
-                                           opcr, opcr, opcr/27000000.0);
-                } catch (Error err) {};
+                builder.append_printf (",orig_pcr %lld (0x%llx) (%0.3fs)", 
+                                       this.opcr, this.opcr, this.opcr/27000000.0);
             }
             if (this.splicing_point_flag) {
                 builder.append_printf (",splice_cd %d (0x%x)",
@@ -438,6 +555,7 @@ public class Rygel.MP2TSPacket {
             public uint32 piecewise_rate;
             public uint8 splice_type;
             public uint64 dts_next_au;
+            public uint8 num_reserved_bytes;
 
             public MP2TSAdaptationFieldExt () {
             }
@@ -489,11 +607,66 @@ public class Rygel.MP2TSPacket {
                     throw new IOError.FAILED ("Found %d bytes in adaptation field extension of %d bytes",
                                               bytes_consumed, this.adaptation_field_ext_length+1);
                 }
-                uint8 padding_bytes = this.adaptation_field_ext_length+1 - bytes_consumed;
-                instream.skip_bytes (padding_bytes);
-                bytes_consumed += padding_bytes;
+                this.num_reserved_bytes = this.adaptation_field_ext_length+1 - bytes_consumed;
+                instream.skip_bytes (this.num_reserved_bytes);
+                bytes_consumed += this.num_reserved_bytes;
 
                 return bytes_consumed;
+            }
+
+            public virtual uint8 get_size () {
+                return (2 + (this.ltw_flag ? 2 : 0) 
+                          + (this.piecewise_rate_flag ? 3 : 0)
+                          + (this.seamless_splice_flag ? 5 : 0)
+                          + this.num_reserved_bytes);
+            }
+
+            public virtual uint8 fields_to_stream (ExtDataOutputStream outstream) 
+                    throws Error {
+                outstream.put_byte (get_size () - 1);
+                uint8 octet_2 
+                    = (this.ltw_flag ? 1 : 0) << 7
+                      | (this.piecewise_rate_flag ? 1 : 0) << 6
+                      | (this.seamless_splice_flag ? 1 : 0) << 5
+                      | 0x1F; // reserved bits set to '1'
+                outstream.put_byte (octet_2);
+                uint8 bytes_written = 2;
+                
+                if (this.ltw_flag) {
+                    uint16 ltw = (this.ltw_valid_flag ? 1 : 0) << 15
+                                 | this.ltw_offset;
+                    outstream.put_uint16 (ltw);
+                    bytes_written += 2;
+                }
+                if (this.piecewise_rate_flag) {
+                    uint32 pr = 3 << 22 | this.piecewise_rate;
+                    outstream.put_bytes_uint32 (pr, 3); // 24 bits
+                    bytes_written += 3;
+                }
+                if (this.seamless_splice_flag) {
+                    uint8 ss_field_1;
+                    ss_field_1 = this.splice_type << 4
+                                 | (uint8)Bits.getbits_64 (this.dts_next_au,
+                                                           30, 3) << 1
+                                 | 1; // marker bit
+                    outstream.put_byte (ss_field_1);
+                    uint16 ss_field_2;
+                    ss_field_2 = (uint16)Bits.getbits_64 (this.dts_next_au,
+                                                         15, 15) << 1
+                                 | 1; // marker bit
+                    outstream.put_uint16 (ss_field_2);
+                    ss_field_2 = (uint16)Bits.getbits_64 (this.dts_next_au, 
+                                                          0, 15) << 1
+                                 | 1; // marker bit
+                    outstream.put_uint16 (ss_field_2);
+                    bytes_written += 5;
+                }
+                
+                for (uint i=0; i < this.num_reserved_bytes; i++) {
+                    outstream.put_byte (0xFF);
+                    bytes_written++;
+                }
+                return bytes_written;
             }
 
             public string to_string () {
@@ -1329,7 +1502,27 @@ public class Rygel.MP2PESPacket {
 
         return bytes_consumed;
     }
+
+    public virtual uint64 fields_to_stream (ExtDataOutputStream outstream) throws Error {
+        uint64 bytes_written = 0;
+        
+        return bytes_written;
+    }
     
+    public virtual uint64 to_stream (ExtDataOutputStream outstream) throws Error {
+        if (this.source_verbatim) {
+            // debug ("to_stream(%s): Writing from source stream: %s",
+            //        this.type_code, this.to_string ());
+            this.source_stream.seek_to_offset (this.source_offset);
+            outstream.put_from_instream (this.source_stream, 188);
+        } else {
+            // debug ("to_stream(%s): Writing from fields: %s",
+            //        this.type_code, this.to_string ());
+            fields_to_stream (outstream);
+        }
+        return 188;
+    }    
+
     public bool is_audio () {
         return ((this.stream_id & STREAM_ID_AUDIO_MASK) == STREAM_ID_AUDIO);
     }
@@ -1726,6 +1919,22 @@ public class Rygel.MP2PESPacket {
     } // END class MP2PESHeader
 } // END class MP2PESPacket
 
+/**
+ * A series of related TS packets that can be handled as a unit (e.g. 
+ * a sequence of TS packets that makes up an iframe or gop.
+ * 
+ */
+public class Rygel.MP2TSBlob {
+    public unowned ExtDataInputStream source_stream;
+    public uint64 source_offset;
+    public bool source_verbatim;
+    public uint32 num_packets;
+    // Has a whole number of TS packets and a PES header in the first TS
+    //  packet payload.
+    // Data will be verbatim from the source except for the PCR, continuity 
+    //  counter, and PTS/DTS.
+}
+
 class Rygel.MP2ParsingTest : GLib.Object {
     // Can compile/run this with:
     // valac --main=Rygel.MP2ParsingTest.mp2_test --disable-warnings --pkg gio-2.0 --pkg gee-0.8 --pkg posix -g  --target-glib=2.32 "odid-mp2-parser.vala" odid-stream-ext.vala 
@@ -2021,6 +2230,22 @@ class Rygel.MP2ParsingTest : GLib.Object {
                     }
                 }
             }
+            if (out_file != null) {
+                stdout.printf ("\nWRITING TO OUTPUT FILE: %s\n", out_file.get_path ());
+                if (out_file.query_exists ()) {
+                    out_file.delete ();
+                }
+                var out_stream = new Rygel.ExtDataOutputStream (
+                                       out_file.create (
+                                         FileCreateFlags.REPLACE_DESTINATION));
+                foreach (var ts_packet in mp2_file.ts_packets) {
+                    stdout.printf ("  writing %s\n", ts_packet.to_string ());
+                    ts_packet.fields_to_stream (out_stream);
+                    ts_packet.payload_to_stream (out_stream);
+                }
+                out_stream.close ();
+            }
+            
        } catch (Error err) {
             error ("Error: %s", err.message);
         }
