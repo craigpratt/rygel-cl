@@ -1443,6 +1443,7 @@ public class Rygel.MP2PESPacket {
 
     public uint8 stream_id;
     public uint16 packet_length;
+    public bool include_packet_length;
     public MP2PESHeader pes_header;
     public bool has_payload;
     public uint8 payload_offset; // offset of the data portion of the TS packet
@@ -1461,13 +1462,10 @@ public class Rygel.MP2PESPacket {
     }
 
     public virtual uint64 parse_from_stream () throws Error {
-        // debug ("parse_from_stream()", this.type_code);
-        
         var instream = this.source_stream;
         instream.seek_to_offset (this.source_offset);
 
         var start_code_prefix = instream.read_bytes_uint32 (3);
-        
         if (start_code_prefix != 0x000001) {
             throw new IOError.FAILED ("PES start code mismatch: 0x%x",
                                       start_code_prefix);
@@ -1475,6 +1473,7 @@ public class Rygel.MP2PESPacket {
         
         this.stream_id = instream.read_byte ();
         this.packet_length = instream.read_uint16 ();
+        this.include_packet_length = (this.packet_length != 0);
         uint8 bytes_consumed = 6;
 
         if (!has_pes_header ()) {
@@ -1491,14 +1490,12 @@ public class Rygel.MP2PESPacket {
         }
         this.has_payload = this.stream_id != STREAM_ID_PADDING;
         this.payload_offset = bytes_consumed;
-        if ((this.packet_length != 0) 
+        if (this.include_packet_length
             && (bytes_consumed > this.packet_length+6)) {
             throw new IOError.FAILED ("Found %d bytes in PES packet of %d bytes: %s",
                                       bytes_consumed, this.packet_length+6,
                                       to_string ());
         }
-        // instream.skip_bytes (this.packet_length + 6 - bytes_consumed);
-
         this.source_verbatim = false;
         this.loaded = true;
 
@@ -1513,7 +1510,11 @@ public class Rygel.MP2PESPacket {
     public virtual uint64 fields_to_stream (ExtDataOutputStream ostream) throws Error {
         ostream.put_bytes_uint32 (0x000001, 3);
         ostream.put_byte (this.stream_id);
-        ostream.put_uint16 (get_size () - 6);
+        if (this.include_packet_length) {
+            ostream.put_uint16 (get_size () - 6);
+        } else {
+            ostream.put_uint16 (0);
+        }
         uint16 bytes_written = 6;
         if (this.pes_header != null) {
             bytes_written += this.pes_header.fields_to_stream (ostream);
@@ -1521,7 +1522,7 @@ public class Rygel.MP2PESPacket {
 
         return bytes_written;
     }
-    
+
 //    public virtual uint64 to_stream (ExtDataOutputStream ostream) 
 //            throws Error {
 //        uint64 bytes_written;
@@ -2393,15 +2394,39 @@ class Rygel.MP2ParsingTest : GLib.Object {
                 if (out_file.query_exists ()) {
                     out_file.delete ();
                 }
+                uint64 packets_written = 0;
                 var out_stream = new Rygel.ExtDataOutputStream (
                                        out_file.create (
                                          FileCreateFlags.REPLACE_DESTINATION));
                 foreach (var ts_packet in mp2_file.ts_packets) {
                     stdout.printf ("  writing %s\n", ts_packet.to_string ());
                     ts_packet.fields_to_stream (out_stream);
-                    ts_packet.payload_to_stream (out_stream);
+                    if (ts_packet.payload_unit_start_indicator
+                        && (ts_packet.pid == target_stream.pid)) {
+                        var pes_offset = ts_packet.source_offset 
+                                         + ts_packet.payload_offset;
+                        var pes_packet 
+                            = new MP2PESPacket.from_stream (mp2_file.source_stream, 
+                                                            pes_offset);
+                        pes_packet.parse_from_stream ();
+                        pes_packet.fields_to_stream (out_stream);
+                        stdout.printf ("     writing %s\n", pes_packet.to_string ());
+                        var payload_in_ts = 188 - ts_packet.payload_offset 
+                                                - pes_packet.payload_offset;
+                        stdout.printf ("Copying %d bytes of payload after PES header\n",
+                                       payload_in_ts);
+                        out_stream.put_from_instream (mp2_file.source_stream, 
+                                                      payload_in_ts);
+    
+                    } else {
+                        ts_packet.payload_to_stream (out_stream);
+                    }
+                    packets_written++;
                 }
                 out_stream.close ();
+                stdout.printf ("\nWrote %llu packets to %s\n",
+                               packets_written, out_file.get_path ());
+
             }
         } catch (Error err) {
             error ("Error: %s", err.message);
