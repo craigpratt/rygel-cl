@@ -61,7 +61,7 @@ public class Rygel.MusicItem : AudioItem {
         }
 
         try {
-            this.album_art = media_art_store.find_media_art_any (this);
+            this.album_art = media_art_store.lookup_media_art (this);
         } catch (Error err) {};
     }
 

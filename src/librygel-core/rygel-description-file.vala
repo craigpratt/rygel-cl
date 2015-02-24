@@ -57,6 +57,26 @@ public class Rygel.DescriptionFile : Object {
      */
     private const string SERVICE_TYPE_TEMPLATE = "//*[.='%s']";
 
+    private const string X_DLNADOC_NODE = "X_DLNADOC";
+
+    // Get the local name of X_DLNADOC that does not contain +DIAGE+
+    private const string X_DLNADOC_NON_DEVCAP_XPATH = "//*[local-name()="+
+                                              " 'X_DLNADOC'"+
+                                              " and not(contains(.,\"DIAGE\"))"+
+                                              " and not(contains(.,\"LPE\"))]";
+
+    // Get the local name of X_DLNADOC that does contain +DIAGE+
+    private const string X_DLNADOC_DIAGE_XPATH = "//*[local-name()='X_DLNADOC'"+
+                                                 " and contains(.,\"DIAGE\")]";
+
+    private const string DIAGE_DEV_CAP = "+DIAGE+";
+
+    // Get the local name of X_DLNADOC that does contain +LPE+
+    private const string X_DLNADOC_LPE_XPATH = "//*[local-name()='X_DLNADOC'"+
+                                                 " and contains(.,\"LPE\")]";
+
+    private const string LPE_DEV_CAP = "+LPE+";
+
     /**
      * Constructor to load a description file from disk
      *
