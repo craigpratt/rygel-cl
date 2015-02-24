@@ -1442,8 +1442,7 @@ public class Rygel.MP2PESPacket {
     public bool source_verbatim;
 
     public uint8 stream_id;
-    public uint16 packet_length;
-    public bool include_packet_length;
+    public uint16 packet_length; // Can be 0 for video streams
     public MP2PESHeader pes_header;
     public bool has_payload;
     public uint8 payload_offset; // offset of the data portion of the TS packet
@@ -1473,7 +1472,6 @@ public class Rygel.MP2PESPacket {
         
         this.stream_id = instream.read_byte ();
         this.packet_length = instream.read_uint16 ();
-        this.include_packet_length = (this.packet_length != 0);
         uint8 bytes_consumed = 6;
 
         if (!has_pes_header ()) {
@@ -1490,7 +1488,7 @@ public class Rygel.MP2PESPacket {
         }
         this.has_payload = this.stream_id != STREAM_ID_PADDING;
         this.payload_offset = bytes_consumed;
-        if (this.include_packet_length
+        if ((this.packet_length != 0)
             && (bytes_consumed > this.packet_length+6)) {
             throw new IOError.FAILED ("Found %d bytes in PES packet of %d bytes: %s",
                                       bytes_consumed, this.packet_length+6,
@@ -1510,11 +1508,7 @@ public class Rygel.MP2PESPacket {
     public virtual uint64 fields_to_stream (ExtDataOutputStream ostream) throws Error {
         ostream.put_bytes_uint32 (0x000001, 3);
         ostream.put_byte (this.stream_id);
-        if (this.include_packet_length) {
-            ostream.put_uint16 (get_size () - 6);
-        } else {
-            ostream.put_uint16 (0);
-        }
+        ostream.put_uint16 (this.packet_length);
         uint16 bytes_written = 6;
         if (this.pes_header != null) {
             bytes_written += this.pes_header.fields_to_stream (ostream);
@@ -2417,7 +2411,6 @@ class Rygel.MP2ParsingTest : GLib.Object {
                                        payload_in_ts);
                         out_stream.put_from_instream (mp2_file.source_stream, 
                                                       payload_in_ts);
-    
                     } else {
                         ts_packet.payload_to_stream (out_stream);
                     }
