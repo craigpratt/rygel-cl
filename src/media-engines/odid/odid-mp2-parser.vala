@@ -178,7 +178,7 @@ public class Rygel.MP2TSPacket {
     public uint8 transport_scrambling_control; // 2 bits
     public uint8 adaptation_field_control; // 2 bits
     public uint8 continuity_counter; // 4 bits
-    MP2TSAdaptationField adaptation_field;
+    public MP2TSAdaptationField adaptation_field;
     public bool has_payload;
     public uint8 payload_offset; // offset of the data portion of the TS packet
     public uint8 payload_size; // bytes of payload in this packet
@@ -515,7 +515,7 @@ public class Rygel.MP2TSPacket {
             }
             if (this.elementary_stream_priority_indicator) {
                 if (!first) builder.append_c ('+');
-                builder.append (" PRI");
+                builder.append ("PRI");
             }
             builder.append_c (']');
             if (this.pcr_flag) {
@@ -2321,6 +2321,7 @@ class Rygel.MP2ParsingTest : GLib.Object {
             }
 
             MP2PMTSection.StreamInfo target_stream = null;
+            MP2PATSection.Program target_program = null;
 
             var pat = mp2_file.get_first_pat_table ();
             if (print_pat_pmt) {
@@ -2340,6 +2341,7 @@ class Rygel.MP2ParsingTest : GLib.Object {
                             if ((only_pid < 0) 
                                 && (stream_info.stream_type 
                                     == MP2PMTSection.STREAM_TYPE_MPEG2_VIDEO)) {
+                                target_program = program;
                                 target_stream = stream_info;
                             } else {
                                 if (stream_info.pid == only_pid) {
@@ -2385,33 +2387,64 @@ class Rygel.MP2ParsingTest : GLib.Object {
             }
             if (out_file != null) {
                 stdout.printf ("\nWRITING TO OUTPUT FILE: %s\n", out_file.get_path ());
+                stdout.printf ("\n  Rebasing packets on %s\n",
+                               target_stream.to_string ());
+
                 if (out_file.query_exists ()) {
                     out_file.delete ();
                 }
                 uint64 packets_written = 0;
+                var c_counters = new HashTable <uint16, uint8> 
+                                        (direct_hash, direct_equal);
+                uint64 pts_counter = 0;
+                var pmt = mp2_file.get_first_pmt_table (target_program.pid);
+                foreach (var stream_info in pmt.get_streams ()) {
+                    c_counters.insert (stream_info.pid, 0);
+                }
+
                 var out_stream = new Rygel.ExtDataOutputStream (
                                        out_file.create (
                                          FileCreateFlags.REPLACE_DESTINATION));
                 foreach (var ts_packet in mp2_file.ts_packets) {
-                    stdout.printf ("  writing %s\n", ts_packet.to_string ());
-                    ts_packet.fields_to_stream (out_stream);
-                    if (ts_packet.payload_unit_start_indicator
-                        && (ts_packet.pid == target_stream.pid)) {
-                        var pes_offset = ts_packet.source_offset 
-                                         + ts_packet.payload_offset;
-                        var pes_packet 
-                            = new MP2PESPacket.from_stream (mp2_file.source_stream, 
-                                                            pes_offset);
-                        pes_packet.parse_from_stream ();
-                        pes_packet.fields_to_stream (out_stream);
-                        stdout.printf ("     writing %s\n", pes_packet.to_string ());
-                        var payload_in_ts = 188 - ts_packet.payload_offset 
-                                                - pes_packet.payload_offset;
-                        stdout.printf ("Copying %d bytes of payload after PES header\n",
-                                       payload_in_ts);
-                        out_stream.put_from_instream (mp2_file.source_stream, 
-                                                      payload_in_ts);
+                    if (ts_packet.adaptation_field != null) {
+                        stdout.printf ("   Changing PCR of %s\n", ts_packet.to_string ());
+//                        ts_packet.adaptation_field.pcr *= 2;
+                        ts_packet.adaptation_field.pcr /= 2;
+                    }
+                    var c_counter = c_counters.get (ts_packet.pid);
+                    ts_packet.continuity_counter = c_counter;
+                    c_counters.replace (ts_packet.pid, (c_counter+1) % 16);
+                    if (ts_packet.pid == target_stream.pid) {
+                        if (ts_packet.payload_unit_start_indicator) {
+                            var pes_offset = ts_packet.source_offset 
+                                             + ts_packet.payload_offset;
+                            var pes_packet 
+                                = new MP2PESPacket.from_stream (mp2_file.source_stream, 
+                                                                pes_offset);
+                            pes_packet.parse_from_stream ();
+                            stdout.printf ("     changing PTS/DTS of %s\n", pes_packet.to_string ());
+//                            pes_packet.pes_header.pts *= 2;
+//                            pes_packet.pes_header.dts *= 2;
+                            pes_packet.pes_header.pts /= 2;
+                            pes_packet.pes_header.dts /= 2;
+                            stdout.printf ("  writing %s\n", ts_packet.to_string ());
+                            ts_packet.fields_to_stream (out_stream);
+                            stdout.printf ("     writing %s\n", pes_packet.to_string ());
+                            pes_packet.fields_to_stream (out_stream);
+                            var payload_in_ts = 188 - ts_packet.payload_offset 
+                                                    - pes_packet.payload_offset;
+                            stdout.printf ("     Copying %d bytes of payload after PES header\n",
+                                           payload_in_ts);
+                            out_stream.put_from_instream (mp2_file.source_stream, 
+                                                          payload_in_ts);
+                        } else {
+                            stdout.printf ("  writing %s\n", ts_packet.to_string ());
+                            ts_packet.fields_to_stream (out_stream);
+                            ts_packet.payload_to_stream (out_stream);
+                        }
                     } else {
+                        stdout.printf ("  writing %s\n", ts_packet.to_string ());
+                        ts_packet.fields_to_stream (out_stream);
                         ts_packet.payload_to_stream (out_stream);
                     }
                     packets_written++;
@@ -2419,7 +2452,6 @@ class Rygel.MP2ParsingTest : GLib.Object {
                 out_stream.close ();
                 stdout.printf ("\nWrote %llu packets to %s\n",
                                packets_written, out_file.get_path ());
-
             }
         } catch (Error err) {
             error ("Error: %s", err.message);
