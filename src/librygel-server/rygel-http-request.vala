@@ -87,10 +87,7 @@ public abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
         var media_object = yield this.root_container.find_object
                                         (this.uri.item_id, null);
 
-        if (media_object == null ||
-            !((media_object is MediaContainer &&
-               this.uri.resource_name != null) ||
-              (media_object is MediaFileItem))) {
+        if (media_object == null) {
             throw new HTTPRequestError.NOT_FOUND
                                         (_("Requested item '%s' not found"),
                                          this.uri.item_id);
