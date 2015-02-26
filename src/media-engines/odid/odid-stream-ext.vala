@@ -404,10 +404,14 @@ public class Rygel.ExtDataOutputStream : DataOutputStream {
         put_byte (0);
     }
 
-    public void put_zero_bytes (uint64 num_bytes) throws Error {
+    public void put_filler_bytes (uint64 num_bytes, uint8 byte) throws Error {
         for (uint64 i=0; i<num_bytes; i++) {
-            put_byte (0);
+            put_byte (byte);
         }
+    }
+    
+    public void put_zero_bytes (uint64 num_bytes) throws Error {
+        put_filler_bytes (num_bytes, 0);
     }
     
     public void put_from_instream (ExtDataInputStream instream, uint64 length)
