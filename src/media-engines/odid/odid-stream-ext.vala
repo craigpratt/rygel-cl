@@ -177,7 +177,7 @@ public class Rygel.Bits {
 }
 
 public class Rygel.ExtDataInputStream : GLib.DataInputStream {
-    public ExtDataInputStream (GLib.FileInputStream base_stream) {
+    public ExtDataInputStream (GLib.InputStream base_stream) {
         // Can't use: base (base_stream);
         // See https://mail.gnome.org/archives/vala-list/2009-October/msg00000.html
         Object (base_stream: base_stream);

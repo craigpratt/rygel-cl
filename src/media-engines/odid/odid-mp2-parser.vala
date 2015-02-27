@@ -67,17 +67,18 @@ public abstract class Rygel.MP2TransportStream {
     
     public virtual MP2PATTable get_first_pat_table () throws Error {
         var pat_table = new MP2PATTable ();
+        var pat_section = new MP2PATSection ();
         foreach (var ts_packet in this.ts_packets) {
             if (ts_packet.pid == 0) {
                 var offset = ts_packet.source_offset + ts_packet.header_size;
                 this.source_stream.seek_to_offset (offset);
                 var pointer_field = this.source_stream.read_byte ();
                 offset += 1 + pointer_field;
-                var pat_section 
-                    = new MP2PATSection.from_stream (this.source_stream, offset);
-                pat_section.parse_from_stream ();
-                if (pat_table.add_section (pat_section)) {
-                    return pat_table;
+                if (pat_section.add_ts_packet (ts_packet)) {
+                    if (pat_table.add_section (pat_section)) {
+                        return pat_table;
+                    }
+                    pat_section = new MP2PATSection ();
                 }
             }
         }
@@ -87,17 +88,18 @@ public abstract class Rygel.MP2TransportStream {
 
     public virtual MP2PMTTable get_first_pmt_table (uint16 pmt_pid) throws Error {
         var pmt_table = new MP2PMTTable ();
+        var pmt_section = new MP2PMTSection ();
         foreach (var ts_packet in this.ts_packets) {
             if (ts_packet.pid == pmt_pid) {
                 var offset = ts_packet.source_offset + ts_packet.header_size;
                 this.source_stream.seek_to_offset (offset);
                 var pointer_field = this.source_stream.read_byte ();
                 offset += 1 + pointer_field;
-                var pmt_section 
-                    = new MP2PMTSection.from_stream (this.source_stream, offset);
-                pmt_section.parse_from_stream ();
-                if (pmt_table.add_section (pmt_section)) {
-                    return pmt_table;
+                if (pmt_section.add_ts_packet (ts_packet)) {
+                    if (pmt_table.add_section (pmt_section)) {
+                        return pmt_table;
+                    }
+                    pmt_section = new MP2PMTSection ();
                 }
             }
         }
@@ -239,6 +241,7 @@ public class Rygel.MP2TSRestampper {
     } // END restamp_to_stream_scaled ()
 
     public virtual MP2PATTable get_first_pat_table () throws Error {
+        var pat_section = new MP2PATSection ();
         var pat_table = new MP2PATTable ();
 
         uint64 packet_count = 0, ts_offset = this.source_offset;
@@ -255,11 +258,11 @@ public class Rygel.MP2TSRestampper {
                 this.source_stream.seek_to_offset (offset);
                 var pointer_field = this.source_stream.read_byte ();
                 offset += 1 + pointer_field;
-                var pat_section 
-                    = new MP2PATSection.from_stream (this.source_stream, offset);
-                pat_section.parse_from_stream ();
-                if (pat_table.add_section (pat_section)) {
-                    return pat_table;
+                if (pat_section.add_ts_packet (ts_packet)) {
+                    if (pat_table.add_section (pat_section)) {
+                        return pat_table;
+                    }
+                    pat_section = new MP2PATSection ();
                 }
             }
         }
@@ -269,6 +272,7 @@ public class Rygel.MP2TSRestampper {
 
     public virtual MP2PMTTable get_pmt_table (uint16 pmt_pid) 
             throws Error {
+        var pmt_section = new MP2PMTSection ();
         var pmt_table = new MP2PMTTable ();
 
         uint64 packet_count = 0, ts_offset = this.source_offset;
@@ -285,11 +289,11 @@ public class Rygel.MP2TSRestampper {
                 this.source_stream.seek_to_offset (offset);
                 var pointer_field = this.source_stream.read_byte ();
                 offset += 1 + pointer_field;
-                var pmt_section 
-                    = new MP2PMTSection.from_stream (this.source_stream, offset);
-                pmt_section.parse_from_stream ();
-                if (pmt_table.add_section (pmt_section)) {
-                    return pmt_table;
+                if (pmt_section.add_ts_packet (ts_packet)) {
+                    if (pmt_table.add_section (pmt_section)) {
+                        return pmt_table;
+                    }
+                    pmt_section = new MP2PMTSection ();
                 }
             }
         }
@@ -369,6 +373,12 @@ public class Rygel.MP2TSPacket {
         this.loaded = true;
 
         return 188;
+    }
+    
+    public void load () throws Error {
+        if (!loaded) {
+            parse_from_stream ();
+        }
     }
 
     /**
@@ -934,34 +944,77 @@ public class Rygel.MP2TableFactory {
 } // END class MP2TableFactory
 
 public abstract class Rygel.MP2Section {
-    public unowned ExtDataInputStream source_stream;
-    public uint64 source_offset;
-    public Gee.List <MP2TSPacket> ts_packets;
-    public bool source_verbatim;
-    protected bool loaded; // Indicates the packet fields/children are populated/parsed
+    public Gee.List<MP2TSPacket> ts_packets = new Gee.ArrayList<MP2TSPacket> ();
+    protected ByteArray section_buffer;
+    public Bytes section_data = null;
     public uint8 table_id;
     public bool section_syntax_indicator;
     public uint16 section_length;
+    public bool loaded = false;
 
     public MP2Section () {
     }
 
-    public MP2Section.from_stream (ExtDataInputStream stream, uint64 offset)
-            throws Error {
-        this.source_stream = stream;
-        this.source_offset = offset;
-        this.source_verbatim = true;
-        this.loaded = false;
-    }
-
     public MP2Section.from_packets (Gee.List ts_packets) throws Error {
-        this.ts_packets = ts_packets;
+        // TODO
     }
 
-    public virtual uint16 parse_from_stream () throws Error {
-        var instream = this.source_stream;
-        instream.seek_to_offset (this.source_offset);
+    public bool add_ts_packet (MP2TSPacket ts_packet) throws Error {
+        if (this.section_data != null) {
+            return true;
+        }
+        var instream = ts_packet.source_stream;
+        uint8 packet_payload_len = 188 - ts_packet.header_size;
+        uint64 cur_offset = ts_packet.source_offset + ts_packet.header_size;
+        instream.seek_to_offset (cur_offset);
+        if (ts_packet.payload_unit_start_indicator) {
+            var pointer_offset = instream.read_byte ();
+            cur_offset++;
+            packet_payload_len--;
+            if (this.section_buffer == null) { // Packet is start of section
+                instream.skip_bytes (pointer_offset);
+                cur_offset += pointer_offset;
+                packet_payload_len -= pointer_offset;
+                this.fields_from_stream (instream);
+                this.section_buffer = new ByteArray.sized (this.section_length);
+                var bytes_to_read = uint16.min (packet_payload_len, this.section_length);
+                this.section_buffer.append (instream.read_bytes (bytes_to_read).get_data ());
+            } else { // Packet must be the end of this section (and start of another)
+                packet_payload_len = pointer_offset;
+                var bytes_to_read = uint32.min (packet_payload_len, 
+                                               this.section_length-this.section_buffer.len);
+                this.section_buffer.append (instream.read_bytes (bytes_to_read).get_data ());
+                if (!(this.section_buffer.len == this.section_length)) {
+                    throw new IOError.FAILED ("Last packet for section didn't complete section (expected %u bytes, found %u)", 
+                                              this.section_length, this.section_buffer.len);
+                }
+            }
+        } else {
+            if (this.section_buffer == null) {
+                return false; // Haven't found a section start yet - nothing to do
+            } else {
+                var bytes_to_read = uint.min (packet_payload_len, 
+                                               this.section_length-this.section_buffer.len);
+                this.section_buffer.append (instream.read_bytes (bytes_to_read).get_data ());
+            }
+        }
+        if (this.section_buffer.len == this.section_length) {
+            this.section_data = ByteArray.free_to_bytes (this.section_buffer);
+        }
+        return (this.section_data != null);
+    }
 
+    public uint16 parse_section_data () throws Error {
+        if (this.section_data == null) {
+            throw new IOError.FAILED ("parse_section_data called without section data loaded");
+        }
+        var mis = new MemoryInputStream.from_bytes (this.section_data);
+        var dis = new ExtDataInputStream (mis);
+        return (fields_from_stream (dis));
+    }
+
+    public virtual uint16 fields_from_stream (ExtDataInputStream instream) 
+            throws Error {
         this.table_id = instream.read_byte ();
         var octet_2_3 = instream.read_uint16 ();
         this.section_syntax_indicator = Bits.getbit_16 (octet_2_3, 15);
@@ -1004,8 +1057,8 @@ public abstract class Rygel.MP2Section {
     }
 
     public virtual void append_fields_to (StringBuilder builder) {
-        builder.append_printf ("offset %lld,length %lld",
-                               this.source_offset, this.section_length);
+        builder.append_printf ("table_id %u,length %lld",
+                               this.table_id, this.section_length);
     }
 
     public virtual void to_printer (MP2TransportStream.LinePrinter printer, string prefix) {
@@ -1019,32 +1072,13 @@ public class Rygel.MP2SectionFactory {
      * 
      * The TSPacket must be parsed/populated as a precondition.
      */
-    public static MP2Section ? section_from_ts_packet (MP2TSPacket ts_packet) 
-            throws Error {
-        var source_stream = ts_packet.source_stream;
-        var offset = ts_packet.source_offset + ts_packet.header_size;
-        source_stream.seek_to_offset (offset);
-        var pointer_field = source_stream.read_byte ();
-        offset += 1 + pointer_field;
-        source_stream.skip_bytes (pointer_field);
-        uint8 peek_buf[1];
-        source_stream.peek (peek_buf);
-        return (section_from_offset (source_stream, offset, peek_buf[0]));
-    }
-    /**
-     * Create a Section from the given Transport Stream packet.
-     * 
-     * The TSPacket must be parsed/populated as a precondition.
-     */
-    public static MP2Section ? section_from_offset (ExtDataInputStream instream,
-                                                    uint64 offset, 
-                                                    uint8 table_id)
+    public static MP2Section ? section_for_table_id (uint8 table_id)
             throws Error {
         switch (table_id) {
             case 0x00: // PAT
-                return new MP2PATSection.from_stream (instream, offset);
+                return new MP2PATSection ();
             case 0x02: // PMT
-                return new MP2PMTSection.from_stream (instream, offset);
+                return new MP2PMTSection ();
             case 0x01: // CA
             case 0x03: // TS description
             case 0x04: // scene description section
@@ -1095,17 +1129,12 @@ public class Rygel.MP2PATSection : MP2TableSection {
         base ();
     }
 
-    public MP2PATSection.from_stream (ExtDataInputStream stream, uint64 offset)
+    public override uint16 fields_from_stream (ExtDataInputStream instream) 
             throws Error {
-        base.from_stream (stream, offset);
-    }
-
-    public override uint16 parse_from_stream () throws Error {
-        var bytes_consumed = base.parse_from_stream ();
+        var bytes_consumed = base.fields_from_stream (instream);
         if (this.table_id != 0x00) {
             throw new IOError.FAILED ("PAT table_id not 0 (found 0x%x)", table_id);
         }
-        var instream = this.source_stream;
         this.tsid = instream.read_uint16 ();
 
         var octet_6 = instream.read_byte ();
@@ -1140,8 +1169,9 @@ public class Rygel.MP2PATSection : MP2TableSection {
         if (!this.loaded) {
             builder.append ("fields_not_loaded");
         } else {
-            builder.append_printf ("offset %llu,tsid %u (0x%x),version %u,sect_num %u of %u,programs:[",
-                                   this.source_offset, this.tsid, this.tsid,
+            base.append_fields_to (builder);
+            builder.append_printf (",tsid %u (0x%x),version %u,sect_num %u of %u,programs:[",
+                                   this.tsid, this.tsid,
                                    this.version_number, this.section_number,
                                    this.last_section_number);
             if ((this.program_list != null) && (this.program_list.size > 0)) {
@@ -1159,10 +1189,7 @@ public class Rygel.MP2PATSection : MP2TableSection {
 
     public override void to_printer (MP2TransportStream.LinePrinter printer, 
                                      string prefix) {
-        printer ("%sMP2PATSection: offset %llu,tsid %u (0x%x),version %u,sect_num %u of %u, crc 0x%x"
-                 .printf (prefix, this.source_offset, this.tsid, this.tsid,
-                          this.version_number, this.section_number,
-                          this.last_section_number, this.crc));
+        printer ("%s%s".printf (prefix, this.to_string ()));
         uint index=1;
         foreach (var program in this.program_list) {
             var builder = new StringBuilder ();
@@ -1414,17 +1441,11 @@ public class Rygel.MP2PMTSection : MP2TableSection {
         base ();
     }
 
-    public MP2PMTSection.from_stream (ExtDataInputStream stream, uint64 offset)
-            throws Error {
-        base.from_stream (stream, offset);
-    }
-
-    public override uint16 parse_from_stream () throws Error {
-        var bytes_consumed = base.parse_from_stream ();
+    public override uint16 fields_from_stream (ExtDataInputStream instream) throws Error {
+        var bytes_consumed = base.fields_from_stream (instream);
         if (this.table_id != 0x02) {
             throw new IOError.FAILED ("PAT table_id not 0 (found 0x%x)", table_id);
         }
-        var instream = this.source_stream;
         this.program_number = instream.read_uint16 ();
 
         var octet_6 = instream.read_byte ();
@@ -1440,8 +1461,7 @@ public class Rygel.MP2PMTSection : MP2TableSection {
             uint64 descriptor_bytes_read = 0;
             while (descriptor_bytes_read < this.program_info_length) {
                 var descriptor = new MP2Descriptor.from_stream 
-                                  (instream, this.source_offset 
-                                             + bytes_consumed 
+                                  (instream, bytes_consumed 
                                              + descriptor_bytes_read);
                 this.descriptor_list.add (descriptor);
                 descriptor_bytes_read += descriptor.parse_from_stream ();
@@ -1488,12 +1508,11 @@ public class Rygel.MP2PMTSection : MP2TableSection {
         if (!this.loaded) {
             builder.append ("fields_not_loaded");
         } else {
-            builder.append_printf ("offset %llu,program %u (0x%x),pcr_pid %u (0x%x),version %u,sect_num %u of %u",
-                                   this.source_offset, this.program_number, 
-                                   this.program_number, this.pcr_pid, 
-                                   this.pcr_pid, this.version_number, 
-                                   this.section_number, 
-                                   this.last_section_number);
+            base.append_fields_to (builder);
+            builder.append_printf (",program_num %u (0x%x),pcr_pid %u (0x%x),version %u,sect_num %u of %u",
+                                   this.program_number, this.program_number, 
+                                   this.pcr_pid, this.pcr_pid, this.version_number, 
+                                   this.section_number, this.last_section_number);
             uint num=1;
             if ((this.descriptor_list != null) 
                  && (this.descriptor_list.size > 0)) {
@@ -1523,11 +1542,7 @@ public class Rygel.MP2PMTSection : MP2TableSection {
 
     public override void to_printer (MP2TransportStream.LinePrinter printer, 
                                      string prefix) {
-        printer ("%sMP2PMTSection: offset %llu,program %u (0x%x),pcr_pid %u (0x%x),version %u,sect_num %u of %u, crc 0x%x"
-                 .printf (prefix,this.source_offset, this.program_number, 
-                          this.program_number, this.pcr_pid, this.pcr_pid, 
-                          this.version_number, this.section_number, 
-                          this.last_section_number, this.crc));
+        printer ("%s%s".printf (prefix,this.to_string ()));
         uint index=1;
         foreach (var stream_info in this.stream_info_list) {
             var builder = new StringBuilder ();
