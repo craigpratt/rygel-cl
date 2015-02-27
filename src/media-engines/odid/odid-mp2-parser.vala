@@ -1000,8 +1000,11 @@ public abstract class Rygel.MP2Section {
         }
         if (this.section_buffer.len == this.section_length) {
             this.section_data = ByteArray.free_to_bytes (this.section_buffer);
+            this.section_buffer = null;
+            return true;
+        } else {
+            return false;
         }
-        return (this.section_data != null);
     }
 
     public uint16 parse_section_data () throws Error {
@@ -2381,6 +2384,7 @@ class Rygel.MP2ParsingTest : GLib.Object {
     // Can compile/run this with:
     // valac --main=Rygel.MP2ParsingTest.mp2_test --disable-warnings --pkg gio-2.0 --pkg gee-0.8 --pkg posix -g  --target-glib=2.32 "odid-mp2-parser.vala" odid-stream-ext.vala 
     public static int mp2_test (string[] args) {
+        int MILLIS_PER_SEC = 1000;
         int MICROS_PER_SEC = 1000000;
         try {
             bool print_infile = false;
@@ -2400,6 +2404,8 @@ class Rygel.MP2ParsingTest : GLib.Object {
             bool buf_out_stream_test = false;
             uint64 buf_out_stream_buf_size = 0;
             bool trim_file = false;
+            uint restamp_scale = 0;
+            bool restamp = false;
 
             try {
                 for (uint i=1; i<args.length; i++) {
@@ -2467,6 +2473,23 @@ class Rygel.MP2ParsingTest : GLib.Object {
                             }
                             time_range_end_us = (int64)(time_val * MICROS_PER_SEC);
                             trim_file = true;
+                            break;
+                        case "-restamp":
+                            if (restamp) {
+                                throw new OptionError.BAD_VALUE ("Only one %s option may be specified",
+                                                                 option);
+                            }
+                            if (i+1 == args.length) {
+                                throw new OptionError.BAD_VALUE (option + " requires a parameter");
+                            }
+                            var restamp_param = args[++i];
+                            double scale_factor;
+                            if (!double.try_parse (restamp_param, out scale_factor)) {
+                                throw new OptionError.BAD_VALUE ("Bad restamp scale factor: " 
+                                                                 + restamp_param);
+                            }
+                            restamp_scale = (uint)(scale_factor * MILLIS_PER_SEC);
+                            restamp = true;
                             break;
                         case "-print":
                             if (i+1 == args.length) {
@@ -2586,6 +2609,7 @@ class Rygel.MP2ParsingTest : GLib.Object {
                 stderr.printf ("Usage: %s -infile <filename>\n", args[0]);
                 stderr.printf ("\t[-timerange x-y]: Reduce the samples in the MP2 to those falling between time range x-y (decimal seconds)\n");
                 stderr.printf ("\t[-print (infile [levels]|outfile [levels]|pat_pmt|pes_headers [+ts]|only_pid <pid>|access-points|movie-duration|track-duration|track-for-time [time])]: Print various details to the standard output\n");
+                stderr.printf ("\t[-restamp <scale-factor]: Restamp the output file with PCR/PTS/DTS scaled by scale-factor\n");
                 stderr.printf ("\t[-outfile <filename>]: Write the resulting MP2 to the given filename\n");
                 stderr.printf ("\t[-bufoutstream [buffer_size]]: Test running the resulting MP2 through the BufferGeneratingOutputStream\n");
                 return 1;
@@ -2675,61 +2699,70 @@ class Rygel.MP2ParsingTest : GLib.Object {
             }
             if (out_file != null) {
                 stdout.printf ("\nWRITING TO OUTPUT FILE: %s\n", out_file.get_path ());
-                stdout.printf ("\n  Rebasing packets on %s\n",
-                               target_stream.to_string ());
-
                 if (out_file.query_exists ()) {
                     out_file.delete ();
                 }
-                uint64 packets_written = 0;
-                var c_counters = new HashTable <uint16, uint8> 
-                                        (direct_hash, direct_equal);
-                var pmt = mp2_file.get_first_pmt_table (target_program.pid);
-                foreach (var stream_info in pmt.get_streams ()) {
-                    c_counters.insert (stream_info.pid, 0);
-                }
-
                 var out_stream = new Rygel.ExtDataOutputStream (
                                        out_file.create (
                                          FileCreateFlags.REPLACE_DESTINATION));
-                foreach (var ts_packet in mp2_file.ts_packets) {
-                    if (ts_packet.adaptation_field != null) {
-                        stdout.printf ("   changing PCR of %s\n", ts_packet.to_string ());
-                        ts_packet.adaptation_field.pcr *= 4;
-//                        ts_packet.adaptation_field.pcr /= 2;
+                uint64 packets_written = 0;
+
+                if (!restamp) {
+                    foreach (var ts_packet in mp2_file.ts_packets) {
+                        ts_packet.fields_to_stream (out_stream);
+                        ts_packet.payload_to_stream (out_stream);
+                        packets_written++;
                     }
-                    var c_counter = c_counters.get (ts_packet.pid);
-                    ts_packet.continuity_counter = c_counter;
-                    c_counters.replace (ts_packet.pid, (c_counter+1) % 16);
-                    if (ts_packet.pid == target_stream.pid) {
-                        if (ts_packet.payload_unit_start_indicator) {
-                            ts_packet.parse_pes_from_stream ();
-                            var pes_packet = ts_packet.pes_packet;
-                            stdout.printf ("   changing PTS/DTS of %s\n", ts_packet.to_string ());
-                            pes_packet.pes_header.pts *= 4;
-                            pes_packet.pes_header.dts *= 4;
-//                            pes_packet.pes_header.pts /= 2;
-//                            pes_packet.pes_header.dts /= 2;
-                            stdout.printf ("  writing %s\n", ts_packet.to_string ());
-                            ts_packet.fields_to_stream (out_stream);
-                            // pes_packet.fields_to_stream (out_stream);
-                            var payload_in_ts = 188 - ts_packet.header_size 
-                                                    - pes_packet.header_size;
-                            stdout.printf ("     Copying %d bytes of payload after PES header\n",
-                                           payload_in_ts);
-                            out_stream.put_from_instream (mp2_file.source_stream, 
-                                                          payload_in_ts);
+                } else {
+                    stdout.printf ("\n  Restamping packets. Scale: %fx\n", 
+                                   (double)restamp_scale/MILLIS_PER_SEC);
+
+                    var c_counters = new HashTable <uint16, uint8> 
+                                            (direct_hash, direct_equal);
+                    var pmt = mp2_file.get_first_pmt_table (target_program.pid);
+                    foreach (var stream_info in pmt.get_streams ()) {
+                        c_counters.insert (stream_info.pid, 0);
+                    }
+
+                    foreach (var ts_packet in mp2_file.ts_packets) {
+                        if (ts_packet.adaptation_field != null) {
+                            stdout.printf ("   changing PCR of %s\n", ts_packet.to_string ());
+                            ts_packet.adaptation_field.pcr = (ts_packet.adaptation_field.pcr
+                                                             * MILLIS_PER_SEC) / restamp_scale;
+                        }
+                        var c_counter = c_counters.get (ts_packet.pid);
+                        ts_packet.continuity_counter = c_counter;
+                        c_counters.replace (ts_packet.pid, (c_counter+1) % 16);
+                        if (ts_packet.pid == target_stream.pid) {
+                            if (ts_packet.payload_unit_start_indicator) {
+                                ts_packet.parse_pes_from_stream ();
+                                var pes_packet = ts_packet.pes_packet;
+                                stdout.printf ("   changing PTS/DTS of %s\n", ts_packet.to_string ());
+                                pes_packet.pes_header.pts =  (pes_packet.pes_header.pts
+                                                              * MILLIS_PER_SEC) / restamp_scale;
+                                pes_packet.pes_header.dts = (pes_packet.pes_header.dts
+                                                             * MILLIS_PER_SEC) / restamp_scale;
+                                stdout.printf ("  writing %s\n", ts_packet.to_string ());
+                                ts_packet.fields_to_stream (out_stream);
+                                // pes_packet.fields_to_stream (out_stream);
+                                var payload_in_ts = 188 - ts_packet.header_size 
+                                                        - pes_packet.header_size;
+                                stdout.printf ("     Copying %d bytes of payload after PES header\n",
+                                               payload_in_ts);
+                                out_stream.put_from_instream (mp2_file.source_stream, 
+                                                              payload_in_ts);
+                            } else {
+                                stdout.printf ("  writing %s\n", ts_packet.to_string ());
+                                ts_packet.fields_to_stream (out_stream);
+                                ts_packet.payload_to_stream (out_stream);
+                            }
                         } else {
                             stdout.printf ("  writing %s\n", ts_packet.to_string ());
                             ts_packet.fields_to_stream (out_stream);
                             ts_packet.payload_to_stream (out_stream);
                         }
-                    } else {
-                        stdout.printf ("  writing %s\n", ts_packet.to_string ());
-                        ts_packet.fields_to_stream (out_stream);
-                        ts_packet.payload_to_stream (out_stream);
+                        packets_written++;
                     }
-                    packets_written++;
                 }
                 out_stream.close ();
                 stdout.printf ("\nWrote %llu packets to %s\n",
