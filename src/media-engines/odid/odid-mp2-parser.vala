@@ -54,7 +54,8 @@ public abstract class Rygel.MP2TransportStream {
             // debug ("Parsing packet %lld at offset %lld", packet_count, offset);
             var ts_packet = new MP2TSPacket.from_stream (this.source_stream, offset);
             ts_packets.add (ts_packet);
-            offset += ts_packet.parse_from_stream ();
+            ts_packet.parse_from_stream_seek ();
+            offset += bytes_per_packet;
             // debug ("Parsed " + ts_packet.to_string ());
             packet_count++;
             if ((num_packets > 0) && (packet_count >= num_packets)) {
@@ -72,9 +73,7 @@ public abstract class Rygel.MP2TransportStream {
             if (ts_packet.pid == 0) {
                 var offset = ts_packet.source_offset + ts_packet.header_size;
                 this.source_stream.seek_to_offset (offset);
-                var pointer_field = this.source_stream.read_byte ();
-                offset += 1 + pointer_field;
-                if (pat_section.add_ts_packet (ts_packet)) {
+                if (pat_section.add_ts_packet_seek (ts_packet)) {
                     if (pat_table.add_section (pat_section)) {
                         return pat_table;
                     }
@@ -93,9 +92,7 @@ public abstract class Rygel.MP2TransportStream {
             if (ts_packet.pid == pmt_pid) {
                 var offset = ts_packet.source_offset + ts_packet.header_size;
                 this.source_stream.seek_to_offset (offset);
-                var pointer_field = this.source_stream.read_byte ();
-                offset += 1 + pointer_field;
-                if (pmt_section.add_ts_packet (ts_packet)) {
+                if (pmt_section.add_ts_packet_seek (ts_packet)) {
                     if (pmt_table.add_section (pmt_section)) {
                         return pmt_table;
                     }
@@ -169,24 +166,31 @@ public class Rygel.MP2TransportStreamFile : MP2TransportStream {
     }
 } // END class MP2TransportStreamFile
 
-public class Rygel.MP2TSRestampper {
+public class Rygel.MP2TSRestamper {
     protected ExtDataInputStream source_stream;
     public uint64 source_offset;
     public uint64 source_size;
 
-    protected MP2TSRestampper.from_stream (GLib.FileInputStream source_stream, 
-                                              uint64 offset, uint64 size)
+    protected MP2TSRestamper.from_stream (GLib.FileInputStream source_stream, 
+                                          uint64 offset, uint64 size)
             throws Error {
         this.source_stream = new ExtDataInputStream (source_stream);
         this.source_offset = offset;
         this.source_size = size;
     }
 
+    public MP2TSRestamper.from_file (GLib.File ts_file) throws Error {
+        var file_info = ts_file.query_info (GLib.FileAttribute.STANDARD_SIZE, 0);
+        this.from_stream (ts_file.read (), 0, file_info.get_size ());
+        // TODO: Look for packet start code (in case file is not packet aligned)
+    }
+
     public virtual void restamp_to_stream_scaled (ExtDataOutputStream ostream,
                                                   uint32 scale_ms,
-                                                  uint16 ? [] pids_to_scale,
-                                                  uint16 ? [] pids_to_remove) 
+                                                  uint16 [] ? pids_to_scale,
+                                                  uint16 [] ? pids_to_remove) 
             throws Error {
+        debug ("restamp_to_stream_scaled (scale=%u (%0.3fx))",scale_ms,scale_ms/1000.0);
         var pid_remove_set = new Gee.HashSet<uint16> ();
         foreach (var pid in pids_to_remove) {
             pid_remove_set.add (pid);
@@ -198,44 +202,51 @@ public class Rygel.MP2TSRestampper {
             }
         } else {
             var pat = get_first_pat_table ();
+            debug ("  Found PAT:");
+            pat.to_printer ((l) =>  {debug (l);}, "   ");
             var pmt = get_pmt_table (pat.get_programs ().first ().pid);
+            debug ("  Found PMT:");
+            pat.to_printer ((l) =>  {debug (l);}, "   ");
             foreach (var stream_info in pmt.get_streams ()) {
                 if (stream_info.is_audio () || stream_info.is_video ()) {
                     pid_scale_set.add (stream_info.pid);
                 } 
             }
         }
-        var c_counters = new HashTable <uint16, uint8> (direct_hash, 
-                                                        direct_equal);
+        var c_counters = new HashTable <uint16, uint8> (direct_hash, direct_equal);
         uint64 packet_count = 0, offset = this.source_offset;
         uint bytes_per_packet = 188;
         this.source_stream.seek_to_offset (offset);
         while (offset + bytes_per_packet <= this.source_size) {
-            // debug ("Restamping packet %lld at offset %lld", packet_count, offset);
-            var ts_packet = new MP2TSPacket.from_stream (this.source_stream, 
-                                                         offset);
-            offset += ts_packet.parse_from_stream ();
-            // debug ("Parsed " + ts_packet.to_string ());
-            if (!pid_remove_set.contains (ts_packet.pid)) {
+            debug ("Restamping packet %lld at offset %lld", packet_count, offset);
+            var ts_packet = new MP2TSPacket.from_stream (this.source_stream, offset);
+            var header_bytes_parsed = ts_packet.parse_from_stream_noseek ();
+            offset += bytes_per_packet;
+            debug ("Parsed %llu bytes: %s", header_bytes_parsed, ts_packet.to_string ());
+            if (pid_remove_set.contains (ts_packet.pid)) {
+                ts_packet.skip_payload ();
+            } else {
                 packet_count++;
                 if (ts_packet.adaptation_field != null) {
                     stdout.printf ("  changing PCR of %s\n", ts_packet.to_string ());
                     ts_packet.adaptation_field.pcr 
-                        = (ts_packet.adaptation_field.pcr * scale_ms) / 1000;
+                        = (ts_packet.adaptation_field.pcr * 1000) / scale_ms;
                 }
                 var c_counter = c_counters.get (ts_packet.pid);
                 ts_packet.continuity_counter = c_counter;
                 c_counters.replace (ts_packet.pid, (c_counter+1) % 16);
                 if (ts_packet.payload_unit_start_indicator
                     && pid_scale_set.contains (ts_packet.pid)) {
-                    ts_packet.parse_pes_from_stream ();
+                    ts_packet.parse_pes_from_stream_noseek ();
                     stdout.printf ("  changing PTS/DTS of %s\n", ts_packet.to_string ());
                     ts_packet.pes_packet.pes_header.pts 
-                      = (ts_packet.pes_packet.pes_header.pts * scale_ms) / 1000;
+                      = (ts_packet.pes_packet.pes_header.pts * 1000) / scale_ms;
+                    ts_packet.pes_packet.pes_header.dts 
+                      = (ts_packet.pes_packet.pes_header.dts * 1000) / scale_ms;
                 }
                 debug ("writing " + ts_packet.to_string ());
                 ts_packet.fields_to_stream (ostream);
-                ts_packet.payload_to_stream (ostream);
+                ts_packet.payload_to_stream_noseek (ostream);
             }
         }
     } // END restamp_to_stream_scaled ()
@@ -250,15 +261,14 @@ public class Rygel.MP2TSRestampper {
         while (ts_offset + bytes_per_packet <= this.source_size) {
             var ts_packet = new MP2TSPacket.from_stream (this.source_stream, 
                                                          ts_offset);
-            ts_offset += ts_packet.parse_from_stream ();
+            ts_packet.parse_from_stream_noseek ();
+            ts_offset += bytes_per_packet;
             // debug ("Parsed " + ts_packet.to_string ());
             packet_count++;
-            if (ts_packet.pid == 0 && ts_packet.payload_unit_start_indicator) {
+            if (ts_packet.pid == 0) {
                 var offset = ts_packet.source_offset + ts_packet.header_size;
                 this.source_stream.seek_to_offset (offset);
-                var pointer_field = this.source_stream.read_byte ();
-                offset += 1 + pointer_field;
-                if (pat_section.add_ts_packet (ts_packet)) {
+                if (pat_section.add_ts_packet_seek (ts_packet)) {
                     if (pat_table.add_section (pat_section)) {
                         return pat_table;
                     }
@@ -281,20 +291,21 @@ public class Rygel.MP2TSRestampper {
         while (ts_offset + bytes_per_packet <= this.source_size) {
             var ts_packet = new MP2TSPacket.from_stream (this.source_stream, 
                                                          ts_offset);
-            ts_offset += ts_packet.parse_from_stream ();
+            ts_packet.parse_from_stream_noseek ();
+            ts_offset += bytes_per_packet;
             // debug ("Parsed " + ts_packet.to_string ());
             packet_count++;
-            if (ts_packet.pid == 0 && ts_packet.payload_unit_start_indicator) {
+            if (ts_packet.pid == pmt_pid) {
                 var offset = ts_packet.source_offset + ts_packet.header_size;
                 this.source_stream.seek_to_offset (offset);
-                var pointer_field = this.source_stream.read_byte ();
-                offset += 1 + pointer_field;
-                if (pmt_section.add_ts_packet (ts_packet)) {
+                if (pmt_section.add_ts_packet_noseek (ts_packet)) {
                     if (pmt_table.add_section (pmt_section)) {
                         return pmt_table;
                     }
                     pmt_section = new MP2PMTSection ();
                 }
+            } else {
+                ts_packet.skip_payload ();
             }
         }
         throw new IOError.FAILED ("No PMT table found in %lld packets",
@@ -333,16 +344,18 @@ public class Rygel.MP2TSPacket {
         this.loaded = false;
     }
 
-    public virtual uint64 parse_from_stream () throws Error {
-        // debug ("parse_from_stream()", this.type_code);
-        // Note: This currently assumes the stream is pre-positioned for the TS packet
-        var instream = this.source_stream;
+    public virtual uint64 parse_from_stream_seek () throws Error {
+        this.source_stream.seek_to_offset (this.source_offset);
+        return (parse_from_stream_noseek ());
+    }
 
+    public virtual uint64 parse_from_stream_noseek () throws Error {
+        var instream = this.source_stream;
+        
         var sync_byte = instream.read_byte ();
         if (sync_byte != 0x47) {
             throw new IOError.FAILED ("TS packet sync_byte mismatch at %lld (0x%llx): found 0x%x, expected 0x47",
-                                      this.source_offset, this.source_offset,
-                                      sync_byte);
+                                      instream.tell (), instream.tell (), sync_byte);
         }
 
         var octet_2_3 = instream.read_uint16 ();
@@ -365,37 +378,51 @@ public class Rygel.MP2TSPacket {
         }
         this.has_payload = (this.adaptation_field_control & 1) == 1;
         this.header_size = bytes_consumed;
-        this.payload_size = 188 - bytes_consumed;
         assert (bytes_consumed <= 188);
-        instream.skip_bytes (payload_size);
+        this.payload_size = 188 - bytes_consumed;
 
         this.source_verbatim = false;
         this.loaded = true;
 
-        return 188;
+        return bytes_consumed;
     }
     
     public void load () throws Error {
         if (!loaded) {
-            parse_from_stream ();
+            parse_from_stream_seek ();
         }
     }
 
     /**
      * Parse the PES header contained in the TS packet. 
-     * 
-     * Note that parse_from_stream() must be called as a precondition.
      */
-    public virtual uint64 parse_pes_from_stream () throws Error {
+    public virtual uint64 parse_pes_from_stream_seek () throws Error {
         if (!this.payload_unit_start_indicator) {
-            throw new IOError.FAILED ("Attempt to parse PES from TS packet that's not a payload start: ",
+            throw new IOError.FAILED ("Attempt to parse PES from TS packet that's not a payload start at %llu (0x%llx): ",
+                                      this.source_stream.tell (), this.source_stream.tell (),
                                       this.to_string ());
         }
 
         var pes_offset = this.source_offset + this.header_size;
-        var pes_packet 
-            = new MP2PESPacket.from_stream (this.source_stream, pes_offset);
-        var bytes_parsed = pes_packet.parse_from_stream ();
+        var pes_packet = new MP2PESPacket.from_stream (this.source_stream, pes_offset);
+        var bytes_parsed = pes_packet.parse_from_stream_seek ();
+        this.pes_packet = pes_packet;
+        return bytes_parsed;
+    }
+
+    /**
+     * Parse the PES header contained in the TS packet. 
+     */
+    public virtual uint64 parse_pes_from_stream_noseek () throws Error {
+        if (!this.payload_unit_start_indicator) {
+            throw new IOError.FAILED ("Attempt to parse PES from TS packet that's not a payload start at %llu (0x%llx): ",
+                                      this.source_stream.tell (), this.source_stream.tell (),
+                                      this.to_string ());
+        }
+
+        var pes_offset = this.source_offset + this.header_size;
+        var pes_packet = new MP2PESPacket.from_stream (this.source_stream, pes_offset);
+        var bytes_parsed = pes_packet.parse_from_stream_noseek ();
         this.pes_packet = pes_packet;
         return bytes_parsed;
     }
@@ -440,11 +467,38 @@ public class Rygel.MP2TSPacket {
         return bytes_written;
     }
     
-    public virtual uint64 payload_to_stream (ExtDataOutputStream ostream) 
+    public virtual uint64 skip_payload () 
             throws Error {
-        this.source_stream.seek_to_offset (this.source_offset + this.header_size);
-        ostream.put_from_instream (this.source_stream, this.payload_size);
-        return this.payload_size;
+        uint64 offset = this.header_size;
+        if (this.pes_packet != null) {
+            offset += this.pes_packet.header_size;
+        }
+        uint64 payload_size = 188 - offset;
+        this.source_stream.skip_bytes (payload_size);
+        return payload_size;
+    }
+
+    public virtual uint64 payload_to_stream_noseek (ExtDataOutputStream ostream) 
+            throws Error {
+        uint64 offset = this.header_size;
+        if (this.pes_packet != null) {
+            offset += this.pes_packet.header_size;
+        }
+        uint64 payload_size = 188 - offset;
+        ostream.put_from_instream (this.source_stream, payload_size);
+        return payload_size;
+    }
+
+    public virtual uint64 payload_to_stream_seek (ExtDataOutputStream ostream) 
+            throws Error {
+        uint64 offset = this.header_size;
+        if (this.pes_packet != null) {
+            offset += this.pes_packet.header_size;
+        }
+        this.source_stream.seek_to_offset (this.source_offset + offset);
+        uint64 payload_size = 188 - offset;
+        ostream.put_from_instream (this.source_stream, payload_size);
+        return payload_size;
     }
 
     public string to_string () {
@@ -569,9 +623,9 @@ public class Rygel.MP2TSPacket {
             // debug ("adaptation field length: %d", this.adaptation_field_length);
             // debug ("bytes consumed: %lld", bytes_consumed);
             if (bytes_consumed > adaptation_field_length+1) {
-                throw new IOError.FAILED ("Found %d bytes in adaptation field of %d bytes: %s",
-                                          bytes_consumed, adaptation_field_length+1,
-                                          to_string ());
+                throw new IOError.FAILED ("Found %d bytes in adaptation field of %d bytes at %lld (0x%llx): %s",
+                                          instream.tell (), instream.tell (),
+                                          bytes_consumed, adaptation_field_length+1, to_string ());
             }
             this.num_stuffing_bytes = adaptation_field_length + 1 
                                       - bytes_consumed;
@@ -959,47 +1013,72 @@ public abstract class Rygel.MP2Section {
         // TODO
     }
 
-    public bool add_ts_packet (MP2TSPacket ts_packet) throws Error {
+    public bool add_ts_packet_seek (MP2TSPacket ts_packet) throws Error {
+        ts_packet.source_stream.seek_to_offset (ts_packet.source_offset + ts_packet.header_size);
+        return add_ts_packet_noseek (ts_packet);
+    }
+
+    public bool add_ts_packet_noseek (MP2TSPacket ts_packet) throws Error {
+        // debug ("add_ts_packet_noseek(%s)",ts_packet.to_string ());
         if (this.section_data != null) {
             return true;
         }
         var instream = ts_packet.source_stream;
         uint8 packet_payload_len = 188 - ts_packet.header_size;
-        uint64 cur_offset = ts_packet.source_offset + ts_packet.header_size;
-        instream.seek_to_offset (cur_offset);
+        uint bytes_to_read;
+        Error err = null;
         if (ts_packet.payload_unit_start_indicator) {
             var pointer_offset = instream.read_byte ();
-            cur_offset++;
             packet_payload_len--;
-            if (this.section_buffer == null) { // Packet is start of section
+            if (this.section_buffer == null) { // Packet is start of section (and maybe end)
+                // debug ("Found section start in " + ts_packet.to_string ());
                 instream.skip_bytes (pointer_offset);
-                cur_offset += pointer_offset;
                 packet_payload_len -= pointer_offset;
-                this.fields_from_stream (instream);
+                uint8 header[3];
+                instream.read (header);
+                this.table_id = header[0];
+                uint16 octet_2_3 = (header[1] << 8) | header[2];
+                this.section_syntax_indicator = Bits.getbit_16 (octet_2_3, 15);
+                this.section_length = Bits.getbits_16 (octet_2_3, 0, 12);
                 this.section_buffer = new ByteArray.sized (this.section_length);
-                var bytes_to_read = uint16.min (packet_payload_len, this.section_length);
-                this.section_buffer.append (instream.read_bytes (bytes_to_read).get_data ());
+                this.section_buffer.append (header);
+                bytes_to_read = uint.min (packet_payload_len, this.section_length);
             } else { // Packet must be the end of this section (and start of another)
+                // debug ("Found section end in " + ts_packet.to_string ());
                 packet_payload_len = pointer_offset;
-                var bytes_to_read = uint32.min (packet_payload_len, 
-                                               this.section_length-this.section_buffer.len);
-                this.section_buffer.append (instream.read_bytes (bytes_to_read).get_data ());
+                bytes_to_read = uint.min (packet_payload_len, 
+                                          this.section_length-this.section_buffer.len);
                 if (!(this.section_buffer.len == this.section_length)) {
-                    throw new IOError.FAILED ("Last packet for section didn't complete section (expected %u bytes, found %u)", 
+                    err = new IOError.FAILED ("Last packet for section didn't complete section (expected %u bytes, found %u)", 
                                               this.section_length, this.section_buffer.len);
                 }
             }
-        } else {
+        } else { // No PUSI bit -> no pointer byte
             if (this.section_buffer == null) {
-                return false; // Haven't found a section start yet - nothing to do
+                bytes_to_read = 0;
+                // debug ("Skipping - start not found: " + ts_packet.to_string ());
             } else {
-                var bytes_to_read = uint.min (packet_payload_len, 
-                                               this.section_length-this.section_buffer.len);
-                this.section_buffer.append (instream.read_bytes (bytes_to_read).get_data ());
+                // debug ("Found section continuation in " + ts_packet.to_string ());
+                bytes_to_read = uint.min (packet_payload_len, 
+                                          this.section_length-this.section_buffer.len);
             }
         }
-        if (this.section_buffer.len == this.section_length) {
+        if (bytes_to_read > 0) {
+            // debug ("Copying %u bytes of section data", bytes_to_read);
+            this.section_buffer.append (instream.read_bytes (bytes_to_read).get_data ());
+        }
+        uint bytes_remaining = packet_payload_len - bytes_to_read;
+        if (bytes_remaining > 0) {
+            // debug ("Skipping %u bytes of packet data", bytes_remaining);
+            instream.skip_bytes (bytes_remaining);
+        }
+        if (err != null) {
+            throw err;
+        }
+        if (this.section_buffer.len == this.section_length+3) {
+            // debug ("Packet completes section: " + ts_packet.to_string ());
             this.section_data = ByteArray.free_to_bytes (this.section_buffer);
+            this.parse_section_data ();
             this.section_buffer = null;
             return true;
         } else {
@@ -1013,6 +1092,11 @@ public abstract class Rygel.MP2Section {
         }
         var mis = new MemoryInputStream.from_bytes (this.section_data);
         var dis = new ExtDataInputStream (mis);
+        //var builder = new StringBuilder ();
+        //for (int i=0; i<this.section_data.length; i++) {
+        //    builder.append_printf ("0x%02x ",this.section_data[i]);
+        //}
+        //debug ("section_data: " + builder.str);
         return (fields_from_stream (dis));
     }
 
@@ -1447,7 +1531,7 @@ public class Rygel.MP2PMTSection : MP2TableSection {
     public override uint16 fields_from_stream (ExtDataInputStream instream) throws Error {
         var bytes_consumed = base.fields_from_stream (instream);
         if (this.table_id != 0x02) {
-            throw new IOError.FAILED ("PAT table_id not 0 (found 0x%x)", table_id);
+            throw new IOError.FAILED ("PMT table_id not 2 (found 0x%x)", table_id);
         }
         this.program_number = instream.read_uint16 ();
 
@@ -1751,9 +1835,13 @@ public class Rygel.MP2PESPacket {
         this.loaded = false;
     }
 
-    public virtual uint64 parse_from_stream () throws Error {
+    public virtual uint64 parse_from_stream_seek () throws Error {
+        this.source_stream.seek_to_offset (this.source_offset);
+        return parse_from_stream_noseek ();
+    }
+
+    public virtual uint64 parse_from_stream_noseek () throws Error {
         var instream = this.source_stream;
-        instream.seek_to_offset (this.source_offset);
 
         var start_code_prefix = instream.read_bytes_uint32 (3);
         if (start_code_prefix != 0x000001) {
@@ -1807,23 +1895,6 @@ public class Rygel.MP2PESPacket {
 
         return bytes_written;
     }
-
-//    public virtual uint64 to_stream (ExtDataOutputStream ostream) 
-//            throws Error {
-//        uint64 bytes_written;
-//        if (this.source_verbatim) {
-//            // debug ("to_stream(%s): Writing from source stream: %s",
-//            //        this.type_code, this.to_string ());
-//            this.source_stream.seek_to_offset (this.source_offset);
-//            bytes_written = ostream.put_from_instream (this.source_stream, 
-//                                                         get_size ());
-//        } else {
-//            // debug ("to_stream(%s): Writing from fields: %s",
-//            //        this.type_code, this.to_string ());
-//            bytes_written = fields_to_stream (ostream);
-//        }
-//        return bytes_written;
-//    }    
 
     public bool is_audio () {
         return ((this.stream_id & STREAM_ID_AUDIO_MASK) == STREAM_ID_AUDIO);
@@ -2617,65 +2688,85 @@ class Rygel.MP2ParsingTest : GLib.Object {
 
             stdout.printf ("\nINPUT FILE: %s\n", in_file.get_path ());
             stdout.flush ();
-            var mp2_file = new Rygel.MP2TransportStreamFile (in_file);
-            mp2_file.parse_from_stream (packets_to_parse);
-            stdout.printf ("\nPARSED TS INPUT FILE (%s packets)\n",
-                           ((packets_to_parse == 0) 
-                            ? "all" : packets_to_parse.to_string ()));
+            MP2TransportStreamFile mp2_file = null;
 
             MP2TransportStream.LinePrinter my_printer 
                     = (l) =>  {stdout.puts (l); stdout.putc ('\n');};
 
-            if (print_infile && only_pid < 0) {
-                mp2_file.to_printer (my_printer, "  ");
-            } else {
-                mp2_file.to_printer_with_pid (my_printer, "  ", only_pid);
+
+            if (print_infile) {
+                mp2_file = new Rygel.MP2TransportStreamFile (in_file);
+                mp2_file.parse_from_stream (packets_to_parse);
+                stdout.printf ("\nPARSED TS INPUT FILE (%s packets)\n",
+                               ((packets_to_parse == 0) 
+                                ? "all" : packets_to_parse.to_string ()));
+                if (only_pid < 0) {
+                    mp2_file.to_printer (my_printer, "  ");
+                } else {
+                    mp2_file.to_printer_with_pid (my_printer, "  ", only_pid);
+                }
             }
 
             MP2PMTSection.StreamInfo target_stream = null;
             MP2PATSection.Program target_program = null;
 
-            var pat = mp2_file.get_first_pat_table ();
-            if (print_pat_pmt) {
-                stdout.printf ("\nFOUND PAT:\n");
-                pat.to_printer (my_printer, "   ");
-            }
-            foreach (var program in pat.get_programs ()) {
-                try {
-                    var pmt = mp2_file.get_first_pmt_table (program.pid);
-                    if (print_pat_pmt) {
-                        stdout.printf ("\nFOUND PMT ON PID %u:\n", program.pid);
-                        pmt.to_printer (my_printer, "   ");
+            if (print_pat_pmt || print_pes_headers) {
+                if (mp2_file == null) {
+                    mp2_file = new Rygel.MP2TransportStreamFile (in_file);
+                    mp2_file.parse_from_stream (packets_to_parse);
+                    stdout.printf ("\nPARSED TS INPUT FILE (%s packets)\n",
+                                   ((packets_to_parse == 0) 
+                                    ? "all" : packets_to_parse.to_string ()));
+                }
+                var pat = mp2_file.get_first_pat_table ();
+                if (print_pat_pmt) {
+                    stdout.printf ("\nFOUND PAT:\n");
+                    pat.to_printer (my_printer, "   ");
+                }
+                foreach (var program in pat.get_programs ()) {
+                    try {
+                        var pmt = mp2_file.get_first_pmt_table (program.pid);
+                        if (print_pat_pmt) {
+                            stdout.printf ("\nFOUND PMT ON PID %u:\n", program.pid);
+                            pmt.to_printer (my_printer, "   ");
+                        }
                         stdout.flush ();
-                    }
-                    foreach (var stream_info in pmt.get_streams ()) {
-                        if (target_stream == null) {
-                            if ((only_pid < 0) 
-                                && (stream_info.stream_type 
-                                    == MP2PMTSection.STREAM_TYPE_MPEG2_VIDEO)) {
-                                target_program = program;
-                                target_stream = stream_info;
-                            } else {
-                                if (stream_info.pid == only_pid) {
+                        foreach (var stream_info in pmt.get_streams ()) {
+                            if (target_stream == null) {
+                                if ((only_pid < 0) 
+                                    && (stream_info.stream_type 
+                                        == MP2PMTSection.STREAM_TYPE_MPEG2_VIDEO)) {
+                                    target_program = program;
                                     target_stream = stream_info;
+                                } else {
+                                    if (stream_info.pid == only_pid) {
+                                        target_stream = stream_info;
+                                    }
                                 }
                             }
                         }
-                    }
-                    if (target_stream == null) {
-                        if (only_pid < 0) {
-                            stderr.printf ("\nNo stream found in program %d\n", 
-                                           program.program_number);
-                        } else {
-                            stderr.printf ("\nNo stream found in program %d for PID %d\n", 
-                                           program.program_number, only_pid);
+                        if (target_stream == null) {
+                            if (only_pid < 0) {
+                                stderr.printf ("\nNo stream found in program %d\n", 
+                                               program.program_number);
+                            } else {
+                                stderr.printf ("\nNo stream found in program %d for PID %d\n", 
+                                               program.program_number, only_pid);
+                            }
                         }
+                    } catch (Error err) {
+                        error ("Error getting PMT/video PES: %s", err.message);
                     }
-                } catch (Error err) {
-                    error ("Error getting PMT/video PES: %s", err.message);
                 }
             }
             if (print_pes_headers) {
+                if (mp2_file == null) {
+                    mp2_file = new Rygel.MP2TransportStreamFile (in_file);
+                    mp2_file.parse_from_stream (packets_to_parse);
+                    stdout.printf ("\nPARSED TS INPUT FILE (%s packets)\n",
+                                   ((packets_to_parse == 0) 
+                                    ? "all" : packets_to_parse.to_string ()));
+                }
                 stdout.printf ("\nPES packets on %s\n\n", 
                                target_stream.to_string ());
                 var ts_packets = mp2_file.get_packets_for_pid 
@@ -2691,7 +2782,7 @@ class Rygel.MP2ParsingTest : GLib.Object {
                         var pes_packet 
                             = new MP2PESPacket.from_stream (mp2_file.source_stream, 
                                                             pes_offset);
-                        pes_packet.parse_from_stream ();
+                        pes_packet.parse_from_stream_seek ();
                         stdout.printf ("   %s\n", 
                                        pes_packet.to_string ());
                     }
@@ -2705,68 +2796,31 @@ class Rygel.MP2ParsingTest : GLib.Object {
                 var out_stream = new Rygel.ExtDataOutputStream (
                                        out_file.create (
                                          FileCreateFlags.REPLACE_DESTINATION));
-                uint64 packets_written = 0;
 
                 if (!restamp) {
+                    if (mp2_file == null) {
+                        mp2_file = new Rygel.MP2TransportStreamFile (in_file);
+                        mp2_file.parse_from_stream (packets_to_parse);
+                        stdout.printf ("\nPARSED TS INPUT FILE (%s packets)\n",
+                                       ((packets_to_parse == 0) 
+                                        ? "all" : packets_to_parse.to_string ()));
+                    }
+                    uint64 packets_written = 0;
                     foreach (var ts_packet in mp2_file.ts_packets) {
                         ts_packet.fields_to_stream (out_stream);
-                        ts_packet.payload_to_stream (out_stream);
+                        ts_packet.payload_to_stream_noseek (out_stream);
                         packets_written++;
                     }
+                    stdout.printf ("\nWrote %llu packets to %s\n",
+                                   packets_written, out_file.get_path ());
                 } else {
                     stdout.printf ("\n  Restamping packets. Scale: %fx\n", 
                                    (double)restamp_scale/MILLIS_PER_SEC);
-
-                    var c_counters = new HashTable <uint16, uint8> 
-                                            (direct_hash, direct_equal);
-                    var pmt = mp2_file.get_first_pmt_table (target_program.pid);
-                    foreach (var stream_info in pmt.get_streams ()) {
-                        c_counters.insert (stream_info.pid, 0);
-                    }
-
-                    foreach (var ts_packet in mp2_file.ts_packets) {
-                        if (ts_packet.adaptation_field != null) {
-                            stdout.printf ("   changing PCR of %s\n", ts_packet.to_string ());
-                            ts_packet.adaptation_field.pcr = (ts_packet.adaptation_field.pcr
-                                                             * MILLIS_PER_SEC) / restamp_scale;
-                        }
-                        var c_counter = c_counters.get (ts_packet.pid);
-                        ts_packet.continuity_counter = c_counter;
-                        c_counters.replace (ts_packet.pid, (c_counter+1) % 16);
-                        if (ts_packet.pid == target_stream.pid) {
-                            if (ts_packet.payload_unit_start_indicator) {
-                                ts_packet.parse_pes_from_stream ();
-                                var pes_packet = ts_packet.pes_packet;
-                                stdout.printf ("   changing PTS/DTS of %s\n", ts_packet.to_string ());
-                                pes_packet.pes_header.pts =  (pes_packet.pes_header.pts
-                                                              * MILLIS_PER_SEC) / restamp_scale;
-                                pes_packet.pes_header.dts = (pes_packet.pes_header.dts
-                                                             * MILLIS_PER_SEC) / restamp_scale;
-                                stdout.printf ("  writing %s\n", ts_packet.to_string ());
-                                ts_packet.fields_to_stream (out_stream);
-                                // pes_packet.fields_to_stream (out_stream);
-                                var payload_in_ts = 188 - ts_packet.header_size 
-                                                        - pes_packet.header_size;
-                                stdout.printf ("     Copying %d bytes of payload after PES header\n",
-                                               payload_in_ts);
-                                out_stream.put_from_instream (mp2_file.source_stream, 
-                                                              payload_in_ts);
-                            } else {
-                                stdout.printf ("  writing %s\n", ts_packet.to_string ());
-                                ts_packet.fields_to_stream (out_stream);
-                                ts_packet.payload_to_stream (out_stream);
-                            }
-                        } else {
-                            stdout.printf ("  writing %s\n", ts_packet.to_string ());
-                            ts_packet.fields_to_stream (out_stream);
-                            ts_packet.payload_to_stream (out_stream);
-                        }
-                        packets_written++;
-                    }
+                    var restamper = new MP2TSRestamper.from_file (in_file);
+                    restamper.restamp_to_stream_scaled (out_stream, restamp_scale, null, null);
+                    stdout.printf ("\nRestamping complete. Outfile: %s\n", out_file.get_path ());
                 }
                 out_stream.close ();
-                stdout.printf ("\nWrote %llu packets to %s\n",
-                               packets_written, out_file.get_path ());
             }
         } catch (Error err) {
             error ("Error: %s", err.message);
