@@ -218,17 +218,17 @@ public class Rygel.MP2TSRestamper {
         uint bytes_per_packet = 188;
         this.source_stream.seek_to_offset (offset);
         while (offset + bytes_per_packet <= this.source_size) {
-            debug ("Restamping packet %lld at offset %lld", packet_count, offset);
+            // debug ("Restamping packet %lld at offset %lld", packet_count, offset);
             var ts_packet = new MP2TSPacket.from_stream (this.source_stream, offset);
             var header_bytes_parsed = ts_packet.parse_from_stream_noseek ();
             offset += bytes_per_packet;
-            debug ("Parsed %llu bytes: %s", header_bytes_parsed, ts_packet.to_string ());
+            // debug ("Parsed %llu bytes: %s", header_bytes_parsed, ts_packet.to_string ());
             if (pid_remove_set.contains (ts_packet.pid)) {
                 ts_packet.skip_payload ();
             } else {
                 packet_count++;
                 if (ts_packet.adaptation_field != null) {
-                    stdout.printf ("  changing PCR of %s\n", ts_packet.to_string ());
+                    // debug ("  changing PCR of %s\n", ts_packet.to_string ());
                     ts_packet.adaptation_field.pcr 
                         = (ts_packet.adaptation_field.pcr * 1000) / scale_ms;
                 }
@@ -238,13 +238,13 @@ public class Rygel.MP2TSRestamper {
                 if (ts_packet.payload_unit_start_indicator
                     && pid_scale_set.contains (ts_packet.pid)) {
                     ts_packet.parse_pes_from_stream_noseek ();
-                    stdout.printf ("  changing PTS/DTS of %s\n", ts_packet.to_string ());
+                    // debug ("  changing PTS/DTS of %s\n", ts_packet.to_string ());
                     ts_packet.pes_packet.pes_header.pts 
                       = (ts_packet.pes_packet.pes_header.pts * 1000) / scale_ms;
                     ts_packet.pes_packet.pes_header.dts 
                       = (ts_packet.pes_packet.pes_header.dts * 1000) / scale_ms;
                 }
-                debug ("writing " + ts_packet.to_string ());
+                // debug ("writing " + ts_packet.to_string ());
                 ts_packet.fields_to_stream (ostream);
                 ts_packet.payload_to_stream_noseek (ostream);
             }
