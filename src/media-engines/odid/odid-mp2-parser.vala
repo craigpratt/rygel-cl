@@ -206,7 +206,7 @@ public class Rygel.MP2TSRestamper {
             pat.to_printer ((l) =>  {debug (l);}, "   ");
             var pmt = get_pmt_table (pat.get_programs ().first ().pid);
             debug ("  Found PMT:");
-            pat.to_printer ((l) =>  {debug (l);}, "   ");
+            pmt.to_printer ((l) =>  {debug (l);}, "   ");
             foreach (var stream_info in pmt.get_streams ()) {
                 if (stream_info.is_audio () || stream_info.is_video ()) {
                     pid_scale_set.add (stream_info.pid);
@@ -2517,7 +2517,7 @@ class Rygel.MP2ParsingTest : GLib.Object {
                                  && uint64.try_parse (args[i+1], out buf_out_stream_buf_size)) {
                                 i++;
                             } else { // Use a default buffer size
-                                buf_out_stream_buf_size = 1572864;
+                                buf_out_stream_buf_size = 188*1000;
                             }
                             buf_out_stream_test = true;
                             break;
@@ -2693,7 +2693,6 @@ class Rygel.MP2ParsingTest : GLib.Object {
             MP2TransportStream.LinePrinter my_printer 
                     = (l) =>  {stdout.puts (l); stdout.putc ('\n');};
 
-
             if (print_infile) {
                 mp2_file = new Rygel.MP2TransportStreamFile (in_file);
                 mp2_file.parse_from_stream (packets_to_parse);
@@ -2796,7 +2795,6 @@ class Rygel.MP2ParsingTest : GLib.Object {
                 var out_stream = new Rygel.ExtDataOutputStream (
                                        out_file.create (
                                          FileCreateFlags.REPLACE_DESTINATION));
-
                 if (!restamp) {
                     if (mp2_file == null) {
                         mp2_file = new Rygel.MP2TransportStreamFile (in_file);
@@ -2821,6 +2819,73 @@ class Rygel.MP2ParsingTest : GLib.Object {
                     stdout.printf ("\nRestamping complete. Outfile: %s\n", out_file.get_path ());
                 }
                 out_stream.close ();
+            }
+            if (buf_out_stream_test) {
+                //
+                // Test writing to BufferGeneratingOutputStream
+                //
+                if (restamp_scale == 0) {
+                    stderr.printf ("  Restamp scale required (-restamp <scale>) with -bufoutstream\n");
+                    return 2;
+                }
+                uint64 byte_count = 0;
+                uint32 buffer_size = (uint32)buf_out_stream_buf_size;
+                stdout.printf ("  Using buffer size %u (0x%x)\n", buffer_size, buffer_size);
+                var my_buf_gen_stream = new BufferGeneratingOutputStream (buffer_size,
+                                                                          (bytes, last_buffer) =>
+                    {
+                        if (bytes != null) {
+                            var buffer = bytes.get_data ();
+                            stdout.printf ("    Received %u bytes (%02x %02x %02x %02x %02x %02x) - offset %llu (0x%llx)\n",
+                                           buffer.length, buffer[0], buffer[1], buffer[2],
+                                           buffer[3], buffer[4], buffer[5], byte_count, byte_count);
+                            byte_count += bytes.length;
+                        }
+                        if (last_buffer) {
+                            stdout.printf ("  Last buffer received. Total bytes received: %llu\n",
+                                           byte_count);
+                        }
+                    }, true /* paused */ );
+                var gen_thread = new Thread<void*> ( "mp2 stream generator", () => {
+                    stderr.printf ("  Generator started\n");
+                    Rygel.ExtDataOutputStream out_stream = null;
+                    try {
+                        var restamper = new MP2TSRestamper.from_file (in_file);
+                        stderr.printf ("  Generator writing %fx restamped stream\n",
+                                       (float)restamp_scale/MILLIS_PER_SEC);
+                        out_stream = new Rygel.ExtDataOutputStream (my_buf_gen_stream);
+                        restamper.restamp_to_stream_scaled (out_stream, 2000, null, null);
+                        stderr.printf ("  Generator done writing.\n");
+                    } catch (Error err) {
+                        error ("Error opening/writing: %s", err.message);
+                    }
+                    if (out_stream != null) {
+                        try {
+                            out_stream.close ();
+                        } catch (Error err) {
+                            error ("Error closing stream: %s", err.message);
+                        }
+                    }
+                    stderr.printf ("  Generator done\n");
+                    return null;
+                } );
+                Thread.usleep (1000000);
+                stdout.printf ("\nStarting BufferGeneratingOutputStream\n");
+                my_buf_gen_stream.resume ();
+                Thread.usleep (5000);
+                my_buf_gen_stream.pause ();
+                stdout.printf (" Paused BufferGeneratingOutputStream\n");
+                Thread.usleep (2000000);
+                stdout.printf (" Resuming BufferGeneratingOutputStream\n");
+                my_buf_gen_stream.resume ();
+                Thread.usleep (400000);
+                my_buf_gen_stream.pause ();
+                stdout.printf (" Paused BufferGeneratingOutputStream\n");
+                Thread.usleep (700000);
+                stdout.printf (" Resuming BufferGeneratingOutputStream\n");
+                my_buf_gen_stream.resume ();
+                gen_thread.join ();
+                stdout.printf ("}\nCompleted mp2 generation (%llu bytes)\n", byte_count);
             }
         } catch (Error err) {
             error ("Error: %s", err.message);
