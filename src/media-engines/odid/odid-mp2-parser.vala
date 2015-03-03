@@ -217,6 +217,8 @@ public class Rygel.MP2TSRestamper {
         uint64 packet_count = 0, offset = this.source_offset;
         uint bytes_per_packet = 188;
         this.source_stream.seek_to_offset (offset);
+        bool found_pcr = false, found_ts = false;
+        uint64 first_pcr=0, first_ts=0;
         while (offset + bytes_per_packet <= this.source_size) {
             // debug ("Restamping packet %lld at offset %lld", packet_count, offset);
             var ts_packet = new MP2TSPacket.from_stream (this.source_stream, offset);
@@ -228,9 +230,15 @@ public class Rygel.MP2TSRestamper {
             } else {
                 packet_count++;
                 if (ts_packet.adaptation_field != null) {
+                    if (!found_pcr) {
+                        first_pcr = (int64)ts_packet.adaptation_field.pcr;
+                        found_pcr = true;
+                    }
                     // debug ("  changing PCR of %s\n", ts_packet.to_string ());
+                    
                     ts_packet.adaptation_field.pcr 
-                        = (ts_packet.adaptation_field.pcr * 1000) / scale_ms;
+                        = (((int64)ts_packet.adaptation_field.pcr - (int64)first_pcr).abs () 
+                            * 1000) / scale_ms;
                 }
                 var c_counter = c_counters.get (ts_packet.pid);
                 ts_packet.continuity_counter = c_counter;
@@ -239,10 +247,24 @@ public class Rygel.MP2TSRestamper {
                     && pid_scale_set.contains (ts_packet.pid)) {
                     ts_packet.parse_pes_from_stream_noseek ();
                     // debug ("  changing PTS/DTS of %s\n", ts_packet.to_string ());
-                    ts_packet.pes_packet.pes_header.pts 
-                      = (ts_packet.pes_packet.pes_header.pts * 1000) / scale_ms;
-                    ts_packet.pes_packet.pes_header.dts 
-                      = (ts_packet.pes_packet.pes_header.dts * 1000) / scale_ms;
+                    if (ts_packet.pes_packet.pes_header.pts_flag) {
+                        if (!found_ts) {
+                            first_ts = ts_packet.pes_packet.pes_header.pts;
+                            found_ts = true;
+                        }
+                        ts_packet.pes_packet.pes_header.pts 
+                          = (((int64)ts_packet.pes_packet.pes_header.pts - (int64)first_ts).abs () 
+                             * 1000) / scale_ms;
+                    }
+                    if (ts_packet.pes_packet.pes_header.dts_flag) {
+                        if (!found_ts) {
+                            first_ts = ts_packet.pes_packet.pes_header.dts;
+                            found_ts = true;
+                        }
+                        ts_packet.pes_packet.pes_header.dts 
+                          = (((int64)ts_packet.pes_packet.pes_header.dts - (int64)first_ts).abs () 
+                             * 1000) / scale_ms;
+                    }
                 }
                 // debug ("writing " + ts_packet.to_string ());
                 ts_packet.fields_to_stream (ostream);
@@ -2784,6 +2806,10 @@ class Rygel.MP2ParsingTest : GLib.Object {
                         pes_packet.parse_from_stream_seek ();
                         stdout.printf ("   %s\n", 
                                        pes_packet.to_string ());
+                    } else if (print_ts_packets_with_pes 
+                               && ts_packet.adaptation_field_control > 1) {
+                        stdout.printf (" %s\n",
+                                       ts_packet.to_string ());
                     }
                 }
             }
