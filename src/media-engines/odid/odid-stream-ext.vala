@@ -552,7 +552,7 @@ public class BufferGeneratingOutputStream : OutputStream {
         }
         if (buffer_to_pass != null) {
             // Call the delegate without holding the lock
-            this.buffer_sink (buffer_to_pass, false);
+            this.buffer_sink (buffer_to_pass, true);
         }
         return true;
     }

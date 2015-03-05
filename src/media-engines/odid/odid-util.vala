@@ -883,4 +883,19 @@ public class Rygel.ODIDUtil : Object {
     public static bool resource_has_mp4_container (MediaResource res) {
         return (res.dlna_profile.contains ("_MP4_"));
     }
+
+    public static bool resource_has_mpts_container (MediaResource res) {
+        return (res.dlna_profile.has_prefix ("MPEG_TS_")
+                || res.dlna_profile.has_prefix ("AVC_TS_"));
+    }
+    public static uint8 mp2ts_bytes_per_packet_for_profile (string profile) {
+        if (profile.has_suffix ("_ISO")) {
+            return 188;
+        } else {
+            return 192;
+        }
+    }
+    public static bool mp2ts_has_timestamp (string profile) {
+        return (profile.has_suffix ("_T"));
+    }
 }
