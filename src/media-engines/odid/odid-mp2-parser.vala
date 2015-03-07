@@ -34,25 +34,31 @@ public abstract class Rygel.MP2TransportStream {
     public ExtDataInputStream source_stream;
     public uint64 first_packet_offset;
     public uint64 source_size;
+    public uint8 bytes_per_packet;
     private bool loaded = false;
     
     public delegate void LinePrinter (string line);
 
     protected MP2TransportStream.from_stream (ExtDataInputStream stream, 
-                                              uint64 offset, uint64 size)
+                                              uint64 offset, uint64 size, uint8 bytes_per_packet)
             throws Error {
+        if ((bytes_per_packet != 188) && (bytes_per_packet != 192)) {
+            throw new IOError.FAILED ("MP2TransportStream: Unsupported bytes per packet: %u", 
+                                      this.bytes_per_packet);
+        }
         this.source_stream = stream;
         this.first_packet_offset = offset;
         this.source_size = size;
+        this.bytes_per_packet = bytes_per_packet;
     }
 
     public virtual uint64 parse_from_stream (uint64 ? num_packets=0) throws Error {
         uint64 packet_count = 0, offset = this.first_packet_offset;
-        uint bytes_per_packet = 188;
         this.source_stream.seek_to_offset (offset);
-        while (offset + bytes_per_packet <= this.source_size) {
+        while (offset + this.bytes_per_packet <= this.source_size) {
             // debug ("Parsing packet %lld at offset %lld", packet_count, offset);
-            var ts_packet = new MP2TSPacket.from_stream (this.source_stream, offset);
+            var ts_packet = new MP2TSPacket.from_stream (this.source_stream, offset,
+                                                         this.bytes_per_packet);
             ts_packets.add (ts_packet);
             ts_packet.parse_from_stream_seek ();
             offset += bytes_per_packet;
@@ -145,15 +151,16 @@ public abstract class Rygel.MP2TransportStream {
 public class Rygel.MP2TransportStreamFile : MP2TransportStream {
     public File ts_file;
 
-    public MP2TransportStreamFile.from_stream (FileInputStream file_stream, uint64 length)
+    public MP2TransportStreamFile.from_stream (FileInputStream file_stream, uint64 length,
+                                               uint8 bytes_per_packet)
                throws Error {
         var input_stream = new ExtDataInputStream (file_stream);
-        base.from_stream (input_stream, 0, length);
+        base.from_stream (input_stream, 0, length, bytes_per_packet);
     }
 
-    public MP2TransportStreamFile (File ts_file) throws Error {
+    public MP2TransportStreamFile (File ts_file, uint8 bytes_per_packet) throws Error {
         var file_info = ts_file.query_info (GLib.FileAttribute.STANDARD_SIZE, 0);
-        this.from_stream (ts_file.read (), file_info.get_size ());
+        this.from_stream (ts_file.read (), file_info.get_size (), bytes_per_packet);
         this.ts_file = ts_file;
     }
 
@@ -172,7 +179,7 @@ public class Rygel.MP2TSRestamper {
     public uint64 source_size;
     public uint64 start_offset;
     public uint64 end_offset;
-    public uint64 bytes_per_packet; // 188 or 192
+    public uint8 bytes_per_packet; // 188 or 192
 
     protected MP2TSRestamper.from_stream (GLib.FileInputStream source_stream, 
                                           uint64 start_offset, uint64 end_offset, uint64 size,
@@ -240,7 +247,8 @@ public class Rygel.MP2TSRestamper {
                                                           this.end_offset-this.start_offset);
         while (offset + this.bytes_per_packet <= this.end_offset) {
             // debug ("Restamping packet %lld at offset %lld", packet_count, offset);
-            var ts_packet = new MP2TSPacket.from_stream (this.source_stream, offset);
+            var ts_packet = new MP2TSPacket.from_stream (this.source_stream, offset,
+                                                         this.bytes_per_packet);
             ts_packet.parse_from_stream_noseek ();
             offset += bytes_per_packet;
             // debug ("Parsed %llu bytes: %s", header_bytes_parsed, ts_packet.to_string ());
@@ -297,13 +305,12 @@ public class Rygel.MP2TSRestamper {
         var pat_table = new MP2PATTable ();
 
         uint64 packet_count = 0, ts_offset = this.start_offset;
-        uint bytes_per_packet = 188;
         this.source_stream.seek_to_offset (ts_offset);
-        while (ts_offset + bytes_per_packet <= this.source_size) {
-            var ts_packet = new MP2TSPacket.from_stream (this.source_stream, 
-                                                         ts_offset);
+        while (ts_offset + this.bytes_per_packet <= this.source_size) {
+            var ts_packet = new MP2TSPacket.from_stream (this.source_stream, ts_offset,
+                                                         this.bytes_per_packet);
             ts_packet.parse_from_stream_noseek ();
-            ts_offset += bytes_per_packet;
+            ts_offset += this.bytes_per_packet;
             // debug ("Parsed " + ts_packet.to_string ());
             packet_count++;
             if (ts_packet.pid == 0) {
@@ -327,13 +334,12 @@ public class Rygel.MP2TSRestamper {
         var pmt_table = new MP2PMTTable ();
 
         uint64 packet_count = 0, ts_offset = this.start_offset;
-        uint bytes_per_packet = 188;
         this.source_stream.seek_to_offset (ts_offset);
-        while (ts_offset + bytes_per_packet <= this.source_size) {
-            var ts_packet = new MP2TSPacket.from_stream (this.source_stream, 
-                                                         ts_offset);
+        while (ts_offset + this.bytes_per_packet <= this.source_size) {
+            var ts_packet = new MP2TSPacket.from_stream (this.source_stream, ts_offset,
+                                                         this.bytes_per_packet);
             ts_packet.parse_from_stream_noseek ();
-            ts_offset += bytes_per_packet;
+            ts_offset += this.bytes_per_packet;
             // debug ("Parsed " + ts_packet.to_string ());
             packet_count++;
             if (ts_packet.pid == pmt_pid) {
@@ -359,6 +365,9 @@ public class Rygel.MP2TSPacket {
     public uint64 source_offset;
     public bool source_verbatim;
 
+    public uint8 bytes_per_packet;
+    public uint32 timestamp; // Only for 192-byte packets
+
     public bool transport_error_indicator;
     public bool payload_unit_start_indicator;
     public bool transport_priority;
@@ -377,12 +386,17 @@ public class Rygel.MP2TSPacket {
     public MP2TSPacket () {
     }
 
-    public MP2TSPacket.from_stream (ExtDataInputStream stream, uint64 offset)
+    public MP2TSPacket.from_stream (ExtDataInputStream stream, uint64 offset, 
+                                    uint8 bytes_per_packet)
             throws Error {
         this.source_stream = stream;
         this.source_offset = offset;
+        this.bytes_per_packet = bytes_per_packet;
         this.source_verbatim = true;
         this.loaded = false;
+        if ((bytes_per_packet != 188) && (bytes_per_packet != 192)) {
+            throw new IOError.FAILED ("Unsupported bytes per packet: %u", this.bytes_per_packet);
+        }
     }
 
     public virtual uint64 parse_from_stream_seek () throws Error {
@@ -391,8 +405,17 @@ public class Rygel.MP2TSPacket {
     }
 
     public virtual uint64 parse_from_stream_noseek () throws Error {
+        if ((this.bytes_per_packet != 188) && (this.bytes_per_packet != 192)) {
+            throw new IOError.FAILED ("Unsupported bytes per packet: %u", this.bytes_per_packet);
+        } 
         var instream = this.source_stream;
+        uint8 bytes_consumed = 0;
         
+        if (this.bytes_per_packet == 192) {
+            this.timestamp = instream.read_uint32 ();
+            bytes_consumed += 4;
+        }
+
         var sync_byte = instream.read_byte ();
         if (sync_byte != 0x47) {
             throw new IOError.FAILED ("TS packet sync_byte mismatch at %lld (0x%llx): found 0x%x, expected 0x47",
@@ -410,7 +433,8 @@ public class Rygel.MP2TSPacket {
         this.transport_scrambling_control = Bits.getbits_8 (octet_4, 6, 2);
         this.adaptation_field_control = Bits.getbits_8 (octet_4, 4, 2);
         this.continuity_counter = Bits.getbits_8 (octet_4, 0, 4);
-        uint8 bytes_consumed = 4;
+        bytes_consumed += 4;
+
         if (this.adaptation_field_control <= 1) {
             this.adaptation_field = null;
         } else {
@@ -419,8 +443,8 @@ public class Rygel.MP2TSPacket {
         }
         this.has_payload = (this.adaptation_field_control & 1) == 1;
         this.header_size = bytes_consumed;
-        assert (bytes_consumed <= 188);
-        this.payload_size = 188 - bytes_consumed;
+        assert (bytes_consumed <= this.bytes_per_packet);
+        this.payload_size = this.bytes_per_packet - bytes_consumed;
 
         this.source_verbatim = false;
         this.loaded = true;
@@ -469,21 +493,29 @@ public class Rygel.MP2TSPacket {
     }
 
     public virtual uint64 to_stream (ExtDataOutputStream ostream) throws Error {
+        uint64 bytes_written;
         if (this.source_verbatim) {
             // debug ("to_stream(%s): Writing from source stream: %s",
             //        this.type_code, this.to_string ());
             this.source_stream.seek_to_offset (this.source_offset);
-            ostream.put_from_instream (this.source_stream, 188);
+            ostream.put_from_instream (this.source_stream, this.bytes_per_packet);
+            bytes_written = this.bytes_per_packet;
         } else {
             // debug ("to_stream(%s): Writing from fields: %s",
             //        this.type_code, this.to_string ());
-            fields_to_stream (ostream);
+            bytes_written = fields_to_stream (ostream);
         }
-        return 188;
+        return bytes_written;
     }
 
     public virtual uint64 fields_to_stream (ExtDataOutputStream ostream) 
             throws Error {
+        uint64 bytes_written = 0;
+        if (this.bytes_per_packet == 192) {
+            ostream.put_uint32 (this.timestamp);
+            bytes_written += 4;
+        }
+
         ostream.put_byte (0x47);
 
         uint16 octet_2_3 = (this.transport_error_indicator ? 1 : 0) << 15;
@@ -497,7 +529,7 @@ public class Rygel.MP2TSPacket {
         octet_4 |= this.continuity_counter;
         ostream.put_byte (octet_4);
         
-        uint64 bytes_written = 4;
+        bytes_written += 4;
         
         if (this.adaptation_field != null) {
             bytes_written += this.adaptation_field.fields_to_stream (ostream);
@@ -508,38 +540,36 @@ public class Rygel.MP2TSPacket {
         return bytes_written;
     }
     
-    public virtual uint64 skip_payload () 
-            throws Error {
-        uint64 offset = this.header_size;
+    public virtual uint8 get_payload_offset () {
+        uint8 offset = this.header_size;
         if (this.pes_packet != null) {
             offset += this.pes_packet.header_size;
         }
-        uint64 payload_size = 188 - offset;
+        return offset;
+    }
+
+    public virtual uint8 get_payload_size () {
+        return (this.bytes_per_packet - this.get_payload_offset ());
+    }
+
+    public virtual uint64 skip_payload () 
+            throws Error {
+        var payload_size = get_payload_size ();
         this.source_stream.skip_bytes (payload_size);
         return payload_size;
     }
 
     public virtual uint64 payload_to_stream_noseek (ExtDataOutputStream ostream) 
             throws Error {
-        uint64 offset = this.header_size;
-        if (this.pes_packet != null) {
-            offset += this.pes_packet.header_size;
-        }
-        uint64 payload_size = 188 - offset;
+        var payload_size = get_payload_size ();
         ostream.put_from_instream (this.source_stream, payload_size);
         return payload_size;
     }
 
     public virtual uint64 payload_to_stream_seek (ExtDataOutputStream ostream) 
             throws Error {
-        uint64 offset = this.header_size;
-        if (this.pes_packet != null) {
-            offset += this.pes_packet.header_size;
-        }
-        this.source_stream.seek_to_offset (this.source_offset + offset);
-        uint64 payload_size = 188 - offset;
-        ostream.put_from_instream (this.source_stream, payload_size);
-        return payload_size;
+        this.source_stream.seek_to_offset (this.source_offset + get_payload_offset ());
+        return payload_to_stream_noseek (ostream);
     }
 
     public string to_string () {
@@ -553,6 +583,11 @@ public class Rygel.MP2TSPacket {
         if (!this.loaded) {
             builder.append ("fields_not_loaded");
         } else {
+            if (this.bytes_per_packet == 192) {
+                builder.append_printf ("timestamp %llu (0x%x),",this.timestamp);
+            }
+            builder.append_printf ("offset %lld,pid %d (0x%x),flags[",
+                                   this.source_offset, this.pid,this.pid);
             builder.append_printf ("offset %lld,pid %d (0x%x),flags[",
                                    this.source_offset, this.pid,this.pid);
             bool first = true;
@@ -954,11 +989,6 @@ public class Rygel.MP2TSPacket {
     } // END class MP2TSAdaptationField
 } // END class MP2TSPacket
 
-// For 192-byte TS packets
-public class Rygel.TimestampedMP2TSPacket : MP2TSPacket {
-    public uint32 timestamp; // for 192-byte packets
-} // END class TimestampedMP2TSPacket
-
 public class Rygel.MP2Table {
     public MP2TableSection[] section_list;
     public uint8 total_sections;
@@ -1065,7 +1095,7 @@ public abstract class Rygel.MP2Section {
             return true;
         }
         var instream = ts_packet.source_stream;
-        uint8 packet_payload_len = 188 - ts_packet.header_size;
+        uint8 packet_payload_len = ts_packet.get_payload_size ();
         uint bytes_to_read;
         Error err = null;
         if (ts_packet.payload_unit_start_indicator) {
@@ -1090,8 +1120,9 @@ public abstract class Rygel.MP2Section {
                 bytes_to_read = uint.min (packet_payload_len, 
                                           this.section_length-this.section_buffer.len);
                 if (!(this.section_buffer.len == this.section_length)) {
-                    err = new IOError.FAILED ("Last packet for section didn't complete section (expected %u bytes, found %u)", 
-                                              this.section_length, this.section_buffer.len);
+                    err = new IOError.FAILED ("Last packet for section didn't complete section (expected %u bytes, found %u): %s", 
+                                              this.section_length, this.section_buffer.len, 
+                                              ts_packet.to_string ());
                 }
             }
         } else { // No PUSI bit -> no pointer byte

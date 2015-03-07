@@ -423,13 +423,13 @@ public class Rygel.ExtDataOutputStream : DataOutputStream {
             unowned uint8[] target_slice = copy_buf [0:bytes_to_copy];
             var read_bytes = instream.read (target_slice);
             if (read_bytes != bytes_to_copy) {
-                throw new IOError.FAILED ("Failed to read " + bytes_to_copy.to_string ()
-                                          + " bytes");
+                throw new IOError.FAILED ("Failed to read %llu bytes from offset %llu", 
+                                          bytes_to_copy, instream.tell ());
             }
             var written_bytes = this.write (target_slice);
             if (written_bytes != bytes_to_copy) {
-                throw new IOError.FAILED ("Failed to write " + bytes_to_copy.to_string ()
-                                          + " bytes");
+                throw new IOError.FAILED ("Failed to write %llu bytes from offset f%llu", 
+                                          bytes_to_copy, instream.tell ());
             }
             total_to_copy -= bytes_to_copy;
         }

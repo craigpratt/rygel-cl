@@ -53,6 +53,7 @@ class Rygel.MP2ParserTest : GLib.Object {
             bool trim_file = false;
             uint restamp_scale = 0;
             bool restamp = false;
+            uint8 packet_size = 188;
 
             try {
                 for (uint i=1; i<args.length; i++) {
@@ -74,6 +75,22 @@ class Rygel.MP2ParserTest : GLib.Object {
                                 packets_to_parse = 0;
                             }
                             break;
+                        case "-packsize":
+                            if (i+1 == args.length) {
+                                throw new OptionError.BAD_VALUE (option + " requires a parameter");
+                            }
+                            var packsize_param = args[++i];
+                            uint64 packsize;
+                            if (!uint64.try_parse (packsize_param, out packsize)) {
+                                throw new OptionError.BAD_VALUE ("Bad packet size value: " 
+                                                                 + packsize_param);
+                            }
+                            if ((packet_size != 188) && (packet_size != 192)) {
+                                throw new OptionError.BAD_VALUE ("Unsupported packet size %u - only 188- and 192-byte packets supported", 
+                                                                 packet_size);
+                            }
+                            packet_size = (uint8) packsize;
+                            break;
                         case "-outfile":
                             if (out_file != null) {
                                 throw new OptionError.BAD_VALUE ("Only one %s option may be specified",
@@ -93,7 +110,7 @@ class Rygel.MP2ParserTest : GLib.Object {
                                  && uint64.try_parse (args[i+1], out buf_out_stream_buf_size)) {
                                 i++;
                             } else { // Use a default buffer size
-                                buf_out_stream_buf_size = 188*1000;
+                                buf_out_stream_buf_size = packet_size*1000;
                             }
                             buf_out_stream_test = true;
                             break;
@@ -254,6 +271,7 @@ class Rygel.MP2ParserTest : GLib.Object {
             } catch (Error e) {
                 stderr.printf ("Error: %s\n\n", e.message);
                 stderr.printf ("Usage: %s -infile <filename>\n", args[0]);
+                stderr.printf ("\t[-packsize <188,192>]: Sets the TS packet size (default: 188)\n");   
                 stderr.printf ("\t[-timerange x-y]: Reduce the samples in the MP2 to those falling between time range x-y (decimal seconds)\n");
                 stderr.printf ("\t[-print (infile [levels]|outfile [levels]|pat_pmt|pes_headers [+ts]|only_pid <pid>|access-points|movie-duration|track-duration|track-for-time [time])]: Print various details to the standard output\n");
                 stderr.printf ("\t[-restamp <scale-factor]: Restamp the output file with PCR/PTS/DTS scaled by scale-factor\n");
@@ -270,7 +288,7 @@ class Rygel.MP2ParserTest : GLib.Object {
                     = (l) =>  {stdout.puts (l); stdout.putc ('\n');};
 
             if (print_infile) {
-                mp2_file = new Rygel.MP2TransportStreamFile (in_file);
+                mp2_file = new Rygel.MP2TransportStreamFile (in_file, packet_size);
                 mp2_file.parse_from_stream (packets_to_parse);
                 stdout.printf ("\nPARSED TS INPUT FILE (%s packets)\n",
                                ((packets_to_parse == 0) 
@@ -287,7 +305,7 @@ class Rygel.MP2ParserTest : GLib.Object {
 
             if (print_pat_pmt || print_pes_headers) {
                 if (mp2_file == null) {
-                    mp2_file = new Rygel.MP2TransportStreamFile (in_file);
+                    mp2_file = new Rygel.MP2TransportStreamFile (in_file, packet_size);
                     mp2_file.parse_from_stream (packets_to_parse);
                     stdout.printf ("\nPARSED TS INPUT FILE (%s packets)\n",
                                    ((packets_to_parse == 0) 
@@ -336,7 +354,7 @@ class Rygel.MP2ParserTest : GLib.Object {
             }
             if (print_pes_headers) {
                 if (mp2_file == null) {
-                    mp2_file = new Rygel.MP2TransportStreamFile (in_file);
+                    mp2_file = new Rygel.MP2TransportStreamFile (in_file, packet_size);
                     mp2_file.parse_from_stream (packets_to_parse);
                     stdout.printf ("\nPARSED TS INPUT FILE (%s packets)\n",
                                    ((packets_to_parse == 0) 
@@ -368,7 +386,6 @@ class Rygel.MP2ParserTest : GLib.Object {
                 }
             }
             if (out_file != null) {
-                stdout.printf ("\nWRITING TO OUTPUT FILE: %s\n", out_file.get_path ());
                 if (out_file.query_exists ()) {
                     out_file.delete ();
                 }
@@ -377,24 +394,26 @@ class Rygel.MP2ParserTest : GLib.Object {
                                          FileCreateFlags.REPLACE_DESTINATION));
                 if (!restamp) {
                     if (mp2_file == null) {
-                        mp2_file = new Rygel.MP2TransportStreamFile (in_file);
+                        mp2_file = new Rygel.MP2TransportStreamFile (in_file, packet_size);
                         mp2_file.parse_from_stream (packets_to_parse);
                         stdout.printf ("\nPARSED TS INPUT FILE (%s packets)\n",
                                        ((packets_to_parse == 0) 
                                         ? "all" : packets_to_parse.to_string ()));
                     }
                     uint64 packets_written = 0;
+                    
+                    stdout.printf ("\nWRITING TO OUTPUT FILE: %s\n", out_file.get_path ());
                     foreach (var ts_packet in mp2_file.ts_packets) {
                         ts_packet.fields_to_stream (out_stream);
-                        ts_packet.payload_to_stream_noseek (out_stream);
+                        ts_packet.payload_to_stream_seek (out_stream);
                         packets_written++;
                     }
                     stdout.printf ("\nWrote %llu packets to %s\n",
                                    packets_written, out_file.get_path ());
                 } else {
-                    stdout.printf ("\n  Restamping packets. Scale: %fx\n", 
-                                   (double)restamp_scale/MILLIS_PER_SEC);
-                    var restamper = new MP2TSRestamper.from_file (in_file, 188);
+                    stdout.printf ("\nRESTAMPING TO OUTPUT FILE: %s (scale %0.3fx)\n", 
+                                   out_file.get_path (),(double)restamp_scale/MILLIS_PER_SEC);
+                    var restamper = new MP2TSRestamper.from_file (in_file, packet_size);
                     restamper.restamp_to_stream_scaled (out_stream, restamp_scale, null, null);
                     stdout.printf ("\nRestamping complete. Outfile: %s\n", out_file.get_path ());
                 }
@@ -430,7 +449,8 @@ class Rygel.MP2ParserTest : GLib.Object {
                     stderr.printf ("  Generator started\n");
                     Rygel.ExtDataOutputStream out_stream = null;
                     try {
-                        var restamper = new MP2TSRestamper.from_file_subrange (in_file, 0, 0, 188);
+                        var restamper = new MP2TSRestamper.from_file_subrange (in_file, 0, 0, 
+                                                                               packet_size);
                         stderr.printf ("  Generator writing %fx restamped stream\n",
                                        (float)restamp_scale/MILLIS_PER_SEC);
                         out_stream = new Rygel.ExtDataOutputStream (my_buf_gen_stream);

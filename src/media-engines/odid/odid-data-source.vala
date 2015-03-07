@@ -601,13 +601,13 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             throws Error {
         preroll_static_resource (content_file,index_file,response_list);
         if (this.restamp_mp2_files && (this.playspeed_request != null)) {
-            debug ("    MP2TS will be restamped for speed " 
-                   + this.playspeed_request.speed.to_string ());
             int64 range_end = this.range_offset_list.last ();
-            var restamper = new MP2TSRestamper.from_file_subrange 
-                                                  (content_file, this.range_start, range_end,
-                                                   ODIDUtil.mp2ts_bytes_per_packet_for_profile 
-                                                                (this.res.dlna_profile));
+            var bytes_per_packet = ODIDUtil.mp2ts_bytes_per_packet_for_profile 
+                                                                (this.res.dlna_profile);
+            debug ("    MP2TS (%u bytes per packet) will be restamped for speed %s", 
+                   bytes_per_packet, this.playspeed_request.speed.to_string ());
+            var restamper = new MP2TSRestamper.from_file_subrange (content_file, this.range_start, 
+                                                                   range_end, bytes_per_packet);
             this.mp2ts_restamper = restamper;
         }
     }
@@ -622,7 +622,7 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         ODIDLiveSimulator.Mode sim_mode = this.live_sim.get_mode ();
         ODIDLiveSimulator.State sim_state = this.live_sim.get_state ();
         this.live_sim.enable_autoreset (); // Reset the autoreset timer (if set)
-        
+
         if (! index_file.query_exists ()) {
             throw new DataSourceError.GENERAL
                           ("Request to stream live resource without index file: "
@@ -1207,14 +1207,15 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             Rygel.ExtDataOutputStream out_stream;
             var source_name = this.mp2ts_restamper.source_file.get_basename ();
             try {
-                debug (generator_name + ": Starting MP2 TS restamping from %s (bytes %llu-%llu)",
-                       source_name, this.mp2ts_restamper.start_offset, 
-                       this.mp2ts_restamper.end_offset);
                 out_stream = new Rygel.ExtDataOutputStream (this.bufgen_stream);
-                this.mp2ts_restamper.restamp_to_stream_scaled 
-                                        (out_stream,
-                                         (uint32)(this.playspeed_request.speed.to_float() * 1000),
-                                         null, null);
+                var scale_ms = (int32)(this.playspeed_request.speed.to_float() * 1000);
+                if (scale_ms < 0) {
+                    scale_ms = -scale_ms;
+                }
+                debug (generator_name + ": Starting %0.3fx MP2 TS restamping from %s (bytes %llu-%llu)",
+                       scale_ms/1000.0, source_name, this.mp2ts_restamper.start_offset, 
+                       this.mp2ts_restamper.end_offset);
+                this.mp2ts_restamper.restamp_to_stream_scaled (out_stream, scale_ms, null, null);
                 debug (generator_name + ": Completed restamping %s (%llu bytes written)",
                        source_name, this.total_bytes_read);
             } catch (Error err) {
