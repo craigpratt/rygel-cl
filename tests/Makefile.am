@@ -12,6 +12,8 @@ check_PROGRAMS = rygel-http-item-uri-test \
 		 rygel-regression \
 		 rygel-media-engine-test
 
+check_PROGRAMS =
+
 TESTS = $(check_PROGRAMS)
 
 EXTRA_DIST = $(srcdir)/data/test-data.dat
@@ -216,8 +218,8 @@ if BUILD_MEDIA_EXPORT_PLUGIN
 check_PROGRAMS += plugins/media-export/regression
 
 plugins_media_export_regression_SOURCES = \
-	$(top_srcdir)/src/librygel-core/rygel-core-2.4.vapi \
-	$(top_srcdir)/src/librygel-server/rygel-server-2.4.vapi \
+	$(top_srcdir)/src/librygel-core/rygel-core-2.6.vapi \
+	$(top_srcdir)/src/librygel-server/rygel-server-2.6.vapi \
 	$(top_srcdir)/src/plugins/media-export/rygel-media-export.vapi \
 	plugins/media-export/regression.vala
 plugins_media_export_regression_CFLAGS = \

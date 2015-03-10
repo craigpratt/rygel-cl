@@ -251,6 +251,13 @@ public class Rygel.BasicManagement : Service {
                         typeof (uint),
                         out dscp);
 
+        if (host == "") {
+            warning (_("Cannot run 'Ping' action: Host is empty"));
+            action.return_error (402, _("Invalid argument"));
+
+            return;
+        }
+
         var ping = new BasicManagementTestPing (host,
                                                 repeat_count,
                                                 interval_time_out,
@@ -337,6 +344,13 @@ public class Rygel.BasicManagement : Service {
                         typeof (uint32),
                         out interval_time_out);
 
+        if (hostname == "") {
+            warning (_("Cannot run 'NSLookup' action: HostName is empty"));
+            action.return_error (402, _("Invalid argument"));
+
+            return;
+        }
+
         var nslookup = new BasicManagementTestNSLookup (hostname,
                                                         dns_server,
                                                         repeat_count,
@@ -411,6 +425,13 @@ public class Rygel.BasicManagement : Service {
                     "DSCP",
                         typeof (uint),
                         out dscp);
+
+        if (host == "") {
+            warning (_("Cannot run 'Traceroute' action: Host is empty"));
+            action.return_error (402, _("Invalid argument"));
+
+            return;
+        }
 
         var traceroute = new BasicManagementTestTraceroute (host,
                                                             wait_time_out,

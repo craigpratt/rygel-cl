@@ -3,9 +3,11 @@
  * Copyright (C) 2010 MediaNet Inh.
  * Copyright (C) 2010 Nokia Corporation.
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Authors: Zeeshan Ali <zeenix@gmail.com>
  *          Sunil Mohan Adapa <sunil@medhas.org>
+ *          Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -31,6 +33,99 @@ public enum Rygel.ObjectEventType {
     ADDED = 0,
     MODIFIED = 1,
     DELETED = 2
+}
+
+/**
+ * Implementation of RygelDataSource to serve generated playlists to a client.
+ */
+internal class Rygel.PlaylistDatasource : Rygel.DataSource, Object {
+    private MediaContainer container;
+    private uint8[] data;
+    private HTTPServer server;
+    private ClientHacks hacks;
+    private SerializerType playlist_type;
+
+    public PlaylistDatasource (SerializerType playlist_type,
+                               MediaContainer container,
+                               HTTPServer     server,
+                               ClientHacks?   hacks) {
+        this.playlist_type = playlist_type;
+        this.container = container;
+        this.server = server;
+        this.hacks = hacks;
+        this.generate_data.begin ();
+    }
+
+    public signal void data_ready ();
+
+    public Gee.List<HTTPResponseElement> ? preroll ( HTTPSeekRequest? seek_request,
+                                                     PlaySpeedRequest? playspeed_request)
+       throws Error {
+        if (seek_request != null) {
+            throw new DataSourceError.SEEK_FAILED
+                                        (_("Seeking not supported"));
+        }
+
+        if (playspeed_request != null) {
+            throw new DataSourceError.PLAYSPEED_FAILED
+                                    (_("Speed not supported"));
+        }
+
+        return null;
+    }
+
+    public void start () throws Error {
+        if (this.data == null) {
+            this.data_ready.connect ( () => {
+                try {
+                    this.start ();
+                } catch (Error error) { }
+            });
+
+            return;
+        }
+
+        Idle.add ( () => {
+            this.data_available (this.data);
+            this.done ();
+
+            return false;
+        });
+    }
+
+    public void freeze () { }
+
+    public void thaw () { }
+
+    public void stop () { }
+
+    public async void generate_data () {
+        try {
+            var sort_criteria = this.container.sort_criteria;
+            var count = this.container.child_count;
+
+            var children = yield this.container.get_children (0,
+                                                              count,
+                                                              sort_criteria,
+                                                              null);
+
+            if (children != null) {
+                var serializer = new Serializer (this.playlist_type);
+                children.serialize (serializer, this.server, this.hacks);
+
+                var xml = serializer.get_string ();
+
+                this.data = xml.data;
+                this.data_ready ();
+            } else {
+                this.error (new DataSourceError.GENERAL
+                                        (_("Failed to generate playlist")));
+            }
+        } catch (Error error) {
+            warning ("Could not generate playlist: %s", error.message);
+            this.error (error);
+        }
+    }
 }
 
 /**
@@ -75,13 +170,16 @@ public abstract class Rygel.MediaContainer : MediaObject {
                                               "+upnp:originalTrackNumber," +
                                               "+dc:title";
 
-    /* TODO: When we implement ContentDirectory v4, this will be emitted also
-     * when child _items_ are updated.
-     */
+    private const string DIDL_S_PLAYLIST_RESNAME = "didl_s_playlist";
+    private const string M3U_PLAYLIST_RESNAME = "m3u_playlist";
+
+    public static bool equal_func (MediaContainer a, MediaContainer b) {
+        return a.id == b.id;
+    }
 
     /**
-     * The container_updated signal is emitted if a child container under the
-     * tree of this container has been updated. The object parameter is set to
+     * The container_updated signal is emitted if the subtree unter this
+     * container has been modified. The object parameter is set to
      * the MediaObject that is the source of the container update. Note that
      * it may even be set to the container itself.
      *
@@ -207,6 +305,7 @@ public abstract class Rygel.MediaContainer : MediaObject {
 
         this.container_updated.connect (on_container_updated);
         this.sub_tree_updates_finished.connect (on_sub_tree_updates_finished);
+        this.add_playlist_resources ();
     }
 
     /**
@@ -267,6 +366,36 @@ public abstract class Rygel.MediaContainer : MediaObject {
                                 sub_tree_update);
     }
 
+
+    /**
+     * Add playlist resources to the MediaObject resource list
+     */
+    internal void add_playlist_resources () {
+        { // Create the DIDL_S playlist resource
+            var didl_s_res = new MediaResource (DIDL_S_PLAYLIST_RESNAME);
+            didl_s_res.extension = "xml";
+            didl_s_res.mime_type = "text/xml";
+            didl_s_res.dlna_profile = "DIDL_S";
+            didl_s_res.dlna_flags = DLNAFlags.CONNECTION_STALL |
+                                    DLNAFlags.BACKGROUND_TRANSFER_MODE |
+                                    DLNAFlags.INTERACTIVE_TRANSFER_MODE;
+            didl_s_res.uri = ""; // Established during serialization
+            this.get_resource_list ().add (didl_s_res);
+        }
+
+        { // Create the M3U playlist resource
+            var m3u_res = new MediaResource (M3U_PLAYLIST_RESNAME);
+            m3u_res.extension = "m3u";
+            m3u_res.mime_type = "audio/x-mpegurl";
+            m3u_res.dlna_profile = null;
+            m3u_res.dlna_flags = DLNAFlags.CONNECTION_STALL |
+                                 DLNAFlags.BACKGROUND_TRANSFER_MODE |
+                                 DLNAFlags.INTERACTIVE_TRANSFER_MODE;
+            m3u_res.uri = ""; // Established during serialization
+            this.get_resource_list ().add (m3u_res);
+        }
+    }
+
     public override DIDLLiteObject? serialize (Serializer serializer,
                                                HTTPServer http_server)
                                                throws Error {
@@ -315,73 +444,38 @@ public abstract class Rygel.MediaContainer : MediaObject {
             didl_container.restricted = true;
         }
 
-        this.add_resources (http_server, didl_container);
+        if (this.child_count > 0) {
+            this.serialize_resource_list (didl_container, http_server);
+        }
 
         return didl_container;
     }
 
-    internal void add_resources (Rygel.HTTPServer http_server,
-                                 DIDLLiteContainer didl_container)
-                                 throws Error {
-        // Add resource with container contents serialized to DIDL_S playlist
-        var uri = new HTTPItemURI (this,
-                                   http_server,
-                                   -1,
-                                   -1,
-                                   null,
-                                   "DIDL_S");
-        uri.extension = "xml";
+    public override DataSource? create_stream_source_for_resource
+                                         (HTTPRequest request,
+                                          MediaResource resource)
+                                          throws Error {
+        SerializerType playlist_type;
 
-        var res = this.add_resource (didl_container,
-                                     uri.to_string (),
-                                     http_server.get_protocol ());
-        if (res != null) {
-            res.protocol_info.mime_type = "text/xml";
-            res.protocol_info.dlna_profile = "DIDL_S";
+        switch (resource.get_name ()) {
+            case DIDL_S_PLAYLIST_RESNAME:
+                playlist_type = SerializerType.DIDL_S;
+                break;
+            case M3U_PLAYLIST_RESNAME:
+                playlist_type = SerializerType.M3UEXT;
+                break;
+            default:
+                warning (_("Unknown MediaContainer resource: %s"), resource.get_name ());
+
+                return null;
         }
 
-        // Add resource with container contents serialized to M3U playlist
-        uri = new HTTPItemURI (this, http_server, -1, -1, null, "M3U");
-        uri.extension = "m3u";
-
-        res = this.add_resource (didl_container,
-                                 uri.to_string (),
-                                 http_server.get_protocol ());
-        if (res != null) {
-            res.protocol_info.mime_type = "audio/x-mpegurl";
-        }
+        return new PlaylistDatasource (playlist_type,
+                                       this,
+                                       request.http_server,
+                                       request.hack);
     }
 
-    internal override DIDLLiteResource add_resource
-                                        (DIDLLiteObject didl_object,
-                                         string?        uri,
-                                         string         protocol,
-                                         string?        import_uri = null)
-                                         throws Error {
-        if (this.child_count <= 0) {
-            return null as DIDLLiteResource;
-        }
-
-        var res = base.add_resource (didl_object,
-                                     uri,
-                                     protocol,
-                                     import_uri);
-
-        if (uri != null) {
-            res.uri = uri;
-        }
-
-        var protocol_info = new ProtocolInfo ();
-        protocol_info.mime_type = "";
-        protocol_info.protocol = protocol;
-        protocol_info.dlna_flags = DLNAFlags.DLNA_V15 |
-                                   DLNAFlags.CONNECTION_STALL |
-                                   DLNAFlags.BACKGROUND_TRANSFER_MODE |
-                                   DLNAFlags.INTERACTIVE_TRANSFER_MODE;
-        res.protocol_info = protocol_info;
-
-        return res;
-    }
 
     /**
      * The handler for the container_updated signal on this container. We only forward

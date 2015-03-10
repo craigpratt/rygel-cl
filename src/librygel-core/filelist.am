@@ -7,6 +7,7 @@ LIBRYGEL_CORE_VAPI_SOURCE_FILES = \
 	rygel-basic-management-test-traceroute.vala \
 	rygel-description-file.vala \
 	rygel-dlna-profile.vala \
+	rygel-energy-management.vala \
 	rygel-root-device.vala \
 	rygel-root-device-factory.vala \
 	rygel-dbus-interface.vala \
@@ -25,4 +26,5 @@ LIBRYGEL_CORE_VAPI_SOURCE_FILES = \
 LIBRYGEL_CORE_NONVAPI_SOURCE_FILES = \
 	rygel-icon-info.vala \
 	rygel-xml-utils.vala \
-	rygel-plugin-information.vala
+	rygel-plugin-information.vala \
+	rygel-energy-management-helper.c

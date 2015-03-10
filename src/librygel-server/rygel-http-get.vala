@@ -2,11 +2,14 @@
  * Copyright (C) 2008-2010 Nokia Corporation.
  * Copyright (C) 2006, 2007, 2008 OpenedHand Ltd.
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jorn Baayen <jorn.baayen@gmail.com>
  *         Jens Georg <jensg@openismus.com>
+ *         Craig Pratt <craig@ecaspia.com>
+ *         Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  *
  * This file is part of Rygel.
  *
@@ -28,15 +31,11 @@
 /**
  * Responsible for handling HTTP GET & HEAD client requests.
  */
-internal class Rygel.HTTPGet : HTTPRequest {
+public class Rygel.HTTPGet : HTTPRequest {
     private const string TRANSFER_MODE_HEADER = "transferMode.dlna.org";
 
-    public Thumbnail thumbnail;
-    public Subtitle subtitle;
-    public HTTPSeek seek;
-
-    private int thumbnail_index;
-    private int subtitle_index;
+    public HTTPSeekRequest seek;
+    public PlaySpeedRequest speed_request;
 
     public HTTPGetHandler handler;
 
@@ -44,39 +43,53 @@ internal class Rygel.HTTPGet : HTTPRequest {
                     Soup.Server  server,
                     Soup.Message msg) {
         base (http_server, server, msg);
-
-        this.thumbnail_index = -1;
-        this.subtitle_index = -1;
     }
 
     protected override async void handle () throws Error {
-        var header = this.msg.request_headers.get_one
-                                        ("getcontentFeatures.dlna.org");
-
         /* We only entertain 'HEAD' and 'GET' requests */
-        if ((this.msg.method != "HEAD" && this.msg.method != "GET") ||
-            (header != null && header != "1")) {
-            throw new HTTPRequestError.BAD_REQUEST (_("Invalid Request"));
+        if (!(this.msg.method == "HEAD" || this.msg.method == "GET")) {
+            throw new HTTPRequestError.BAD_REQUEST
+                          (_("Invalid Request (only GET and HEAD supported)"));
         }
 
-        if (uri.transcode_target != null) {
-            var transcoder = this.http_server.get_transcoder
-                                        (uri.transcode_target);
-            this.handler = new HTTPTranscodeHandler (transcoder,
+        { /* Check for proper content feature request */
+            var cf_header = "getcontentFeatures.dlna.org";
+            var cf_val = this.msg.request_headers.get_one (cf_header);
+
+            if (cf_val != null && cf_val != "1") {
+                throw new HTTPRequestError.BAD_REQUEST (_(cf_header + " must be 1"));
+            }
+        }
+
+        if (uri.resource_name != null) {
+            this.handler = new HTTPMediaResourceHandler (this.object,
+                                                         uri.resource_name,
+                                                         this.cancellable);
+        } else if (uri.thumbnail_index >= 0) {
+            this.handler = new HTTPThumbnailHandler (this.object as MediaFileItem,
+                                                     uri.thumbnail_index,
                                                      this.cancellable);
-        }
-
-        if (uri.playlist_format != null &&
-            HTTPPlaylistHandler.is_supported (uri.playlist_format)) {
-            this.handler = new HTTPPlaylistHandler (uri.playlist_format,
+        } else if (uri.subtitle_index >= 0) {
+            this.handler = new HTTPSubtitleHandler (this.object as MediaFileItem,
+                                                    uri.subtitle_index,
                                                     this.cancellable);
+        } else {
+            throw new HTTPRequestError.NOT_FOUND ("No handler found for '%s'",
+                                                  uri.to_string ());
         }
 
-        if (this.handler == null) {
-            this.handler = new HTTPIdentityHandler (this.cancellable);
-        }
+        { // Check the transfer mode
+            var transfer_mode = this.msg.request_headers.get_one (TRANSFER_MODE_HEADER);
 
-        this.ensure_correct_mode ();
+            if (transfer_mode == null) {
+                transfer_mode = this.handler.get_default_transfer_mode ();
+            }
+
+            if (! this.handler.supports_transfer_mode (transfer_mode)) {
+                throw new HTTPRequestError.UNACCEPTABLE ("%s transfer mode not supported for '%s'",
+                                                        transfer_mode, uri.to_string ());
+            }
+        }
 
         yield this.handle_item_request ();
     }
@@ -89,7 +102,8 @@ internal class Rygel.HTTPGet : HTTPRequest {
             return;
         }
 
-        if (unlikely ((this.object as MediaItem).place_holder)) {
+        if (unlikely ((this.object is MediaFileItem)
+                      && (this.object as MediaFileItem).place_holder)) {
             throw new HTTPRequestError.NOT_FOUND ("Item '%s' is empty",
                                                   this.object.id);
         }
@@ -97,88 +111,205 @@ internal class Rygel.HTTPGet : HTTPRequest {
         if (this.hack != null) {
             this.hack.apply (this.object);
         }
-
-        if (this.uri.thumbnail_index >= 0) {
-            if (this.object is MusicItem) {
-                var music = this.object as MusicItem;
-                this.thumbnail = music.album_art;
-
-                return;
-            } else if (this.object is VisualItem) {
-                var visual = this.object as VisualItem;
-                if (this.uri.thumbnail_index < visual.thumbnails.size) {
-                    this.thumbnail = visual.thumbnails.get
-                                            (this.uri.thumbnail_index);
-
-                    return;
-                }
-            }
-
-            throw new HTTPRequestError.NOT_FOUND
-                                        ("No Thumbnail available for item '%s",
-                                         this.object.id);
-        }
-
-        if (this.uri.subtitle_index >= 0 && this.object is VideoItem) {
-            var video = this.object as VideoItem;
-
-            if (this.uri.subtitle_index < video.subtitles.size) {
-                this.subtitle = video.subtitles.get (this.uri.subtitle_index);
-
-                return;
-            }
-
-            throw new HTTPRequestError.NOT_FOUND
-                                        ("No subtitles available for item '%s",
-                                         this.object.id);
-        }
     }
 
     private async void handle_item_request () throws Error {
-        var need_time_seek = HTTPTimeSeek.needed (this);
-        var requested_time_seek = HTTPTimeSeek.requested (this);
-        var need_byte_seek = HTTPByteSeek.needed (this);
-        var requested_byte_seek = HTTPByteSeek.requested (this);
+        var supports_time_seek = HTTPTimeSeekRequest.supported (this);
+        var requested_time_seek = HTTPTimeSeekRequest.requested (this);
+        var supports_byte_seek = HTTPByteSeekRequest.supported (this);
+        var requested_byte_seek = HTTPByteSeekRequest.requested (this);
+        var supports_cleartext_seek = DTCPCleartextRequest.supported (this);
+        var requested_cleartext_seek = DTCPCleartextRequest.requested (this);
 
-        if ((requested_time_seek && !need_time_seek) ||
-            (requested_byte_seek && !need_byte_seek)) {
-            throw new HTTPRequestError.UNACCEPTABLE ("Invalid seek request");
+        // Order is significant here when the request has more than one seek header
+        if (requested_cleartext_seek) {
+            if (!supports_cleartext_seek) {
+                throw new HTTPRequestError.UNACCEPTABLE ( "Cleartext seek not supported for "
+                                                          + this.uri.to_string () );
+            }
+            if (requested_byte_seek) {
+                    // Per DLNA Link Protection 7.6.4.3.3.9
+                    throw new HTTPRequestError.UNACCEPTABLE ( "Both Cleartext and Range seek requested "
+                                                              + this.uri.to_string ());
+            }
+        } else if (requested_byte_seek) {
+            if (!supports_byte_seek) {
+                throw new HTTPRequestError.UNACCEPTABLE ( "Byte seek not supported for "
+                                                          + this.uri.to_string () );
+            }
+        } else if (requested_time_seek) {
+            if (!supports_time_seek) {
+                throw new HTTPRequestError.UNACCEPTABLE ( "Time seek not supported for "
+                                                          + this.uri.to_string () );
+            }
         }
 
+        // Check for DLNA PlaySpeed request only if Range or Range.dtcp.com is not
+        // in the request. DLNA 7.5.4.3.3.19.2, DLNA Link Protection : 7.6.4.4.2.12
+        // (is 7.5.4.3.3.19.2 compatible with the use case in 7.5.4.3.2.24.5?)
+        // Note: We need to check the speed first since direction factors into validating
+        //       the time-seek request
         try {
-            if (need_time_seek && requested_time_seek) {
-                this.seek = new HTTPTimeSeek (this);
-            } else if (need_byte_seek && requested_byte_seek) {
-                this.seek = new HTTPByteSeek (this);
+            if ( !(requested_byte_seek || requested_cleartext_seek)
+                 && PlaySpeedRequest.requested (this) ) {
+                this.speed_request = new PlaySpeedRequest.from_request (this);
+                debug ("Processing playspeed %s", speed_request.speed.to_string ());
+                if (this.speed_request.speed.is_normal_rate ()) {
+                    // This is not a scaled-rate request. Treat it as if it wasn't even there
+                    this.speed_request = null;
+                }
+            } else {
+                this.speed_request = null;
             }
-        } catch (HTTPSeekError error) {
+        } catch (PlaySpeedError error) {
             this.server.unpause_message (this.msg);
-
-            if (error is HTTPSeekError.INVALID_RANGE) {
-                this.end (Soup.Status.BAD_REQUEST);
-            } else if (error is HTTPSeekError.OUT_OF_RANGE) {
-                this.end (Soup.Status.REQUESTED_RANGE_NOT_SATISFIABLE);
+            if (error is PlaySpeedError.INVALID_SPEED_FORMAT) {
+                this.end (Soup.Status.BAD_REQUEST, error.message);
+                // Per DLNA 7.5.4.3.3.16.3
+            } else if (error is PlaySpeedError.SPEED_NOT_PRESENT) {
+                this.end (Soup.Status.NOT_ACCEPTABLE, error.message);
+                 // Per DLNA 7.5.4.3.3.16.5
             } else {
                 throw error;
             }
-
+            debug ("Error processing PlaySpeed: %s", error.message);
             return;
         }
+        try {
+            // Order is intentional here
+            if (supports_cleartext_seek && requested_cleartext_seek) {
+                var cleartext_seek = new DTCPCleartextRequest (this);
+                debug ("Processing DTCP cleartext byte range request (bytes %lld to %lld)",
+                         cleartext_seek.start_byte, cleartext_seek.end_byte);
+                this.seek = cleartext_seek;
+            } else if (supports_byte_seek && requested_byte_seek) {
+                var byte_seek = new HTTPByteSeekRequest (this);
+                debug ("Processing byte range request (bytes %lld to %lld)",
+                       byte_seek.start_byte, byte_seek.end_byte);
+                this.seek = byte_seek;
+            } else if (supports_time_seek && requested_time_seek) {
+                // Assert: speed_request has been checked/processed
+                var time_seek = new HTTPTimeSeekRequest (this, ((this.speed_request == null) ? null
+                                                                : this.speed_request.speed) );
+                debug ("Processing " + time_seek.to_string ());
+                this.seek = time_seek;
+            } else {
+                this.seek = null;
+            }
+        } catch (HTTPSeekRequestError error) {
+            warning ("Caught HTTPSeekRequestError: " + error.message);
+            this.server.unpause_message (this.msg);
+            this.end (error.code, error.message); // All seek error codes are Soup.Status codes
+            return;
+         }
 
         // Add headers
         this.handler.add_response_headers (this);
 
-        // Add general headers
-        if (this.msg.request_headers.get_one ("Range") != null) {
-            this.msg.set_status (Soup.Status.PARTIAL_CONTENT);
-        } else {
-            this.msg.set_status (Soup.Status.OK);
+        var response = this.handler.render_body (this);
+
+        // Have the response process the seek/speed request
+        try {
+            var responses = response.preroll ();
+
+            // Incorporate the prerolled responses
+            if (responses != null) {
+                foreach (var response_elem in responses) {
+                    response_elem.add_response_headers (this);
+                }
+            }
+        } catch (HTTPSeekRequestError error) {
+            warning ("Caught HTTPSeekRequestError on preroll: " + error.message);
+            this.server.unpause_message (this.msg);
+            this.end (error.code, error.message); // All seek error codes are Soup.Status codes
+            return;
         }
 
-        if (this.handler.knows_size (this)) {
-            this.msg.response_headers.set_encoding (Soup.Encoding.CONTENT_LENGTH);
-        } else {
-            this.msg.response_headers.set_encoding (Soup.Encoding.EOF);
+        // Determine the size value
+        int64 response_size;
+        {
+            // Response size might have already been set by one of the response elements
+            response_size = this.msg.response_headers.get_content_length ();
+
+            if (response_size > 0) {
+                this.msg.response_headers.set_content_length (response_size);
+                debug ("Response size set via response element: size "
+                       + response_size.to_string());
+            } else {
+                // If not already set by a response element, try to set it to the resource size
+                if ((response_size = this.handler.get_resource_size ()) > 0) {
+                    this.msg.response_headers.set_content_length (response_size);
+                    debug ("Response size set via response element: size "
+                           + response_size.to_string());
+                } else {
+                    debug ("Response size unknown");
+                }
+            }
+            // size will factor into other logic below...
+        }
+
+        // Determine the transfer mode encoding
+        {
+            Soup.Encoding response_body_encoding;
+            // See DLNA 7.5.4.3.2.15 for requirements
+            if ((this.speed_request != null)
+                && (this.msg.get_http_version () != Soup.HTTPVersion.@1_0) ) {
+                // We'll want the option to insert PlaySpeed position information
+                //  whether or not we know the length (see DLNA 7.5.4.3.3.17)
+                response_body_encoding = Soup.Encoding.CHUNKED;
+                debug ("Response encoding set to CHUNKED");
+            } else if (response_size > 0) {
+                // TODO: Incorporate ChunkEncodingMode.dlna.org request into this block
+                response_body_encoding = Soup.Encoding.CONTENT_LENGTH;
+                debug ("Response encoding set to CONTENT-LENGTH");
+            } else { // Response size is <= 0
+                if (this.msg.get_http_version () == Soup.HTTPVersion.@1_0) {
+                    // Can't send the length and can't send chunked (in HTTP 1.0)...
+                    response_body_encoding = Soup.Encoding.EOF;
+                    debug ("Response encoding set to EOF");
+                } else {
+                    response_body_encoding = Soup.Encoding.CHUNKED;
+                    debug ("Response encoding set to CHUNKED");
+                }
+            }
+            this.msg.response_headers.set_encoding (response_body_encoding);
+        }
+
+        // Determine the Vary header (if not HTTP 1.0)
+        {
+            // Per DLNA 7.5.4.3.2.35.4, the Vary header needs to include the timeseek and/or
+            //  playspeed header if both/either are supported for the resource/uri
+            bool supports_playspeed = PlaySpeedRequest.supported (this);
+            if (supports_time_seek || supports_playspeed) {
+                if (this.msg.get_http_version () != Soup.HTTPVersion.@1_0) {
+                    var vary_header = new StringBuilder
+                                             (this.msg.response_headers.get_list ("Vary"));
+                    if (supports_time_seek) {
+                        if (vary_header.len > 0) {
+                            vary_header.append (",");
+                        }
+                        vary_header.append (HTTPTimeSeekRequest.TIMESEEKRANGE_HEADER);
+                    }
+                    if (supports_playspeed) {
+                        if (vary_header.len > 0) {
+                            vary_header.append (",");
+                        }
+                        vary_header.append (PlaySpeedRequest.PLAYSPEED_HEADER);
+                    }
+                    this.msg.response_headers.replace ("Vary", vary_header.str);
+                }
+            }
+        }
+
+        // Determine the status code
+        {
+            int response_code;
+            if (this.msg.response_headers.get_one ("Content-Range") != null) {
+                response_code = Soup.Status.PARTIAL_CONTENT;
+            } else {
+                response_code = Soup.Status.OK;
+            }
+            this.msg.set_status (response_code);
         }
 
         if (msg.get_http_version () == Soup.HTTPVersion.@1_0) {
@@ -199,42 +330,8 @@ internal class Rygel.HTTPGet : HTTPRequest {
             return;
         }
 
-        var response = this.handler.render_body (this);
-
         yield response.run ();
 
         this.end (Soup.Status.NONE);
-    }
-
-    private void ensure_correct_mode () throws HTTPRequestError {
-        var mode = this.msg.request_headers.get_one (TRANSFER_MODE_HEADER);
-        var correct = true;
-
-        switch (mode) {
-        case "Streaming":
-            correct = (!(this.handler is HTTPPlaylistHandler)) && (
-                      (this.handler is HTTPTranscodeHandler ||
-                      ((this.object as MediaItem).streamable () &&
-                       this.subtitle == null &&
-                       this.thumbnail == null)));
-
-            break;
-        case "Interactive":
-            correct = (this.handler is HTTPIdentityHandler &&
-                      ((!(this.object as MediaItem).is_live_stream () &&
-                       !(this.object as MediaItem).streamable ()) ||
-                       (this.subtitle != null ||
-                        this.thumbnail != null))) ||
-                      this.handler is HTTPPlaylistHandler;
-
-            break;
-        }
-
-        if (!correct) {
-            throw new HTTPRequestError.UNACCEPTABLE
-                                        ("%s mode not supported for '%s'",
-                                         mode,
-                                         this.object.id);
-        }
     }
 }

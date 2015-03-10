@@ -167,6 +167,10 @@ public class Rygel.MPRIS.Player : GLib.Object, Rygel.MediaPlayer {
 
     public int64 position {
         get {
+            // Remove cached value. Position is not supposed to be notified
+            // so the cache might be outdated.
+            this.actual_player.set_cached_property ("Position", null);
+
             return this.actual_player.position;
         }
     }
@@ -184,6 +188,20 @@ public class Rygel.MPRIS.Player : GLib.Object, Rygel.MediaPlayer {
         this.protocols = plugin.protocols;
 
         actual_player.g_properties_changed.connect (this.on_properties_changed);
+    }
+
+    public override void constructed () {
+        base.constructed ();
+
+        // force synchronisation of current state
+        Idle.add (() => {
+            this.notify_property ("playback-state");
+            this.notify_property ("volume");
+            this.notify_property ("uri");
+            this.notify_property ("duration");
+
+            return false;
+        });
     }
 
     public bool seek (int64 time) {

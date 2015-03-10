@@ -30,7 +30,7 @@ using GUPnP;
 /**
  * Represents an audio item contained in a file.
  */
-public class Rygel.AudioItem : MediaItem {
+public class Rygel.AudioItem : MediaFileItem {
     public new const string UPNP_CLASS = "object.item.audioItem";
 
     /**
@@ -75,11 +75,9 @@ public class Rygel.AudioItem : MediaItem {
                 upnp_class : upnp_class);
     }
 
-    public override bool streamable () {
-        return true;
-    }
-
     internal override void apply_didl_lite (DIDLLiteObject didl_object) {
+        base.apply_didl_lite (didl_object);
+
         this.album = didl_object.album;
     }
 
@@ -110,19 +108,15 @@ public class Rygel.AudioItem : MediaItem {
         return didl_item;
     }
 
-    internal override DIDLLiteResource add_resource
-                                        (DIDLLiteObject didl_object,
-                                         string?        uri,
-                                         string         protocol,
-                                         string?        import_uri = null)
-                                         throws Error {
-        var res = base.add_resource (didl_object, uri, protocol, import_uri);
+    internal override MediaResource get_primary_resource () {
+        var res = base.get_primary_resource ();
 
         res.duration = this.duration;
         res.bitrate = this.bitrate;
         res.sample_freq = this.sample_freq;
         res.bits_per_sample = this.bits_per_sample;
         res.audio_channels = this.channels;
+        res.dlna_flags |= DLNAFlags.STREAMING_TRANSFER_MODE;
 
         return res;
     }

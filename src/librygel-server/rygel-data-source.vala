@@ -1,7 +1,9 @@
 /*
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Jens Georg <jensg@openismus.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -22,7 +24,8 @@
 
 public errordomain Rygel.DataSourceError {
     GENERAL,
-    SEEK_FAILED
+    SEEK_FAILED,
+    PLAYSPEED_FAILED
 }
 
 /**
@@ -36,7 +39,8 @@ public errordomain Rygel.DataSourceError {
  * to Rygel which adds them to the response it sends to the original HTTP
  * request received from the client.
  *
- * The data source is responsible for providing the streamable byte-stream
+ * The data source is responsible for providing response header information
+ * describing the content being produced and a streamable byte-stream
  * via its data_available signal. End-of-stream is signalled by the 
  * done signal, while errors are signalled by the error signal.
  *
@@ -58,14 +62,32 @@ public errordomain Rygel.DataSourceError {
  */
 public interface Rygel.DataSource : GLib.Object {
     /**
+     * Preroll the data with the given seek and playspeed.
+     *
+     * @param seek    optional seek/range specifier
+     * @param playspeed optional playback rate specifier. This will only be provided
+     *                  when a scaled rate is requested (the speed will not be 0.0 or 1.0)
+     *
+     * @return List of HTTPResponseElements appropriate for the content request and
+     *         optional seek/playspeed (e.g. Content-Range, TimeSeekRange.dlna.org,
+     *         etc) or null/empty list if none are appropriate. Note: the list will
+     *         be processed in-order by the caller.
+     *
+     * @throws Error if anything goes wrong while prerolling the stream.
+     *         Throws DataSourceError.SEEK_FAILED if a seek method is not supported or the
+     *         range is not fulfillable.
+     *         Throws PLAYSPEED_FAILED if the rate is not supported or fulfillable.
+     */
+    public abstract Gee.List<HTTPResponseElement> ? preroll (HTTPSeekRequest? seek,
+                                                             PlaySpeedRequest? playspeed)
+       throws Error;
+
+    /**
      * Start producing the data.
      *
-     * @param offsets optional limits of the stream for partial streaming
-     * @throws Error if anything goes wrong while starting the stream. Throws
-     * DataSourceError.SEEK_FAILED if a seek method is not supported or the
-     * range is not fulfillable.
+     * @throws Error if anything goes wrong while starting the stream.
      */
-    public abstract void start (HTTPSeek? offsets) throws Error;
+    public abstract void start () throws Error;
 
     /**
      * Temporarily stop data generation.

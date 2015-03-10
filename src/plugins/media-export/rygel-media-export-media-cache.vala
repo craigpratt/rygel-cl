@@ -1,8 +1,11 @@
 /*
  * Copyright (C) 2009,2010 Jens Georg <mail@jensge.org>.
  * Copyright (C) 2013 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Jens Georg <mail@jensge.org>
+ *         Doug Galligan <doug@sentosatech.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -20,7 +23,6 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
-
 
 using Gee;
 using GUPnP;
@@ -119,7 +121,7 @@ public class Rygel.MediaExport.MediaCache : Object {
     /**
      * Add the item to the cache.
      */
-    public void save_item (Rygel.MediaItem item,
+    public void save_item (Rygel.MediaFileItem item,
                            bool override_guarded = false) throws Error {
         try {
             db.begin ();
@@ -574,7 +576,7 @@ public class Rygel.MediaExport.MediaCache : Object {
         }
         object.id = UUID.get ();
 
-        this.save_item (object as MediaItem);
+        this.save_item (object as MediaFileItem);
 
         return object.id;
     }
@@ -692,7 +694,7 @@ public class Rygel.MediaExport.MediaCache : Object {
     }
 
 
-    private void save_item_metadata (Rygel.MediaItem item) throws Error {
+    private void save_item_metadata (Rygel.MediaFileItem item) throws Error {
         // Fill common properties
         GLib.Value[] values = { item.size,
                                 item.mime_type,
@@ -756,7 +758,7 @@ public class Rygel.MediaExport.MediaCache : Object {
         int type = ObjectType.CONTAINER;
         GLib.Value parent;
 
-        if (object is MediaItem) {
+        if (object is MediaFileItem) {
             type = ObjectType.ITEM;
         }
 
@@ -789,7 +791,7 @@ public class Rygel.MediaExport.MediaCache : Object {
         int type = ObjectType.CONTAINER;
         GLib.Value parent;
 
-        if (object is MediaItem) {
+        if (object is MediaFileItem) {
             type = ObjectType.ITEM;
         }
 
@@ -902,21 +904,37 @@ public class Rygel.MediaExport.MediaCache : Object {
                                            object_id,
                                            title,
                                            upnp_class);
-                fill_item (statement, object as MediaItem);
+                var item = object as MediaFileItem;
+                fill_item (statement, item);
 
                 if (uri != null) {
-                    (object as MediaItem).add_uri (uri);
+                    item.add_uri (uri);
                 }
-                break;
+
+                // Call the MediaEngine to determine which item representations it can support
+                var media_engine = MediaEngine.get_default ( );
+                media_engine.get_resources_for_item.begin ( item,
+                                                            (obj, res) => {
+                    var added_resources = media_engine
+                                          .get_resources_for_item.end (res);
+                    debug ("Adding %d resources to item source %s",
+                           added_resources.size, item.get_primary_uri ());
+                    foreach (var resrc in added_resources) {
+                       debug ("Media-export item media resource %s",
+                              resrc.get_name ());
+                    }
+                    item.get_resource_list ().add_all (added_resources);
+                  });
+               break;
             default:
                 assert_not_reached ();
         }
 
         if (object != null) {
             object.modified = statement.column_int64 (DetailColumn.TIMESTAMP);
-            if (object.modified  == int64.MAX && object is MediaItem) {
+            if (object.modified  == int64.MAX && object is MediaFileItem) {
                 object.modified = 0;
-                (object as MediaItem).place_holder = true;
+                (object as MediaFileItem).place_holder = true;
             }
             object.object_update_id = (uint) statement.column_int64
                                         (DetailColumn.OBJECT_UPDATE_ID);
@@ -926,7 +944,7 @@ public class Rygel.MediaExport.MediaCache : Object {
         return object;
     }
 
-    private void fill_item (Statement statement, MediaItem item) {
+    private void fill_item (Statement statement, MediaFileItem item) {
         // Fill common properties
         item.date = statement.column_text (DetailColumn.DATE);
         item.mime_type = statement.column_text (DetailColumn.MIME_TYPE);

@@ -29,11 +29,11 @@ internal class Rygel.SamsungTVHacks : ClientHacks {
     }
 
     public override void apply (MediaObject object) {
-        if (!(object is MediaItem)) {
+        if (!(object is MediaFileItem)) {
             return;
         }
 
-        var item = object as MediaItem;
+        var item = object as MediaFileItem;
         if (item.mime_type == "video/x-matroska") {
             item.mime_type = "video/x-mkv";
         }
@@ -51,5 +51,20 @@ internal class Rygel.SamsungTVHacks : ClientHacks {
 
     public override bool force_seek () {
         return true;
+    }
+
+    public override void modify_headers (HTTPRequest request) {
+        if (request.msg.request_headers.get_one ("getCaptionInfo.sec") != null
+            && (request.object is VideoItem)
+            && (request.object as VideoItem).subtitles.size > 0) {
+                var caption_uri = request.http_server.create_uri_for_object
+                                        (request.object as MediaItem,
+                                         -1,
+                                         0, // FIXME: offer first subtitle only?
+                                         null);
+
+                request.msg.response_headers.append ("CaptionInfo.sec",
+                                                     caption_uri);
+        }
     }
 }

@@ -25,12 +25,11 @@
 
 using Gee;
 
-internal class Rygel.HTTPItemURI : Object {
+public class Rygel.HTTPItemURI : Object {
     public string item_id { get; set; }
     public int thumbnail_index { get; set; default = -1; }
     public int subtitle_index { get; set; default = -1; }
-    public string? transcode_target { get; set; default = null; }
-    public string? playlist_format { get; set; default = null; }
+    public string? resource_name { get; set; default = null; }
     public unowned HTTPServer http_server { get; set; }
 
     private string real_extension;
@@ -52,21 +51,29 @@ internal class Rygel.HTTPItemURI : Object {
                         HTTPServer http_server,
                         int        thumbnail_index = -1,
                         int        subtitle_index = -1,
-                        string?    transcode_target = null,
-                        string?    playlist_format = null) {
+                        string?    resource_name = null) {
         this.item_id = object.id;
         this.thumbnail_index = thumbnail_index;
         this.subtitle_index = subtitle_index;
-        this.transcode_target = transcode_target;
         this.http_server = http_server;
-        this.playlist_format = playlist_format;
+        this.resource_name = resource_name;
         this.extension = "";
 
-        if (!(object is MediaItem)) {
+        if (this.resource_name != null) {
+            var resource = object.get_resource_by_name
+                                    (this.resource_name);
+            if (resource != null) {
+                this.extension = resource.extension;
+            }
+
             return;
+        } else {
+            if (!(object is MediaFileItem)) {
+                return;
+            }
         }
 
-        var item = object as MediaItem;
+        var item = object as MediaFileItem;
         if (thumbnail_index > -1) {
             if (item is VisualItem) {
                 var thumbnails = (item as VisualItem).thumbnails;
@@ -89,12 +96,6 @@ internal class Rygel.HTTPItemURI : Object {
                     this.extension = subtitles[subtitle_index].caption_type;
                 }
             }
-        } else if (transcode_target != null) {
-            try {
-                var tc = this.http_server.get_transcoder (transcode_target);
-
-                this.extension = tc.extension;
-            } catch (Error error) {}
         }
 
         if (this.extension == "") {
@@ -141,7 +142,6 @@ internal class Rygel.HTTPItemURI : Object {
         // do not decode the path here as it may contain encoded slashes
         this.thumbnail_index = -1;
         this.subtitle_index = -1;
-        this.transcode_target = null;
         this.http_server = http_server;
         this.extension = "";
 
@@ -171,10 +171,6 @@ internal class Rygel.HTTPItemURI : Object {
                     this.item_id = builder.str;
 
                     break;
-                case "tr":
-                    this.transcode_target = Soup.URI.decode (parts[i + 1]);
-
-                    break;
                 case "th":
                     this.thumbnail_index = int.parse (parts[i + 1]);
 
@@ -183,8 +179,8 @@ internal class Rygel.HTTPItemURI : Object {
                     this.subtitle_index = int.parse (parts[i + 1]);
 
                     break;
-                case "pl":
-                    this.playlist_format = Soup.URI.decode (parts[i + 1]);
+                case "res":
+                    this.resource_name = Soup.URI.decode (parts[i + 1]);
 
                     break;
                 default:
@@ -206,16 +202,13 @@ internal class Rygel.HTTPItemURI : Object {
         var escaped = Uri.escape_string (data, "", true);
         string path = "/i/" + escaped;
 
-        if (this.transcode_target != null) {
-            escaped = Uri.escape_string (this.transcode_target, "", true);
-            path += "/tr/" + escaped;
-        } else if (this.thumbnail_index >= 0) {
+        if (this.thumbnail_index >= 0) {
             path += "/th/" + this.thumbnail_index.to_string ();
         } else if (this.subtitle_index >= 0) {
             path += "/sub/" + this.subtitle_index.to_string ();
-        } else if (this.playlist_format != null) {
-            path += "/pl/" + Uri.escape_string
-                                        (this.playlist_format, "", true);
+        } else if (this.resource_name != null) {
+            path += "/res/" + Uri.escape_string
+                                        (this.resource_name, "", true);
         }
         path += this.extension;
 

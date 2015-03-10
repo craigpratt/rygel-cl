@@ -2,10 +2,12 @@
  * Copyright (C) 2008 Zeeshan Ali <zeenix@gmail.com>.
  * Copyright (C) 2010 Nokia Corporation.
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jens Georg <jensg@openismus.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -39,20 +41,20 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
     //See valadoc bug: https://bugzilla.gnome.org/show_bug.cgi?id=684367
 
     /**
-     * The width of the item in pixels.
-     * A value of -1 means that the width is unknown and will not, or did not, appear in DIDL-Lite XML.
+     * The width of the item source content (this.uri) in pixels
+     * A value of -1 means that the width is unknown
      */
     public int width { get; set; default = -1; }
 
     /**
-     * The height of the item in pixels.
-     * A value of -1 means that the height is unknown and will not, or did not, appear in DIDL-Lite XML.
+     * The height of the item source content (this.uri) in pixels
+     * A value of -1 means that the height is unknown
      */
     public int height { get; set; default = -1; }
 
     /**
-     * The number of bits per pixel used to represent the video resource.
-     * A value of -1 means that the color depth is unknown and will not, or did not, appear in DIDL-Lite XML.
+     * The number of bits per pixel in the source video resource (this.uri)
+     * A value of -1 means that the color depth is unknown
      */
     public int color_depth { get; set; default = -1; }
 
@@ -61,7 +63,7 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
      */
     public ArrayList<Thumbnail> thumbnails { get; protected set; }
 
-    public ArrayList<Subtitle> subtitles;
+    public ArrayList<Subtitle> subtitles { get; protected set; }
 
     public VideoItem (string         id,
                       MediaContainer parent,
@@ -80,14 +82,10 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
         this.subtitles = new ArrayList<Subtitle> ();
     }
 
-    public override bool streamable () {
-        return true;
-    }
-
     public override void add_uri (string uri) {
         base.add_uri (uri);
 
-        this.add_thumbnail_for_uri (uri, this.mime_type);
+        this.add_thumbnail_for_uri (uri);
 
         var subtitle_manager = SubtitleManager.get_default ();
 
@@ -99,31 +97,10 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
         }
     }
 
-    internal override void add_resources (DIDLLiteItem didl_item,
-                                          bool         allow_internal)
-                                          throws Error {
-        foreach (var subtitle in this.subtitles) {
-            var protocol = this.get_protocol_for_uri (subtitle.uri);
+    internal override MediaResource get_primary_resource () {
+        var res = base.get_primary_resource ();
 
-            if (allow_internal || protocol != "internal") {
-                subtitle.add_didl_node (didl_item);
-            }
-        }
-
-        base.add_resources (didl_item, allow_internal);
-
-        add_thumbnail_resources (didl_item, allow_internal);
-    }
-
-    internal override DIDLLiteResource add_resource
-                                        (DIDLLiteObject didl_object,
-                                         string?        uri,
-                                         string         protocol,
-                                         string?        import_uri = null)
-                                         throws Error {
-        var res = base.add_resource (didl_object, uri, protocol, import_uri);
-
-        this.add_visual_props (res);
+        this.set_visual_resource_properties (res);
 
         return res;
     }
@@ -155,72 +132,75 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
     internal override void apply_didl_lite (DIDLLiteObject didl_object) {
         base.apply_didl_lite (didl_object);
 
-        this.author = get_first (didl_object.get_authors ());
+        this.author = this.get_first (didl_object.get_authors ());
     }
 
     internal override DIDLLiteObject? serialize (Serializer serializer,
                                                  HTTPServer  http_server)
                                                  throws Error {
-        var didl_item = base.serialize (serializer, http_server);
+        var didl_item = base.serialize (serializer, http_server) as DIDLLiteItem;
 
         if (this.author != null && this.author != "") {
             var contributor = didl_item.add_author ();
             contributor.name = this.author;
         }
 
-        return didl_item;
-    }
-
-    internal override void add_proxy_resources (HTTPServer   server,
-                                                DIDLLiteItem didl_item)
-                                                throws Error {
-        var main_subtitle = null as Subtitle;
         if (!this.place_holder) {
-            // Subtitles first
+            var main_subtitle = null as Subtitle;
             foreach (var subtitle in this.subtitles) {
-                if (!server.need_proxy (subtitle.uri)) {
-                    if (main_subtitle == null) {
-                        main_subtitle = subtitle;
-                    }
-
+                string protocol;
+                try {
+                    protocol = this.get_protocol_for_uri (subtitle.uri);
+                } catch (Error e) {
+                    message ("Could not determine protocol for " + subtitle.uri);
                     continue;
                 }
 
-                var uri = subtitle.uri; // Save the original URI
-                var index = this.subtitles.index_of (subtitle);
+                if (http_server.need_proxy (subtitle.uri)) {
+                    var uri = subtitle.uri; // Save the original URI
+                    var index = this.subtitles.index_of (subtitle);
 
-                subtitle.uri = server.create_uri_for_item (this,
-                                                           -1,
-                                                           index,
-                                                           null,
-                                                           null);
-                subtitle.add_didl_node (didl_item);
+                    subtitle.uri = http_server.create_uri_for_object (this,
+                                                                      -1,
+                                                                      index,
+                                                                      null);
+                    subtitle.add_didl_node (didl_item);
+                    subtitle.uri = uri; // Now restore the original URI
 
-                if (main_subtitle == null) {
-                    main_subtitle = new Subtitle (subtitle.mime_type,
-                                                  subtitle.caption_type);
-                    main_subtitle.uri = subtitle.uri;
+                    if (main_subtitle == null) {
+                        main_subtitle = new Subtitle (subtitle.mime_type,
+                                                      subtitle.caption_type);
+                        main_subtitle.uri = uri;
+                    }
+                } else if (main_subtitle == null) {
+                    main_subtitle = subtitle;
                 }
 
-                // Now restore the original URI
-                subtitle.uri = uri;
+                if (http_server.is_local () || protocol != "internal") {
+                    subtitle.add_didl_node (didl_item);
+                }
+            }
+            if (main_subtitle != null) {
+                // Add resource-level subtitle metadata to all streamable video resources
+                // Note: All resources have already been serialized by the base
+                var resources = didl_item.get_resources ();
+                foreach (var resource in resources) {
+                    if ( (resource.protocol_info.dlna_flags
+                          & DLNAFlags.STREAMING_TRANSFER_MODE) != 0) {
+                        resource.subtitle_file_type =
+                            main_subtitle.caption_type.up ();
+                        resource.subtitle_file_uri = main_subtitle.uri;
+                    }
+                }
             }
         }
 
-        base.add_proxy_resources (server, didl_item);
+        return didl_item;
+    }
 
-        if (main_subtitle != null) {
-            var resources = didl_item.get_resources ();
-            foreach (var resource in resources) {
-                resource.subtitle_file_type =
-                    main_subtitle.caption_type.up ();
-                resource.subtitle_file_uri = main_subtitle.uri;
-            }
-        }
+    internal override void add_additional_resources (HTTPServer server) {
+        base.add_additional_resources (server);
 
-        if (!this.place_holder) {
-            // Thumbnails comes in the end
-            this.add_thumbnail_proxy_resources (server, didl_item);
-        }
+        this.add_thumbnail_resources (server);
     }
 }

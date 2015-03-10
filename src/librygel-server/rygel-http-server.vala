@@ -1,10 +1,13 @@
 /*
  * Copyright (C) 2008, 2009 Nokia Corporation.
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jens Georg <jensg@openismus.com>
+ *         Doug Galligan <doug@sentosatech.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -26,13 +29,15 @@
 using GUPnP;
 using Gee;
 
-public class Rygel.HTTPServer : Rygel.TranscodeManager, Rygel.StateMachine {
+public class Rygel.HTTPServer : GLib.Object, Rygel.StateMachine {
     public string path_root { get; private set; }
 
     // Reference to root container of associated ContentDirectory
     public MediaContainer root_container;
     public GUPnP.Context context;
     private ArrayList<HTTPRequest> requests;
+    private bool locally_hosted;
+    public HashTable<string, string> replacements;
 
     public Cancellable cancellable { get; set; }
 
@@ -45,7 +50,19 @@ public class Rygel.HTTPServer : Rygel.TranscodeManager, Rygel.StateMachine {
         this.requests = new ArrayList<HTTPRequest> ();
         this.cancellable = content_dir.cancellable;
 
+        // FIXME: Needs adaptation for IPv6
+        this.locally_hosted = this.context.interface == "lo" ||
+                              this.context.host_ip == "127.0.0.1";
+
         this.path_root = "/" + name;
+        this.replacements = new HashTable <string, string> (str_hash, str_equal);
+        this.replacements.insert ("@SERVICE_ADDRESS@",
+                                  this.context.host_ip);
+        this.replacements.insert ("@SERVICE_INTERFACE@",
+                                  this.context.interface);
+        this.replacements.insert ("@SERVICE_PORT@",
+                                  this.context.port.to_string ());
+        this.replacements.insert ("@HOSTNAME@", Environment.get_host_name ());
     }
 
     public async void run () {
@@ -58,34 +75,20 @@ public class Rygel.HTTPServer : Rygel.TranscodeManager, Rygel.StateMachine {
         }
     }
 
-    internal void add_proxy_resource (DIDLLiteItem didl_item,
-                                      MediaItem    item)
-                                      throws Error {
-        if (this.http_uri_present (item)) {
-            return;
-        }
-
-        var uri = this.create_uri_for_item (item, -1, -1, null, null);
-
-        item.add_resource (didl_item, uri, this.get_protocol (), uri);
-    }
+    /**
+     * Set or unset options the server supports/doesn't support
+     *
+     * Resources should be setup assuming server supports all optional delivery modes
+     */
+    public void set_resource_delivery_options (MediaResource res) {
+        res.protocol = this.get_protocol ();
+        // Set this just to be safe
+        res.dlna_flags |= DLNAFlags.DLNA_V15;
+        // This server supports all DLNA delivery modes - so leave those flags alone
+     }
 
     public bool need_proxy (string uri) {
         return Uri.parse_scheme (uri) != "http";
-    }
-
-    private bool http_uri_present (MediaItem item) {
-        bool present = false;
-
-        foreach (var uri in item.get_uris ()) {
-            if (!this.need_proxy (uri)) {
-                present = true;
-
-                break;
-            }
-        }
-
-        return present;
     }
 
     private void on_cancelled (Cancellable cancellable) {
@@ -97,35 +100,33 @@ public class Rygel.HTTPServer : Rygel.TranscodeManager, Rygel.StateMachine {
         this.completed ();
     }
 
-    internal override string create_uri_for_item (MediaItem item,
-                                                  int       thumbnail_index,
-                                                  int       subtitle_index,
-                                                  string?   transcode_target,
-                                                  string?   playlist_target) {
-        var uri = new HTTPItemURI (item,
+    internal string create_uri_for_object (MediaObject object,
+                                           int         thumbnail_index,
+                                           int         subtitle_index,
+                                           string?     resource_name) {
+        var uri = new HTTPItemURI (object,
                                    this,
                                    thumbnail_index,
                                    subtitle_index,
-                                   transcode_target,
-                                   playlist_target);
+                                   resource_name);
 
         return uri.to_string ();
     }
 
-    internal override string get_protocol () {
+    internal virtual string get_protocol () {
         return "http-get";
     }
 
-    internal override ArrayList<ProtocolInfo> get_protocol_info () {
-        var protocol_infos = base.get_protocol_info ();
+    internal virtual ArrayList<ProtocolInfo> get_protocol_info () {
+        return new ArrayList<ProtocolInfo>();
+    }
 
-        var protocol_info = new ProtocolInfo ();
-        protocol_info.protocol = this.get_protocol ();
-        protocol_info.mime_type = "*";
+    public HashTable<string, string> get_replacements () {
+        return this.replacements;
+    }
 
-        protocol_infos.add (protocol_info);
-
-        return protocol_infos;
+    public bool is_local () {
+        return this.locally_hosted;
     }
 
     private void on_request_completed (StateMachine machine) {

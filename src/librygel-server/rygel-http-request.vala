@@ -1,10 +1,12 @@
 /*
  * Copyright (C) 2008-2010 Nokia Corporation.
  * Copyright (C) 2006, 2007, 2008 OpenedHand Ltd.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jorn Baayen <jorn.baayen@gmail.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -23,7 +25,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-internal errordomain Rygel.HTTPRequestError {
+public errordomain Rygel.HTTPRequestError {
     UNACCEPTABLE = Soup.Status.NOT_ACCEPTABLE,
     BAD_REQUEST = Soup.Status.BAD_REQUEST,
     NOT_FOUND = Soup.Status.NOT_FOUND,
@@ -33,7 +35,7 @@ internal errordomain Rygel.HTTPRequestError {
 /**
  * Base class for HTTP client requests.
  */
-internal abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
+public abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
     public unowned HTTPServer http_server;
     private MediaContainer root_container;
     public unowned Soup.Server server;
@@ -87,8 +89,8 @@ internal abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
 
         if (media_object == null ||
             !((media_object is MediaContainer &&
-               this.uri.playlist_format != null) ||
-              (media_object is MediaItem && this.uri.playlist_format == null))) {
+               this.uri.resource_name != null) ||
+              (media_object is MediaFileItem))) {
             throw new HTTPRequestError.NOT_FOUND
                                         (_("Requested item '%s' not found"),
                                          this.uri.item_id);
@@ -108,12 +110,16 @@ internal abstract class Rygel.HTTPRequest : GLib.Object, Rygel.StateMachine {
             status = Soup.Status.NOT_FOUND;
         }
 
-        this.end (status);
+        this.end (status, error.message);
     }
 
-    protected void end (uint status) {
+    protected void end (uint status, string ? reason = null) {
         if (status != Soup.Status.NONE) {
-            this.msg.set_status (status);
+            if (reason == null) {
+                this.msg.set_status (status);
+            } else {
+                this.msg.set_status_full (status, reason);
+            }
         }
 
         this.completed ();

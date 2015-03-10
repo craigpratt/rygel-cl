@@ -56,7 +56,7 @@ internal class Rygel.MediaExport.WritableDbContainer : TrackableDbContainer,
         this.create_classes.add (Rygel.MediaContainer.UPNP_CLASS);
     }
 
-    public virtual async void add_item (Rygel.MediaItem item,
+    public virtual async void add_item (Rygel.MediaFileItem item,
                                         Cancellable? cancellable)
                                         throws Error {
         item.parent = this;
@@ -125,6 +125,16 @@ internal class Rygel.MediaExport.WritableDbContainer : TrackableDbContainer,
                                                 Cancellable? cancellable)
                                                 throws Error {
         yield this.remove_item (id, cancellable);
+    }
+
+    public void remove_tracked (MediaObject object) throws Error {
+        this.updated (object, ObjectEventType.DELETED);
+        this.total_deleted_child_count++;
+
+        this.media_db.remove_by_id (object.id);
+
+        this.updated ();
+        this.child_removed (object);
     }
 
 }

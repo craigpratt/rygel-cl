@@ -2,10 +2,13 @@
  * Copyright (C) 2008 Zeeshan Ali <zeenix@gmail.com>.
  * Copyright (C) 2010 Nokia Corporation.
  * Copyright (C) 2012 Intel Corporation.
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
  *         Jens Georg <jensg@openismus.com>
+ *         Doug Galligan <doug@sentosatech.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -47,7 +50,9 @@ public class Rygel.MusicItem : AudioItem {
     }
 
     public void lookup_album_art () {
-        assert (this.album_art == null);
+        if (this.album_art != null) {
+            return;
+        }
 
         var media_art_store = MediaArtStore.get_default ();
         if (media_art_store == null) {
@@ -55,22 +60,10 @@ public class Rygel.MusicItem : AudioItem {
         }
 
         try {
-            this.album_art = media_art_store.find_media_art_any (this);
-        } catch (Error err) {};
-    }
-
-    internal override void add_resources (DIDLLiteItem didl_item,
-                                          bool         allow_internal)
-                                          throws Error {
-        base.add_resources (didl_item, allow_internal);
-
-        if (this.album_art != null) {
-            var protocol = this.get_protocol_for_uri (this.album_art.uri);
-
-            if (allow_internal || protocol != "internal") {
-                didl_item.album_art = this.album_art.uri;
-            }
-        }
+            this.album_art = media_art_store.lookup_media_art (this);
+        } catch (Error error) {
+            debug ("Failed to look up album art: %s", error.message);
+        };
     }
 
     internal override int compare_by_property (MediaObject media_object,
@@ -107,31 +100,26 @@ public class Rygel.MusicItem : AudioItem {
             didl_item.track_number = this.track_number;
         }
 
-        if (didl_item.album_art != null) {
-            didl_item.album_art = MediaItem.address_regex.replace_literal
-                                        (didl_item.album_art,
-                                         -1,
-                                         0,
-                                         http_server.context.host_ip);
+        if (!this.place_holder && this.album_art != null) {
+            var protocol = this.get_protocol_for_uri (this.album_art.uri);
+
+            // Use the existing URI if the server is local or a non-internal/file uri is set
+            if (http_server.is_local () || protocol != "internal") {
+                didl_item.album_art = this.album_art.uri;
+            } else {
+                // Create a http uri for the album art that our server can process
+                string http_uri = http_server.create_uri_for_object (this,
+                                                                   0,
+                                                                   -1,
+                                                                   null);
+                didl_item.album_art = MediaFileItem.address_regex.replace_literal
+                                            (http_uri,
+                                             -1,
+                                             0,
+                                             http_server.context.host_ip);
+            }
         }
 
         return didl_item;
-    }
-
-    internal override void add_proxy_resources (HTTPServer   server,
-                                                DIDLLiteItem didl_item)
-                                                throws Error {
-        base.add_proxy_resources (server, didl_item);
-
-        // Album-art URI comes in the end
-        if (!this.place_holder &&
-            this.album_art != null &&
-            server.need_proxy (this.album_art.uri)) {
-            didl_item.album_art = server.create_uri_for_item (this,
-                                                              0,
-                                                              -1,
-                                                              null,
-                                                              null);
-        }
     }
 }

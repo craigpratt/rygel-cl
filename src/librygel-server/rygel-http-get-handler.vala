@@ -1,9 +1,11 @@
 /*
  * Copyright (C) 2008-2010 Nokia Corporation.
  * Copyright (C) 2010 Andreas Henriksson <andreas@fatal.se>
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
  *                               <zeeshan.ali@nokia.com>
+ *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -27,69 +29,88 @@ using GUPnP;
 /**
  * HTTP GET request handler interface.
  */
-internal abstract class Rygel.HTTPGetHandler: GLib.Object {
-    private const string TRANSFER_MODE_HEADER = "transferMode.dlna.org";
+public abstract class Rygel.HTTPGetHandler: GLib.Object {
+    protected const string TRANSFER_MODE_HEADER = "transferMode.dlna.org";
+
+    protected const string TRANSFER_MODE_STREAMING = "Streaming";
+    protected const string TRANSFER_MODE_INTERACTIVE = "Interactive";
+    protected const string TRANSFER_MODE_BACKGROUND = "Background";
 
     public Cancellable cancellable { get; set; }
 
-    // Add response headers.
+    /**
+     * Invokes the handler to add response headers to/for the given HTTP request
+     */
     public virtual void add_response_headers (HTTPGet request)
                                               throws HTTPRequestError {
         var mode = request.msg.request_headers.get_one (TRANSFER_MODE_HEADER);
-        if (mode != null) {
-            // FIXME: Is it OK to just copy the value of this header from
-            // request to response? All we do to entertain this header is to
-            // set the priority of IO operations.
+
+        // Per DLNA 7.5.4.3.2.33.2, if the transferMode header is empty it
+        // must be treated as Streaming mode or Interactive, depending upon the content
+        if (mode == null) {
+            request.msg.response_headers.append (TRANSFER_MODE_HEADER,
+                                                 this.get_default_transfer_mode ());
+        } else {
             request.msg.response_headers.append (TRANSFER_MODE_HEADER, mode);
         }
 
-        // Yes, I know this is not the ideal code to just get a specific
-        // string for an HTTP header but if you think you can come-up with
-        // something better, be my guest and provide a patch.
-        var didl_writer = new GUPnP.DIDLLiteWriter (null);
-        var didl_item = didl_writer.add_item ();
-        try {
-            var resource = this.add_resource (didl_item, request);
-            if (resource != null) {
-                var tokens = resource.protocol_info.to_string ().split (":", 4);
-                assert (tokens.length == 4);
-
-                request.msg.response_headers.append ("contentFeatures.dlna.org",
-                                                     tokens[3]);
-            }
-        } catch (Error err) {
-            warning ("Received request for 'contentFeatures.dlna.org' but " +
-                       "failed to provide the value in response headers");
+        // Handle device-specific hacks that need to change the response
+        // headers such as Samsung's subtitle stuff.
+        if (request.hack != null) {
+            request.hack.modify_headers (request);
         }
-
-        // Handle Samsung DLNA TV proprietary subtitle headers
-        if (request.msg.request_headers.get_one ("getCaptionInfo.sec") != null
-            && (request.object is VideoItem)
-            && (request.object as VideoItem).subtitles.size > 0) {
-                var caption_uri = request.http_server.create_uri_for_item
-                                        (request.object as MediaItem,
-                                         -1,
-                                         0, // FIXME: offer first subtitle only?
-                                         null,
-                                         null);
-
-                request.msg.response_headers.append ("CaptionInfo.sec",
-                                                     caption_uri);
-        }
-
-        request.msg.response_headers.append ("Connection", "close");
     }
 
-    public virtual bool knows_size (HTTPGet request) {
+    /**
+     * Returns the default transfer mode for the handler.
+     * The default is "Interactive"
+     */
+    public virtual string get_default_transfer_mode () {
+        return TRANSFER_MODE_INTERACTIVE; // Considering this the default
+    }
+
+    /**
+     * Returns true if the handler supports the given transfer mode, false otherwise.
+     */
+    public abstract bool supports_transfer_mode (string mode);
+
+    /**
+     * Returns the resource size or -1 if not known.
+     */
+    public abstract int64 get_resource_size ();
+
+    /**
+     * Returns the resource duration (in microseconds) or -1 if not known.
+     */
+    public virtual int64 get_resource_duration () {
+        return -1;
+    }
+
+    /**
+     * Returns true if the handler supports full random-access byte seek.
+     */
+    public virtual bool supports_byte_seek () {
         return false;
     }
 
-    // Create an HTTPResponse object that will render the body.
+    /**
+     * Returns true if the handler supports full random-access time seek.
+     */
+    public virtual bool supports_time_seek () {
+        return false;
+    }
+
+    /**
+     * Returns true if the handler supports any play speed requests.
+     */
+    public virtual bool supports_playspeed () {
+        return false;
+    }
+
+    /**
+     * Create an HTTPResponse object that will render the body.
+     */
     public abstract HTTPResponse render_body (HTTPGet request)
                                               throws HTTPRequestError;
-
-    protected abstract DIDLLiteResource add_resource (DIDLLiteObject didl_object,
-                                                      HTTPGet      request)
-                                                      throws Error;
 
 }

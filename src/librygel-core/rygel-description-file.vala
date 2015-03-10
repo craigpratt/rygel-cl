@@ -1,7 +1,9 @@
 /*
  * Copyright (C) 2011 Jens Georg
+ * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Jens Georg <mail@jensge.org>
+ *         Parthiban Balasubramanian <P.Balasubramanian-contractor@cablelabs.com>
  *
  * This file is part of Rygel.
  *
@@ -56,6 +58,26 @@ public class Rygel.DescriptionFile : Object {
      * modify_service_type()
      */
     private const string SERVICE_TYPE_TEMPLATE = "//*[.='%s']";
+
+    private const string X_DLNADOC_NODE = "X_DLNADOC";
+
+    // Get the local name of X_DLNADOC that does not contain +DIAGE+
+    private const string X_DLNADOC_NON_DEVCAP_XPATH = "//*[local-name()="+
+                                              " 'X_DLNADOC'"+
+                                              " and not(contains(.,\"DIAGE\"))"+
+                                              " and not(contains(.,\"LPE\"))]";
+
+    // Get the local name of X_DLNADOC that does contain +DIAGE+
+    private const string X_DLNADOC_DIAGE_XPATH = "//*[local-name()='X_DLNADOC'"+
+                                                 " and contains(.,\"DIAGE\")]";
+
+    private const string DIAGE_DEV_CAP = "+DIAGE+";
+
+    // Get the local name of X_DLNADOC that does contain +LPE+
+    private const string X_DLNADOC_LPE_XPATH = "//*[local-name()='X_DLNADOC'"+
+                                                 " and contains(.,\"LPE\")]";
+
+    private const string LPE_DEV_CAP = "+LPE+";
 
     /**
      * Constructor to load a description file from disk
@@ -200,23 +222,28 @@ public class Rygel.DescriptionFile : Object {
             } catch (GLib.Error error) { }
 
             if (allow_upload) {
+                bool can_upload = false;
                 if (PluginCapabilities.IMAGE_UPLOAD in capabilities) {
                     flags += "image-upload";
+                    can_upload = true;
                 }
 
                 if (PluginCapabilities.VIDEO_UPLOAD in capabilities) {
                     flags += "av-upload";
+                    can_upload = true;
                 }
 
                 if (PluginCapabilities.AUDIO_UPLOAD in capabilities) {
                     flags += "audio-upload";
+                    can_upload = true;
+                }
+
+                // destroy capablity needs to co-exist with at least one
+                // of the upload caps. DLNA 2014, 7.4.1.8.4.1, Table 26
+                if (allow_delete && can_upload) {
+                    flags += "create-item-with-OCM-destroy-item";
                 }
             }
-
-            if (allow_delete) {
-                flags += "create-item-with-OCM-destroy-item";
-            }
-
         }
 
         if (PluginCapabilities.TRACK_CHANGES in capabilities) {
@@ -232,7 +259,31 @@ public class Rygel.DescriptionFile : Object {
         }
 
         if (PluginCapabilities.DIAGNOSTICS in capabilities) {
-            flags += "+DIAGE+";
+            flags += DIAGE_DEV_CAP;
+
+            // Add X_DLNADOC element that holds DIAGE capability
+            // in the device template
+            this.add_dlna_doc_element (X_DLNADOC_DIAGE_XPATH,
+                                       X_DLNADOC_NON_DEVCAP_XPATH,
+                                       DIAGE_DEV_CAP);
+        } else {
+            // Remove X_DLNADOC element that holds DIAGE capability
+            // in the device template if it is disabled
+            this.remove_dlna_doc_element (X_DLNADOC_DIAGE_XPATH);
+        }
+
+        if (PluginCapabilities.ENERGY_MANAGEMENT in capabilities) {
+            flags += LPE_DEV_CAP;
+
+            // Add X_DLNADOC element that holds LPE capability
+            // in the device template
+            this.add_dlna_doc_element (X_DLNADOC_LPE_XPATH,
+                                       X_DLNADOC_NON_DEVCAP_XPATH,
+                                       LPE_DEV_CAP);
+        } else {
+            // Remove X_DLNADOC element that holds LPE capability
+            // in the device template if it is disabled
+            this.remove_dlna_doc_element (X_DLNADOC_LPE_XPATH);
         }
 
         // Set the flags we found; otherwise remove whatever is in the
@@ -247,6 +298,88 @@ public class Rygel.DescriptionFile : Object {
 
     public void clear_service_list () {
         this.remove_device_element ("serviceList");
+    }
+
+    // Add the X_DLNADOC element with dev_cap if not added already.
+    public void add_dlna_doc_element (string dlnadoc_xpath,
+                                      string dlnadoc_non_xpath,
+                                            string dev_cap) {
+        Xml.XPath.Object* dlna_doc_object = null;
+
+        // Check if the X_DLNADOC node has already dev_cap
+        // dlnadoc_xpath checks for a X_DLNADOC element that contains a
+        // capablity. We can return if that's the case.
+        if (this.apply_xpath (dlnadoc_xpath, null)) {
+            return;
+        }
+
+        // Get all X_DLNADOC node and extract the 'capability host & version'
+        if (!this.apply_xpath (dlnadoc_non_xpath, out dlna_doc_object)) {
+            return;
+        }
+
+        for (var i = 0; i < dlna_doc_object->nodesetval->length (); i++) {
+            var node = dlna_doc_object->nodesetval->item (i);
+            var node_content = node->get_content ();
+            var doc_index = node_content.last_index_of ("/");
+            string devcap_content;
+
+            // Add X_DLNADOC sibbling element for
+            // each unique capability-host
+            var device = this.get_device_element ();
+            var devcap_element = device->new_child (node->ns, X_DLNADOC_NODE);
+            if (doc_index != -1) {
+                devcap_content = node_content[doc_index+1:node_content.length];
+            } else {
+                devcap_content = node_content;
+            }
+            debug (dev_cap + "/" + devcap_content);
+            devcap_element->set_content (dev_cap + "/" + devcap_content);
+            node->add_next_sibling (devcap_element);
+        }
+
+        delete dlna_doc_object;
+    }
+
+    // Remove the X_DLNADOC element with DEV CAP if disabled.
+    public void remove_dlna_doc_element (string dlnadoc_xpath) {
+        Xml.XPath.Object* devcap_object = null;
+        if (!this.apply_xpath (dlnadoc_xpath, out devcap_object)) {
+            return;
+        }
+
+        for (var i = 0; i < devcap_object->nodesetval->length (); i++) {
+            var node = devcap_object->nodesetval->item (i);
+            if (node == null) {
+                continue;
+            }
+
+            node->unlink ();
+
+            delete node;
+        }
+
+        delete devcap_object;
+    }
+
+    private Xml.Node* get_device_element () {
+        return Rygel.XMLUtils.get_element
+                              ((Xml.Node *) this.doc.doc,
+                               "root",
+                               "device");
+    }
+
+    private bool apply_xpath (string xpath, out Xml.XPath.Object *xpo) {
+        var context = new XPath.Context (this.doc.doc);
+        var result = context.eval_expression (xpath);
+
+        var retval = result != null &&
+                     result->type == XPath.ObjectType.NODESET &&
+                     !result->nodesetval->is_empty ();
+
+        xpo = result;
+
+        return retval;
     }
 
     public void add_service (string device_name, ResourceInfo resource_info) {
@@ -315,16 +448,14 @@ public class Rygel.DescriptionFile : Object {
      */
     public void modify_service_type (string old_type,
                                      string new_type) {
-        var context = new XPath.Context (this.doc.doc);
+        Xml.XPath.Object *xpath_object = null;
 
         var xpath = SERVICE_TYPE_TEMPLATE.printf (old_type);
-        var xpath_object = context.eval_expression (xpath);
-        assert (xpath_object != null);
-        assert (xpath_object->type == XPath.ObjectType.NODESET);
-        assert (!xpath_object->nodesetval->is_empty ());
+        if (this.apply_xpath (xpath, out xpath_object)) {
+            xpath_object->nodesetval->item (0)->set_content (new_type);
 
-        xpath_object->nodesetval->item (0)->set_content (new_type);
-        delete xpath_object;
+            delete xpath_object;
+        }
     }
 
     /**
