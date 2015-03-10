@@ -1209,9 +1209,6 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             try {
                 out_stream = new Rygel.ExtDataOutputStream (this.bufgen_stream);
                 var scale_ms = (int32)(this.playspeed_request.speed.to_float() * 1000);
-                if (scale_ms < 0) {
-                    scale_ms = -scale_ms;
-                }
                 debug (generator_name + ": Starting %0.3fx MP2 TS restamping from %s (bytes %llu-%llu)",
                        scale_ms/1000.0, source_name, this.mp2ts_restamper.start_offset, 
                        this.mp2ts_restamper.end_offset);

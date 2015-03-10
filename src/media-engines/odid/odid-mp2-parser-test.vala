@@ -51,7 +51,7 @@ class Rygel.MP2ParserTest : GLib.Object {
             bool buf_out_stream_test = false;
             uint64 buf_out_stream_buf_size = 0;
             bool trim_file = false;
-            uint restamp_scale = 0;
+            int32 restamp_scale = 0;
             bool restamp = false;
             uint8 packet_size = 188;
 
@@ -152,7 +152,7 @@ class Rygel.MP2ParserTest : GLib.Object {
                                 throw new OptionError.BAD_VALUE ("Bad restamp scale factor: " 
                                                                  + restamp_param);
                             }
-                            restamp_scale = (uint)(scale_factor * MILLIS_PER_SEC);
+                            restamp_scale = (int)(scale_factor * MILLIS_PER_SEC);
                             restamp = true;
                             break;
                         case "-print":

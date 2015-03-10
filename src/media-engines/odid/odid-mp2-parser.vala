@@ -211,11 +211,12 @@ public class Rygel.MP2TSRestamper {
     }
 
     public virtual void restamp_to_stream_scaled (ExtDataOutputStream ostream,
-                                                  uint32 scale_ms,
+                                                  int32 scale_ms,
                                                   uint16 [] ? pids_to_scale,
                                                   uint16 [] ? pids_to_remove) 
             throws Error {
-        debug ("restamp_to_stream_scaled (scale=%u (%0.3fx))",scale_ms,scale_ms/1000.0);
+        debug ("restamp_to_stream_scaled (scale=%d (%0.3fx))",scale_ms,scale_ms/1000.0);
+        
         var pid_remove_set = new Gee.HashSet<uint16> ();
         foreach (var pid in pids_to_remove) {
             pid_remove_set.add (pid);
@@ -241,61 +242,118 @@ public class Rygel.MP2TSRestamper {
         var c_counters = new HashTable <uint16, uint8> (direct_hash, direct_equal);
         this.source_stream.seek_to_offset (this.start_offset);
         uint64 packet_count = 0, offset = this.start_offset;
-        bool found_pcr = false, found_ts = false;
-        uint64 first_pcr=0, first_ts=0;
         debug ("Restamping bytes %llu-%llu (%llu bytes)", this.start_offset, this.end_offset,
                                                           this.end_offset-this.start_offset);
-        while (offset + this.bytes_per_packet <= this.end_offset) {
-            // debug ("Restamping packet %lld at offset %lld", packet_count, offset);
-            var ts_packet = new MP2TSPacket.from_stream (this.source_stream, offset,
-                                                         this.bytes_per_packet);
-            ts_packet.parse_from_stream_noseek ();
-            offset += bytes_per_packet;
-            // debug ("Parsed %llu bytes: %s", header_bytes_parsed, ts_packet.to_string ());
-            if (pid_remove_set.contains (ts_packet.pid)) {
-                ts_packet.skip_payload ();
-            } else {
-                packet_count++;
-                if (ts_packet.adaptation_field != null) {
-                    if (!found_pcr) {
-                        first_pcr = (int64)ts_packet.adaptation_field.pcr;
-                        found_pcr = true;
+        if (scale_ms > 0) {
+            while (offset + this.bytes_per_packet <= this.end_offset) {
+                // debug ("Restamping packet %lld at offset %lld", packet_count, offset);
+                var ts_packet = new MP2TSPacket.from_stream (this.source_stream, offset,
+                                                             this.bytes_per_packet);
+                ts_packet.parse_from_stream_noseek ();
+                offset += bytes_per_packet;
+                // debug ("Parsed %llu bytes: %s", header_bytes_parsed, ts_packet.to_string ());
+                if (pid_remove_set.contains (ts_packet.pid)) {
+                    ts_packet.skip_payload ();
+                } else {
+                    packet_count++;
+                    if (ts_packet.adaptation_field != null && ts_packet.adaptation_field.pcr_flag) {
+                        // debug ("  changing PCR of %s", ts_packet.to_string ());
+                        ts_packet.adaptation_field.pcr 
+                            = (ts_packet.adaptation_field.pcr * 1000) / scale_ms;
+                        // debug ("               to %s", ts_packet.to_string ());
                     }
-                    // debug ("  changing PCR of %s\n", ts_packet.to_string ());
-                    
-                    ts_packet.adaptation_field.pcr 
-                        = (((int64)ts_packet.adaptation_field.pcr - (int64)first_pcr).abs () 
-                            * 1000) / scale_ms;
-                }
-                var c_counter = c_counters.get (ts_packet.pid);
-                ts_packet.continuity_counter = c_counter;
-                c_counters.replace (ts_packet.pid, (c_counter+1) % 16);
-                if (ts_packet.payload_unit_start_indicator
-                    && pid_scale_set.contains (ts_packet.pid)) {
-                    ts_packet.parse_pes_from_stream_noseek ();
-                    // debug ("  changing PTS/DTS of %s\n", ts_packet.to_string ());
-                    if (ts_packet.pes_packet.pes_header.pts_flag) {
-                        if (!found_ts) {
-                            first_ts = ts_packet.pes_packet.pes_header.pts;
-                            found_ts = true;
+                    var c_counter = c_counters.get (ts_packet.pid);
+                    ts_packet.continuity_counter = c_counter;
+                    c_counters.replace (ts_packet.pid, (c_counter+1) % 16);
+                    if (ts_packet.payload_unit_start_indicator
+                        && pid_scale_set.contains (ts_packet.pid)) {
+                        ts_packet.parse_pes_from_stream_noseek ();
+                        // debug ("  changing PTS/DTS of %s", ts_packet.to_string ());
+                        if (ts_packet.pes_packet.pes_header.pts_flag) {
+                            ts_packet.pes_packet.pes_header.pts 
+                              = (ts_packet.pes_packet.pes_header.pts * 1000) / scale_ms;
                         }
-                        ts_packet.pes_packet.pes_header.pts 
-                          = (((int64)ts_packet.pes_packet.pes_header.pts - (int64)first_ts).abs () 
-                             * 1000) / scale_ms;
-                    }
-                    if (ts_packet.pes_packet.pes_header.dts_flag) {
-                        if (!found_ts) {
-                            first_ts = ts_packet.pes_packet.pes_header.dts;
-                            found_ts = true;
+                        if (ts_packet.pes_packet.pes_header.dts_flag) {
+                            ts_packet.pes_packet.pes_header.dts 
+                              = (ts_packet.pes_packet.pes_header.dts * 1000) / scale_ms;
                         }
-                        ts_packet.pes_packet.pes_header.dts 
-                          = (((int64)ts_packet.pes_packet.pes_header.dts - (int64)first_ts).abs () 
-                             * 1000) / scale_ms;
+                        // debug ("  changing         to %s", ts_packet.to_string ());
                     }
+                    ts_packet.fields_to_stream (ostream);
+                    ts_packet.payload_to_stream_noseek (ostream);
                 }
-                // debug ("writing " + ts_packet.to_string ());
-                ts_packet.fields_to_stream (ostream);
-                ts_packet.payload_to_stream_noseek (ostream);
+            }
+        } else { // scale_ms is <= 0
+            // The PCR/PTS/DTS go backward. We'll use the differences between the first value
+            //  and each timestamp to restamp
+            scale_ms = -scale_ms;
+            bool found_pcr = false, found_ts = false;
+            uint64 first_pcr=0, first_ts=0;
+            const int64 pts_dts_adjustment = 22000;
+            while (offset + this.bytes_per_packet <= this.end_offset) {
+                // debug ("Restamping packet %lld at offset %lld", packet_count, offset);
+                var ts_packet = new MP2TSPacket.from_stream (this.source_stream, offset,
+                                                             this.bytes_per_packet);
+                ts_packet.parse_from_stream_noseek ();
+                offset += bytes_per_packet;
+                // debug ("Parsed %llu bytes: %s", header_bytes_parsed, ts_packet.to_string ());
+                if (pid_remove_set.contains (ts_packet.pid)) {
+                    ts_packet.skip_payload ();
+                } else {
+                    packet_count++;
+                    if (ts_packet.adaptation_field != null && ts_packet.adaptation_field.pcr_flag) {
+                        // debug ("  changing PCR of %s", ts_packet.to_string ());
+                        if (!found_pcr) {
+                            first_pcr = ts_packet.adaptation_field.pcr;
+                            ts_packet.adaptation_field.pcr = 0;
+                            found_pcr = true;
+                        } else {
+                            var pcr_diff = (int64)ts_packet.adaptation_field.pcr - (int64)first_pcr;
+                            // debug ("  PCR diff: %lld\n", pcr_diff);
+                            ts_packet.adaptation_field.pcr = pcr_diff.abs ();
+                        }
+                        ts_packet.adaptation_field.pcr 
+                            = (ts_packet.adaptation_field.pcr * 1000) / scale_ms;
+                        // debug ("               to %s", ts_packet.to_string ());
+                    }
+                    var c_counter = c_counters.get (ts_packet.pid);
+                    ts_packet.continuity_counter = c_counter;
+                    c_counters.replace (ts_packet.pid, (c_counter+1) % 16);
+                    if (ts_packet.payload_unit_start_indicator
+                        && pid_scale_set.contains (ts_packet.pid)) {
+                        ts_packet.parse_pes_from_stream_noseek ();
+                        // debug ("  changing PTS/DTS of %s", ts_packet.to_string ());
+                        if (ts_packet.pes_packet.pes_header.pts_flag) {
+                            if (!found_ts) {
+                                first_ts = ts_packet.pes_packet.pes_header.pts;
+                                found_ts = true;
+                            } else {
+                                var pts_diff = (int64)ts_packet.pes_packet.pes_header.pts 
+                                               - (int64)first_ts;
+                                ts_packet.pes_packet.pes_header.pts = pts_diff.abs ();
+                            }
+                            ts_packet.pes_packet.pes_header.pts 
+                              = (ts_packet.pes_packet.pes_header.pts * 1000) / scale_ms
+                                + pts_dts_adjustment;
+                        }
+                        if (ts_packet.pes_packet.pes_header.dts_flag) {
+                            if (!found_ts) {
+                                first_ts = ts_packet.pes_packet.pes_header.dts;
+                                found_ts = true;
+                            } else {
+                                var dts_diff = (int64)ts_packet.pes_packet.pes_header.dts 
+                                               - (int64)first_ts;
+                                ts_packet.pes_packet.pes_header.dts = dts_diff.abs ();
+                            }
+                            ts_packet.pes_packet.pes_header.dts 
+                              = (ts_packet.pes_packet.pes_header.dts * 1000) / -scale_ms
+                                + pts_dts_adjustment;
+                        }
+                        // debug ("                   to %s", ts_packet.to_string ());
+                    }
+                    ts_packet.fields_to_stream (ostream);
+                    ts_packet.payload_to_stream_noseek (ostream);
+                }
             }
         }
     } // END restamp_to_stream_scaled ()
@@ -304,28 +362,28 @@ public class Rygel.MP2TSRestamper {
         var pat_section = new MP2PATSection ();
         var pat_table = new MP2PATTable ();
 
-        uint64 packet_count = 0, ts_offset = this.start_offset;
+        uint64 packet_count = 0, ts_offset = 0;
         this.source_stream.seek_to_offset (ts_offset);
         while (ts_offset + this.bytes_per_packet <= this.source_size) {
             var ts_packet = new MP2TSPacket.from_stream (this.source_stream, ts_offset,
                                                          this.bytes_per_packet);
             ts_packet.parse_from_stream_noseek ();
-            ts_offset += this.bytes_per_packet;
             // debug ("Parsed " + ts_packet.to_string ());
             packet_count++;
             if (ts_packet.pid == 0) {
-                var offset = ts_packet.source_offset + ts_packet.header_size;
-                this.source_stream.seek_to_offset (offset);
                 if (pat_section.add_ts_packet_seek (ts_packet)) {
                     if (pat_table.add_section (pat_section)) {
                         return pat_table;
+                    } else { // continue assembling
+                        pat_section = new MP2PATSection ();
                     }
-                    pat_section = new MP2PATSection ();
                 }
+            } else {
+                ts_packet.skip_payload ();
             }
+            ts_offset += this.bytes_per_packet;
         }
-        throw new IOError.FAILED ("No PAT table found in %lld packets",
-                                  packet_count);
+        throw new IOError.FAILED ("No PAT table found in %lld packets", packet_count);
     }
 
     public virtual MP2PMTTable get_pmt_table (uint16 pmt_pid) 
@@ -333,30 +391,28 @@ public class Rygel.MP2TSRestamper {
         var pmt_section = new MP2PMTSection ();
         var pmt_table = new MP2PMTTable ();
 
-        uint64 packet_count = 0, ts_offset = this.start_offset;
+        uint64 packet_count = 0, ts_offset = 0;
         this.source_stream.seek_to_offset (ts_offset);
         while (ts_offset + this.bytes_per_packet <= this.source_size) {
             var ts_packet = new MP2TSPacket.from_stream (this.source_stream, ts_offset,
                                                          this.bytes_per_packet);
             ts_packet.parse_from_stream_noseek ();
-            ts_offset += this.bytes_per_packet;
             // debug ("Parsed " + ts_packet.to_string ());
             packet_count++;
             if (ts_packet.pid == pmt_pid) {
-                var offset = ts_packet.source_offset + ts_packet.header_size;
-                this.source_stream.seek_to_offset (offset);
                 if (pmt_section.add_ts_packet_noseek (ts_packet)) {
                     if (pmt_table.add_section (pmt_section)) {
                         return pmt_table;
+                    } else { // continue assembling
+                        pmt_section = new MP2PMTSection ();
                     }
-                    pmt_section = new MP2PMTSection ();
                 }
             } else {
                 ts_packet.skip_payload ();
             }
+            ts_offset += this.bytes_per_packet;
         }
-        throw new IOError.FAILED ("No PMT table found in %lld packets",
-                                  packet_count);
+        throw new IOError.FAILED ("No PMT table found in %lld packets", packet_count);
     }
 } // END class MP2TSRestampper
 
@@ -1072,6 +1128,7 @@ public abstract class Rygel.MP2Section {
     public Gee.List<MP2TSPacket> ts_packets = new Gee.ArrayList<MP2TSPacket> ();
     protected ByteArray section_buffer;
     public Bytes section_data = null;
+    public bool all_sections_acquired;
     public uint8 table_id;
     public bool section_syntax_indicator;
     public uint16 section_length;
@@ -1089,6 +1146,9 @@ public abstract class Rygel.MP2Section {
         return add_ts_packet_noseek (ts_packet);
     }
 
+    /**
+     * note: this will process the entire TS packet 
+     */
     public bool add_ts_packet_noseek (MP2TSPacket ts_packet) throws Error {
         // debug ("add_ts_packet_noseek(%s)",ts_packet.to_string ());
         if (this.section_data != null) {
@@ -1152,10 +1212,11 @@ public abstract class Rygel.MP2Section {
             this.section_data = ByteArray.free_to_bytes (this.section_buffer);
             this.parse_section_data ();
             this.section_buffer = null;
-            return true;
+            this.all_sections_acquired = true;
         } else {
-            return false;
+            this.all_sections_acquired = false;
         }
+        return this.all_sections_acquired;
     }
 
     public uint16 parse_section_data () throws Error {
@@ -1207,6 +1268,9 @@ public abstract class Rygel.MP2Section {
         return 0;
     }
 
+    public bool section_complete () {
+        return this.all_sections_acquired;
+    }
 
     public virtual string to_string () {
         var builder = new StringBuilder ("MP2TSPacket[");
@@ -1444,7 +1508,6 @@ public class Rygel.MP2PMTSection : MP2TableSection {
     public const uint8 STREAM_TYPE_DSMCC_SYNCRONOUS_DATA = 0xC2;
     public const uint8 STREAM_TYPE_DIRAC_VIDEO = 0xD1;
     public const uint8 STREAM_TYPE_MSWM9_VIDEO = 0xEA;
-
 
     public static string stream_type_to_string (uint8 stream_type) {
         switch (stream_type) {
