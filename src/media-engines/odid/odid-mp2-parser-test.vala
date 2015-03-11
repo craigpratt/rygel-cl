@@ -228,15 +228,21 @@ class Rygel.MP2ParserTest : GLib.Object {
                                     // 63      55      47      39      31     23      15       7      0
                                     // |       |       |       |       |       |       |       |      |
                                     // 1001001000110100010101100111100010101010101110111100110011001100
-                                    stderr.printf ("Bits 0-7: 0x%02llx\n", Bits.getbits_64 (testval, 0, 8));
-                                    stderr.printf ("Bits 1-7: 0x%02llx\n", Bits.getbits_64 (testval, 1, 7));
-                                    stderr.printf ("Bits 2-7: 0x%02llx\n", Bits.getbits_64 (testval, 2, 6));
-                                    stderr.printf ("Bits 0-15: 0x%02llx\n", Bits.getbits_64 (testval, 0, 16));
-                                    stderr.printf ("Bits 16-23: 0x%02llx\n", Bits.getbits_64 (testval, 16, 8));
-                                    stderr.printf ("Bits 56-63: 0x%02llx\n", Bits.getbits_64 (testval, 56, 8));
+                                    stderr.printf ("Bits 0-7: 0x%02" + uint64.FORMAT_MODIFIER + "x\n", 
+                                                   Bits.getbits_64 (testval, 0, 8));
+                                    stderr.printf ("Bits 1-7: 0x%02" + uint64.FORMAT_MODIFIER + "x\n", 
+                                                   Bits.getbits_64 (testval, 1, 7));
+                                    stderr.printf ("Bits 2-7:  0x%02" + uint64.FORMAT_MODIFIER + "x\n", 
+                                                   Bits.getbits_64 (testval, 2, 6));
+                                    stderr.printf ("Bits 0-15: 0x%02" + uint64.FORMAT_MODIFIER + "x\n", 
+                                                   Bits.getbits_64 (testval, 0, 16));
+                                    stderr.printf ("Bits 16-23: 0x%02" + uint64.FORMAT_MODIFIER + "x\n", 
+                                                   Bits.getbits_64 (testval, 16, 8));
+                                    stderr.printf ("Bits 56-63: 0x%02" + uint64.FORMAT_MODIFIER + "x\n", 
+                                                   Bits.getbits_64 (testval, 56, 8));
                                     stderr.printf ("All bits: ");
                                     for (int bit=63; bit >= 0; bit--) {
-                                        stderr.printf ("%lld", Bits.getbits_64 (testval, bit, 1));
+                                        stderr.printf ("%" + uint64.FORMAT, Bits.getbits_64 (testval, bit, 1));
                                     }
                                     stderr.printf ("\n");
                                 break;
@@ -245,14 +251,14 @@ class Rygel.MP2ParserTest : GLib.Object {
                                     // 31     23      15       7      0
                                     // |       |       |       |      |
                                     // 00010101100111101010101010111011
-                                    stderr.printf ("Bits 0-7: 0x%02llx\n", Bits.getbits_32 (testval, 0, 8));
-                                    stderr.printf ("Bits 1-7: 0x%02llx\n", Bits.getbits_32 (testval, 1, 7));
-                                    stderr.printf ("Bits 2-7: 0x%02llx\n", Bits.getbits_32 (testval, 2, 6));
-                                    stderr.printf ("Bits 0-15: 0x%02llx\n", Bits.getbits_32 (testval, 0, 16));
-                                    stderr.printf ("Bits 16-23: 0x%02llx\n", Bits.getbits_32 (testval, 16, 8));
+                                    stderr.printf ("Bits 0-7: 0x%02ux\n", Bits.getbits_32 (testval, 0, 8));
+                                    stderr.printf ("Bits 1-7: 0x%02ux\n", Bits.getbits_32 (testval, 1, 7));
+                                    stderr.printf ("Bits 2-7: 0x%02ux\n", Bits.getbits_32 (testval, 2, 6));
+                                    stderr.printf ("Bits 0-15: 0x%02ux\n", Bits.getbits_32 (testval, 0, 16));
+                                    stderr.printf ("Bits 16-23: 0x%02ux\n", Bits.getbits_32 (testval, 16, 8));
                                     stderr.printf ("All bits: ");
                                     for (int bit=31; bit >= 0; bit--) {
-                                        stderr.printf ("%lld", Bits.getbits_32 (testval, bit, 1));
+                                        stderr.printf ("%u", Bits.getbits_32 (testval, bit, 1));
                                     }
                                     stderr.printf ("\n");
                                 break;
@@ -408,7 +414,7 @@ class Rygel.MP2ParserTest : GLib.Object {
                         ts_packet.payload_to_stream_seek (out_stream);
                         packets_written++;
                     }
-                    stdout.printf ("\nWrote %llu packets to %s\n",
+                    stdout.printf ("\nWrote %" + uint64.FORMAT + " packets to %s\n",
                                    packets_written, out_file.get_path ());
                 } else {
                     stdout.printf ("\nRESTAMPING TO OUTPUT FILE: %s (scale %0.3fx)\n", 
@@ -435,14 +441,16 @@ class Rygel.MP2ParserTest : GLib.Object {
                     {
                         if (bytes != null) {
                             var buffer = bytes.get_data ();
-                            stdout.printf ("    Received %u bytes (%02x %02x %02x %02x %02x %02x) - offset %llu (0x%llx)\n",
+                            stdout.printf ("    Received %u bytes (%02x %02x %02x %02x %02x %02x) - offset %" 
+                                           + uint64.FORMAT + " (0x%" + uint64.FORMAT_MODIFIER + "x)\n",
                                            buffer.length, buffer[0], buffer[1], buffer[2],
-                                           buffer[3], buffer[4], buffer[5], byte_count, byte_count);
+                                           buffer[3], buffer[4], buffer[5], 
+                                           byte_count, byte_count);
                             byte_count += bytes.length;
                         }
                         if (last_buffer) {
-                            stdout.printf ("  Last buffer received. Total bytes received: %llu\n",
-                                           byte_count);
+                            stdout.printf ("  Last buffer received. Total bytes received: %"
+                                           + uint64.FORMAT + "\n", byte_count);
                         }
                     }, true /* paused */ );
                 var gen_thread = new Thread<void*> ( "mp2 stream generator", () => {
@@ -485,7 +493,8 @@ class Rygel.MP2ParserTest : GLib.Object {
                 stdout.printf (" Resuming BufferGeneratingOutputStream\n");
                 my_buf_gen_stream.resume ();
                 gen_thread.join ();
-                stdout.printf ("}\nCompleted mp2 generation (%llu bytes)\n", byte_count);
+                stdout.printf ("}\nCompleted mp2 generation (%" + uint64.FORMAT + " bytes)\n", 
+                               byte_count);
             }
         } catch (Error err) {
             error ("Error: %s", err.message);

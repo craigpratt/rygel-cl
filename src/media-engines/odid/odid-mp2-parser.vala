@@ -242,8 +242,9 @@ public class Rygel.MP2TSRestamper {
         var c_counters = new HashTable <uint16, uint8> (direct_hash, direct_equal);
         this.source_stream.seek_to_offset (this.start_offset);
         uint64 packet_count = 0, offset = this.start_offset;
-        debug ("Restamping bytes %llu-%llu (%llu bytes)", this.start_offset, this.end_offset,
-                                                          this.end_offset-this.start_offset);
+        debug ("Restamping bytes %" + uint64.FORMAT + "-%" + uint64.FORMAT 
+               + " (%" + uint64.FORMAT + " bytes)", 
+               this.start_offset, this.end_offset, this.end_offset-this.start_offset);
         if (scale_ms > 0) {
             while (offset + this.bytes_per_packet <= this.end_offset) {
                 // debug ("Restamping packet %lld at offset %lld", packet_count, offset);
@@ -383,7 +384,8 @@ public class Rygel.MP2TSRestamper {
             }
             ts_offset += this.bytes_per_packet;
         }
-        throw new IOError.FAILED ("No PAT table found in %lld packets", packet_count);
+        throw new IOError.FAILED ("No PAT table found in %" + uint64.FORMAT + " packets", 
+                                  packet_count);
     }
 
     public virtual MP2PMTTable get_pmt_table (uint16 pmt_pid) 
@@ -412,9 +414,10 @@ public class Rygel.MP2TSRestamper {
             }
             ts_offset += this.bytes_per_packet;
         }
-        throw new IOError.FAILED ("No PMT table found in %lld packets", packet_count);
+        throw new IOError.FAILED ("No PMT table found in %" + uint64.FORMAT + " packets", 
+                                  packet_count);
     }
-} // END class MP2TSRestampper
+} // END class MP2TSRestamper
 
 public class Rygel.MP2TSPacket {
     public unowned ExtDataInputStream source_stream;
@@ -474,7 +477,8 @@ public class Rygel.MP2TSPacket {
 
         var sync_byte = instream.read_byte ();
         if (sync_byte != 0x47) {
-            throw new IOError.FAILED ("TS packet sync_byte mismatch at %lld (0x%llx): found 0x%x, expected 0x47",
+            throw new IOError.FAILED ("TS packet sync_byte mismatch at %" + uint64.FORMAT 
+                                      + " (0x%" + uint64.FORMAT_MODIFIER + "x): found 0x%x, expected 0x47",
                                       instream.tell (), instream.tell (), sync_byte);
         }
 
@@ -519,7 +523,8 @@ public class Rygel.MP2TSPacket {
      */
     public virtual uint64 parse_pes_from_stream_seek () throws Error {
         if (!this.payload_unit_start_indicator) {
-            throw new IOError.FAILED ("Attempt to parse PES from TS packet that's not a payload start at %llu (0x%llx): ",
+            throw new IOError.FAILED ("Attempt to parse PES from TS packet that's not a payload start at %" 
+                                      + uint64.FORMAT + " (0x%" + uint64.FORMAT_MODIFIER + "x): %s",
                                       this.source_stream.tell (), this.source_stream.tell (),
                                       this.to_string ());
         }
@@ -536,7 +541,8 @@ public class Rygel.MP2TSPacket {
      */
     public virtual uint64 parse_pes_from_stream_noseek () throws Error {
         if (!this.payload_unit_start_indicator) {
-            throw new IOError.FAILED ("Attempt to parse PES from TS packet that's not a payload start at %llu (0x%llx): ",
+            throw new IOError.FAILED ("Attempt to parse PES from TS packet that's not a payload start at %" 
+                                      + uint64.FORMAT + " (0x%" + uint64.FORMAT_MODIFIER + "x): %s",
                                       this.source_stream.tell (), this.source_stream.tell (),
                                       this.to_string ());
         }
@@ -640,11 +646,11 @@ public class Rygel.MP2TSPacket {
             builder.append ("fields_not_loaded");
         } else {
             if (this.bytes_per_packet == 192) {
-                builder.append_printf ("timestamp %llu (0x%x),",this.timestamp);
+                builder.append_printf ("timestamp %u (0x%x),",this.timestamp, this.timestamp);
             }
-            builder.append_printf ("offset %lld,pid %d (0x%x),flags[",
+            builder.append_printf ("offset %" + uint64.FORMAT + ",pid %d (0x%x),flags[",
                                    this.source_offset, this.pid,this.pid);
-            builder.append_printf ("offset %lld,pid %d (0x%x),flags[",
+            builder.append_printf ("offset %" + uint64.FORMAT + ",pid %d (0x%x),flags[",
                                    this.source_offset, this.pid,this.pid);
             bool first = true;
             if (this.transport_error_indicator) {
@@ -755,9 +761,10 @@ public class Rygel.MP2TSPacket {
             // debug ("adaptation field length: %d", this.adaptation_field_length);
             // debug ("bytes consumed: %lld", bytes_consumed);
             if (bytes_consumed > adaptation_field_length+1) {
-                throw new IOError.FAILED ("Found %d bytes in adaptation field of %d bytes at %lld (0x%llx): %s",
-                                          instream.tell (), instream.tell (),
-                                          bytes_consumed, adaptation_field_length+1, to_string ());
+                throw new IOError.FAILED ("Found %d bytes in adaptation field of %d bytes at %" 
+                                          + uint64.FORMAT + " (0x%" + uint64.FORMAT_MODIFIER + "x): %s",
+                                          bytes_consumed, adaptation_field_length+1,
+                                          instream.tell (), instream.tell (), to_string ());
             }
             this.num_stuffing_bytes = adaptation_field_length + 1 
                                       - bytes_consumed;
@@ -874,11 +881,13 @@ public class Rygel.MP2TSPacket {
             }
             builder.append_c (']');
             if (this.pcr_flag) {
-                builder.append_printf (",pcr %lld (0x%llx) (%0.3fs)", 
+                builder.append_printf (",pcr %" + uint64.FORMAT 
+                                       + " (0x%" + uint64.FORMAT_MODIFIER + "x) (%0.3fs)", 
                                        this.pcr, this.pcr, this.pcr/27000000.0);
             }
             if (this.opcr_flag) {
-                builder.append_printf (",orig_pcr %lld (0x%llx) (%0.3fs)", 
+                builder.append_printf (",orig_pcr %" + uint64.FORMAT 
+                                       + " (0x%" + uint64.FORMAT_MODIFIER + "x) (%0.3fs)", 
                                        this.opcr, this.opcr, this.opcr/27000000.0);
             }
             if (this.splicing_point_flag) {
@@ -1280,8 +1289,7 @@ public abstract class Rygel.MP2Section {
     }
 
     public virtual void append_fields_to (StringBuilder builder) {
-        builder.append_printf ("table_id %u,length %lld",
-                               this.table_id, this.section_length);
+        builder.append_printf ("table_id %u,length %u", this.table_id, this.section_length);
     }
 
     public virtual void to_printer (MP2TransportStream.LinePrinter printer, string prefix) {
@@ -1589,9 +1597,9 @@ public class Rygel.MP2PMTSection : MP2TableSection {
                 this.descriptor_list.add (desc);
             }
             if (desc_bytes_read != this.es_info_length) {
-                throw new IOError.FAILED ("Found more descriptor bytes than expected (found %u, expected %u)", 
-                                          desc_bytes_read, 
-                                          this.es_info_length);
+                throw new IOError.FAILED ("Found more descriptor bytes than expected (found %" 
+                                          + uint64.FORMAT + ", expected %u)", 
+                                          desc_bytes_read, this.es_info_length);
             }
             bytes_consumed += this.es_info_length;
             return bytes_consumed;
@@ -1689,9 +1697,8 @@ public class Rygel.MP2PMTSection : MP2TableSection {
                 descriptor_bytes_read += descriptor.parse_from_stream ();
             }
             if (descriptor_bytes_read != this.program_info_length) {
-                throw new IOError.FAILED ("Found more descriptor bytes than expected (found %u, expected %u)", 
-                                          descriptor_bytes_read, 
-                                          this.program_info_length);
+                throw new IOError.FAILED ("Found more descriptor bytes than expected (found %" + uint64.FORMAT + ", expected %u)", 
+                                          descriptor_bytes_read, this.program_info_length);
             }
             bytes_consumed += (uint8)this.program_info_length;
         }
@@ -1706,9 +1713,9 @@ public class Rygel.MP2PMTSection : MP2TableSection {
                 
             }
             if (stream_bytes_read != total_stream_bytes) {
-                throw new IOError.FAILED ("Found more es stream bytes than expected (found %u, expected %u)", 
-                                          stream_bytes_read, 
-                                          total_stream_bytes);
+                throw new IOError.FAILED ("Found more es stream bytes than expected (found %" 
+                                          + uint64.FORMAT + ", expected %u)", 
+                                          stream_bytes_read, total_stream_bytes);
             }
             bytes_consumed += total_stream_bytes;
         }
@@ -1870,7 +1877,7 @@ public class Rygel.MP2Descriptor {
         if (!this.loaded) {
             builder.append ("fields_not_loaded");
         } else {
-            builder.append_printf ("offset %llu,tag %u,len %u", 
+            builder.append_printf ("offset %" + uint64.FORMAT + ",tag %u,len %u", 
                                    this.source_offset, this.tag, this.length);
         }
     }
@@ -1995,7 +2002,7 @@ public class Rygel.MP2PESPacket {
             try {
                 bytes_consumed += this.pes_header.parse_from_stream (instream);
             } catch (Error err) {
-                throw new IOError.FAILED ("Error %lld bytes into parse: %s",
+                throw new IOError.FAILED ("Error %" + uint64.FORMAT + " bytes into parse: %s",
                                           this.source_offset + bytes_consumed, 
                                           err.message);
             }
@@ -2066,13 +2073,14 @@ public class Rygel.MP2PESPacket {
         if (!this.loaded) {
             builder.append ("fields_not_loaded");
         } else {
-            builder.append_printf ("offset %lld,stream_id %d (0x%x) (%s),length %d (0x%x)",
+            builder.append_printf ("offset %" + uint64.FORMAT 
+                                   + ",stream_id %d (0x%x) (%s),length %d (0x%x)",
                                    this.source_offset, 
                                    this.stream_id, this.stream_id,
                                    stream_id_to_string (this.stream_id),
                                    this.packet_length, this.packet_length);
             if (this.has_payload) {
-                builder.append_printf (",header_size %lld", this.header_size);
+                builder.append_printf (",header_size %u", this.header_size);
             }
             if (this.pes_header != null) {
                 builder.append_c (',');
@@ -2359,15 +2367,19 @@ public class Rygel.MP2PESPacket {
             builder.append_c (']');
 
             if (this.pts_flag) {
-                builder.append_printf (",pts %lld (0x%llx)(%0.3fs)", 
+                builder.append_printf (",pts %" + uint64.FORMAT 
+                                       + " (0x%" + uint64.FORMAT_MODIFIER + "x)(%0.3fs)", 
                                        this.pts, this.pts, this.pts/90000.0);
             }
             if (this.dts_flag) {
-                builder.append_printf (",dts %lld (0x%llx)(%0.3fs)", 
+                builder.append_printf (",dts %" + uint64.FORMAT 
+                                       + " (0x%" + uint64.FORMAT_MODIFIER + "x)(%0.3fs)", 
                                        this.dts, this.dts, this.dts/90000.0);
             }
             if (this.escr_flag) {
-                builder.append_printf (",escr_%lld (0x%llx)", this.escr, this.escr);
+                builder.append_printf (",escr_%" + uint64.FORMAT 
+                                       + " (0x%" + uint64.FORMAT_MODIFIER + "x)", 
+                                       this.escr, this.escr);
             }
             if (this.es_rate_flag) {
                 builder.append_printf (",es_Rate %ld (0x%lx)", this.es_rate, this.es_rate);
