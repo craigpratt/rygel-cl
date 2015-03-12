@@ -333,8 +333,7 @@ class Rygel.MP2ParserTest : GLib.Object {
                         foreach (var stream_info in pmt.get_streams ()) {
                             if (target_stream == null) {
                                 if ((only_pid < 0) 
-                                    && (stream_info.stream_type 
-                                        == MP2PMTSection.STREAM_TYPE_MPEG2_VIDEO)) {
+                                    && stream_info.is_video ()) {
                                     target_program = program;
                                     target_stream = stream_info;
                                 } else {

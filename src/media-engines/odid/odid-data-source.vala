@@ -609,6 +609,11 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
             var restamper = new MP2TSRestamper.from_file_subrange (content_file, this.range_start, 
                                                                    range_end, bytes_per_packet);
             this.mp2ts_restamper = restamper;
+            foreach (var response in response_list) {
+                if (response is PlaySpeedResponse) {
+                    ((PlaySpeedResponse)response).framerate = PlaySpeedResponse.NO_FRAMERATE;
+                }
+            }
         }
     }
 
