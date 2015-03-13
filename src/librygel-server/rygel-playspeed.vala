@@ -70,11 +70,11 @@ public class Rygel.PlaySpeed {
     }
 
     public float to_float () {
-        return (float)numerator/denominator;
+        return ((float)numerator)/denominator;
     }
 
     public double to_double () {
-        return (double)numerator/denominator;
+        return ((double)numerator)/denominator;
     }
 
     private void parse (string speed) throws PlaySpeedError {
