@@ -126,14 +126,8 @@ internal class Rygel.ODIDDataSource : DataSource, Object {
         debug ("resource uri: " + this.resource_uri);
         debug ("Resource " + this.res.to_string ());
 
-        var config = MetaConfig.get_default ();
-        try {
-            this.restamp_mp2_files = config.get_string ("OdidMediaEngine", "restamp") == "true";
-        } catch (Error err) {
-            debug ("Error reading ODIDMediaEngine restamp property: " + err.message);
-            this.restamp_mp2_files = false;
-        }
-
+        this.restamp_mp2_files = ODIDUtil.get_resource_property (this.resource_uri, "restamp")
+                                 == "true";
         //
         // Setup and checks...
         //
