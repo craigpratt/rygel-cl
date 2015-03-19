@@ -272,6 +272,8 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
         string basename = null;
         bool dtcp_protected = false;
         bool is_converted = false;
+        bool byteseek_disabled = false;
+        bool timeseek_disabled = false;
 
         // Process fields set in the resource.info
         {
@@ -310,6 +312,14 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 }
                 if (name == "converted") {
                     is_converted = (value == "true");
+                    continue;
+                }
+                if (name == "disable-byteseek") {
+                    byteseek_disabled = (value == "true");
+                    continue;
+                }
+                if (name == "disable-timeseek") {
+                    timeseek_disabled = (value == "true");
                     continue;
                 }
                 if (name.length > 0 && value.length > 0) {
@@ -542,7 +552,16 @@ internal class Rygel.ODIDMediaEngine : MediaEngine {
                 debug ("create_resource: %s: encrypted size: %lld", short_res_path, res.size);
             }
         }
-
+        if (byteseek_disabled) {
+            res.dlna_operation &= ~DLNAOperation.RANGE;
+            res.dlna_flags &= ~(DLNAFlags.CLEARTEXT_BYTESEEK_FULL 
+                                | DLNAFlags.BYTE_BASED_SEEK
+                                | DLNAFlags.LOP_CLEARTEXT_BYTESEEK);
+        }
+        if (timeseek_disabled) {
+            res.dlna_operation &= ~DLNAOperation.TIMESEEK;
+            res.dlna_flags &= ~DLNAFlags.TIME_BASED_SEEK;
+        }
         return res;
     }
 
