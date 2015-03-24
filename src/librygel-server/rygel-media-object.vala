@@ -47,6 +47,9 @@ public abstract class Rygel.MediaObject : GLib.Object {
     public uint64 modified { get; set; }
     public uint object_update_id { get; set; }
 
+    public string artist { get; set; }
+    public string genre { get; set; }
+
     //TODO: { get; private set; } or, even better,
     // add virtual set_uri in Object and make add_uri() in Item into set_uri()
     // and make the uri property single-value.
@@ -353,6 +356,8 @@ public abstract class Rygel.MediaObject : GLib.Object {
 
     internal virtual void apply_didl_lite (DIDLLiteObject didl_object) {
         this.title = didl_object.title;
+        this.artist = this.get_first (didl_object.get_artists ());
+        this.genre = didl_object.genre;
     }
 
     // Recursively drop attributes of a certain namespace from a node.
@@ -422,11 +427,22 @@ public abstract class Rygel.MediaObject : GLib.Object {
         case "upnp:class":
             return this.compare_string_props (this.upnp_class,
                                               media_object.upnp_class);
+        case "dc:artist":
+            return this.compare_string_props (this.artist, media_object.artist);
+        case "upnp:genre":
+            return this.compare_string_props (this.genre, media_object.genre);
        default:
             return 0;
         }
     }
 
+    private string get_first (GLib.List<DIDLLiteContributor>? contributors) {
+        if (contributors != null) {
+            return contributors.data.name;
+        }
+
+        return "";
+    }
     protected int compare_string_props (string prop1, string prop2) {
         if (prop1 == null) {
             return -1;

@@ -212,7 +212,7 @@ public class Rygel.HTTPGet : HTTPRequest {
 
         this.msg.response_headers.append ("Server",SERVER_NAME);
 
-        HTTPResponse response = this.handler.render_body (this);
+        var response = this.handler.render_body (this);
 
         // Have the response process the seek/speed request
         try {

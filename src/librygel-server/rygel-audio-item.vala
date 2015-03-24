@@ -62,6 +62,8 @@ public class Rygel.AudioItem : MediaFileItem {
      * A value of -1 means the number of channels is unknown
      */
     public int channels { get; set; default = -1; }
+ 
+    public string album { get; set; }
 
     public AudioItem (string         id,
                       MediaContainer parent,
@@ -71,6 +73,39 @@ public class Rygel.AudioItem : MediaFileItem {
                 parent : parent,
                 title : title,
                 upnp_class : upnp_class);
+    }
+ 
+    internal override void apply_didl_lite (DIDLLiteObject didl_object) {
+        base.apply_didl_lite (didl_object);
+
+        this.album = didl_object.album;
+    }
+
+    internal override int compare_by_property (MediaObject media_object,
+                                               string      property) {
+        if (!(media_object is AudioItem)) {
+            return 1;
+        }
+
+        var item = media_object as AudioItem;
+        switch (property) {
+        case "upnp:album":
+            return this.compare_string_props (this.album, item.album);
+        default:
+            return base.compare_by_property (item, property);
+        }
+    }
+
+    internal override DIDLLiteObject? serialize (Serializer serializer,
+                                                 HTTPServer http_server)
+                                                 throws Error {
+        var didl_item = base.serialize (serializer, http_server);
+
+        if (this.album != null && this.album != "") {
+            didl_item.album = this.album;
+        }
+
+        return didl_item;
     }
 
     internal override MediaResource get_primary_resource () {
