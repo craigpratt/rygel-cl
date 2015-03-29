@@ -224,6 +224,16 @@ public abstract class Rygel.MediaObject : GLib.Object {
         return media_resources;
     }
 
+    public MediaResource? get_resource_by_name (string resource_name) {
+        foreach (var resource in this.media_resources) {
+            if (resource.get_name () == resource_name) {
+                return resource;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * Return a MediaResource list adapted for the HTTPServer
      */

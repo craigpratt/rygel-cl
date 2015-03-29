@@ -42,17 +42,13 @@ internal class Rygel.HTTPMediaResourceHandler : HTTPGetHandler {
         this.media_object = media_object;
         this.cancellable = cancellable;
         this.media_resource_name = media_resource_name;
-        foreach (var resource in media_object.get_resource_list ()) {
-            if (resource.get_name () == media_resource_name) {
-                this.media_resource
-                    = new MediaResource.from_resource (resource.get_name (),
-                                                       resource);
-            }
-        }
-        if (this.media_resource == null) {
+        var resource = media_object.get_resource_by_name (media_resource_name);
+        if (resource == null) {
             throw new HTTPRequestError.NOT_FOUND ("MediaResource %s not found",
                                                   media_resource_name);
         }
+        // Handler modifies the resource, so we copy it.
+        this.media_resource = resource.dup ();
     }
 
     public override void add_response_headers (HTTPGet request)
