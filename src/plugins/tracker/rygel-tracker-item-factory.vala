@@ -138,7 +138,7 @@ public abstract class Rygel.Tracker.ItemFactory {
         item.add_uri (uri);
     }
 
-    protected virtual void add_resources (MediaItem item) throws GLib.Error {
+    protected virtual void add_additional_resources (MediaItem item) throws GLib.Error {
         // Call the MediaEngine to determine which item representations it can support
         var media_engine = MediaEngine.get_default ( );
         media_engine.get_resources_for_item.begin (item,

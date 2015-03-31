@@ -63,7 +63,7 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
      */
     public ArrayList<Thumbnail> thumbnails { get; protected set; }
 
-    public ArrayList<Subtitle> subtitles;
+    public ArrayList<Subtitle> subtitles { get; protected set; }
 
     public VideoItem (string         id,
                       MediaContainer parent,
@@ -97,6 +97,19 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
         }
     }
 
+    internal override MediaResource get_primary_resource () {
+        var res = base.get_primary_resource ();
+
+        res.width = this.width;
+        res.height = this.height;
+        res.color_depth = this.color_depth;
+        res.dlna_flags |= DLNAFlags.STREAMING_TRANSFER_MODE;
+
+        this.set_visual_resource_properties (res);
+
+        return res;
+    }
+
     internal override int compare_by_property (MediaObject media_object,
                                                string      property) {
         if (!(media_object is VideoItem)) {
@@ -124,7 +137,7 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
     internal override void apply_didl_lite (DIDLLiteObject didl_object) {
         base.apply_didl_lite (didl_object);
 
-        this.author = get_first (didl_object.get_authors ());
+        this.author = this.get_first (didl_object.get_authors ());
     }
 
     internal override DIDLLiteObject? serialize (Serializer serializer,
@@ -191,21 +204,8 @@ public class Rygel.VideoItem : AudioItem, VisualItem {
         return didl_item;
     }
 
-    internal override MediaResource get_primary_resource () {
-        var res = base.get_primary_resource ();
-
-        res.width = this.width;
-        res.height = this.height;
-        res.color_depth = this.color_depth;
-        res.dlna_flags |= DLNAFlags.STREAMING_TRANSFER_MODE;
-
-        this.set_visual_resource_properties (res);
-
-        return res;
-    }
-
-    internal override void add_resources (HTTPServer http_server) {
-        base.add_resources (http_server);
+    internal override void add_additional_resources (HTTPServer http_server) {
+        base.add_additional_resources (http_server);
 
         // Add thumbnails (since VisualItem.serialize won't get called automatically)
         this.add_thumbnail_resources (http_server);

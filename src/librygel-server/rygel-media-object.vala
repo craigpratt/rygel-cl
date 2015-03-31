@@ -53,7 +53,7 @@ public abstract class Rygel.MediaObject : GLib.Object {
     //TODO: { get; private set; } or, even better,
     // add virtual set_uri in Object and make add_uri() in Item into set_uri()
     // and make the uri property single-value.
-    private Gee.ArrayList<string> uris;
+    public Gee.ArrayList<string> uris;
 
     public Gee.List<string> get_uris () { return this.uris; }
 

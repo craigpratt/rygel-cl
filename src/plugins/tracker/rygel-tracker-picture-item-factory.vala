@@ -86,7 +86,7 @@ public class Rygel.Tracker.PictureItemFactory : ItemFactory {
             photo.height = (int) metadata.get_integer (PictureMetadata.HEIGHT);
         }
 
-        base.add_resources(photo);
+        base.add_additional_resources(photo);
     }
 }
 

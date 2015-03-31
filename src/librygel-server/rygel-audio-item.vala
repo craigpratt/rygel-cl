@@ -62,7 +62,7 @@ public class Rygel.AudioItem : MediaFileItem {
      * A value of -1 means the number of channels is unknown
      */
     public int channels { get; set; default = -1; }
- 
+
     public string album { get; set; }
 
     public AudioItem (string         id,
@@ -121,7 +121,7 @@ public class Rygel.AudioItem : MediaFileItem {
         return res;
     }
 
-    internal override void add_resources (HTTPServer server) {
+    internal override void add_additional_resources (HTTPServer server) {
         // AudioItem doesn't add secondary resources
     }
 }

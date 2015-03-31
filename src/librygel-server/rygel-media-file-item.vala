@@ -127,9 +127,6 @@ public abstract class Rygel.MediaFileItem : MediaItem {
                                         (HTTPRequest request,
                                          MediaResource resource)
                                          throws Error {
-        if (this.get_uris ().is_empty) {
-            return null;
-        }
         return MediaEngine.get_default ().create_data_source_for_resource
                                         (this, resource);
     }
@@ -144,10 +141,9 @@ public abstract class Rygel.MediaFileItem : MediaItem {
             //  should contain the primary resource representations for the MediaItem
             //  at this point) with any secondary representations or alternate delivery
             //  mechanisms they can provide
-            this.add_resources (http_server);
-
-            this.serialize_resource_list (didl_item, http_server);
+            this.add_additional_resources (http_server);
         }
+        this.serialize_resource_list (didl_item, http_server);
 
         return didl_item;
     }
@@ -249,5 +245,9 @@ public abstract class Rygel.MediaFileItem : MediaItem {
      *       resources to the MediaResource list.
      * FIXME: Will be renamed once we can safely remove old add_resources
      */
-    internal abstract void add_resources (HTTPServer server);
+    internal virtual void add_additional_resources (HTTPServer server) {
+        /* Do nothing - provide default implementation to avoid unnecessary
+           empty code blocks.
+         */
+    }
 }

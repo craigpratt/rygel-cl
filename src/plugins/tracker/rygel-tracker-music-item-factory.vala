@@ -138,7 +138,7 @@ public class Rygel.Tracker.MusicItemFactory : ItemFactory {
 
         music.lookup_album_art ();
 
-        base.add_resources(music);
+        base.add_additional_resources(music);
     }
 }
 

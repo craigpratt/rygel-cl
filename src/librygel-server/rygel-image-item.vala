@@ -93,8 +93,8 @@ public class Rygel.ImageItem : MediaFileItem, VisualItem {
         return res;
     }
 
-    internal override void add_resources (HTTPServer http_server) {
-        base.add_resources (http_server);
+    internal override void add_additional_resources (HTTPServer http_server) {
+        base.add_additional_resources (http_server);
 
         this.add_thumbnail_resources (http_server);
     }

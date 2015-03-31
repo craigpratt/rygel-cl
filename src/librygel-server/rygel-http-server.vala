@@ -29,7 +29,7 @@
 using GUPnP;
 using Gee;
 
-public class Rygel.HTTPServer : Rygel.StateMachine, GLib.Object {
+public class Rygel.HTTPServer : GLib.Object, Rygel.StateMachine {
     public string path_root { get; private set; }
 
     // Reference to root container of associated ContentDirectory
@@ -43,6 +43,7 @@ public class Rygel.HTTPServer : Rygel.StateMachine, GLib.Object {
 
     public HTTPServer (ContentDirectory content_dir,
                        string           name) {
+        base ();
 
         this.root_container = content_dir.root_container;
         this.context = content_dir.context;
@@ -74,6 +75,18 @@ public class Rygel.HTTPServer : Rygel.StateMachine, GLib.Object {
         }
     }
 
+    /**
+     * Set or unset options the server supports/doesn't support
+     *
+     * Resources should be setup assuming server supports all optional delivery modes
+     */
+    public void set_resource_delivery_options (MediaResource res) {
+        res.protocol = get_protocol ();
+        // Set this just to be safe
+        res.dlna_flags |= DLNAFlags.DLNA_V15;
+        // This server supports all DLNA delivery modes - so leave those flags alone
+    }
+
     public bool need_proxy (string uri) {
         return Uri.parse_scheme (uri) != "http";
     }
@@ -102,6 +115,10 @@ public class Rygel.HTTPServer : Rygel.StateMachine, GLib.Object {
         return uri.to_string ();
     }
 
+    public string get_protocol () {
+        return "http-get";
+    }
+
     public bool recognizes_uri (string uri) {
         if (!uri.has_prefix ("http:")) {
             return false;
@@ -114,28 +131,12 @@ public class Rygel.HTTPServer : Rygel.StateMachine, GLib.Object {
         }
     }
 
-    public string get_protocol () {
-        return "http-get";
-    }
-
     public HashTable<string, string> get_replacements () {
         return this.replacements;
     }
 
     public bool is_local () {
-        return (this.locally_hosted);
-    }
-
-    /**
-     * Set or unset options the server supports/doesn't support
-     *
-     * Resources should be setup assuming server supports all optional delivery modes
-     */
-    public void set_resource_delivery_options (MediaResource res) {
-        res.protocol = get_protocol ();
-        // Set this just to be safe
-        res.dlna_flags |= DLNAFlags.DLNA_V15;
-        // This server supports all DLNA delivery modes - so leave those flags alone
+        return this.locally_hosted;
     }
 
     private void on_request_completed (StateMachine machine) {

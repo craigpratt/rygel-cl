@@ -48,7 +48,4 @@ public class Rygel.PlaylistItem : MediaFileItem {
         return didl_item;
     }
 
-    internal override void add_resources (HTTPServer server) {
-        // PlaylistItem doesn't add secondary resources
-    }
 }
