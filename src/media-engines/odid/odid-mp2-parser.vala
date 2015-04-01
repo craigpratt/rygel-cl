@@ -96,8 +96,6 @@ public abstract class Rygel.MP2TransportStream {
         var pmt_section = new MP2PMTSection ();
         foreach (var ts_packet in this.ts_packets) {
             if (ts_packet.pid == pmt_pid) {
-                var offset = ts_packet.source_offset + ts_packet.header_size;
-                this.source_stream.seek_to_offset (offset);
                 if (pmt_section.add_ts_packet_seek (ts_packet)) {
                     if (pmt_table.add_section (pmt_section)) {
                         return pmt_table;
@@ -1657,9 +1655,9 @@ public class Rygel.MP2PMTSection : MP2TableSection {
                  && (this.descriptor_list.size > 0)) {
                 builder.append (",descriptors:[");
                 foreach (var desc in this.descriptor_list) {
-                    builder.append_printf ("%u:[", num++);
-                    desc.append_fields_to (builder);
-                    builder.append ("],");
+                    builder.append_printf ("%u:", num++);
+                    builder.append (desc.to_string ());
+                    builder.append_c (',');
                 }
                 builder.truncate (builder.len-1);
                 builder.append_c (']');
@@ -1689,12 +1687,12 @@ public class Rygel.MP2PMTSection : MP2TableSection {
         bytes_consumed += 9;
         {
             uint64 descriptor_bytes_read = 0;
+            this.descriptor_list = new ArrayList<MP2Descriptor> ();
             while (descriptor_bytes_read < this.program_info_length) {
-                var descriptor = new MP2Descriptor.from_stream 
-                                  (instream, bytes_consumed 
-                                             + descriptor_bytes_read);
-                this.descriptor_list.add (descriptor);
-                descriptor_bytes_read += descriptor.parse_from_stream ();
+                var desc = new MP2Descriptor.from_stream  (instream, bytes_consumed 
+                                                                     + descriptor_bytes_read);
+                this.descriptor_list.add (desc);
+                descriptor_bytes_read += desc.parse_from_stream ();
             }
             if (descriptor_bytes_read != this.program_info_length) {
                 throw new IOError.FAILED ("Found more descriptor bytes than expected (found %" + uint64.FORMAT + ", expected %u)", 
@@ -1747,9 +1745,9 @@ public class Rygel.MP2PMTSection : MP2TableSection {
                  && (this.descriptor_list.size > 0)) {
                 builder.append (",descriptors:[");
                 foreach (var descriptor in this.descriptor_list) {
-                    builder.append_printf ("%u:[", num);
+                    builder.append_printf ("%u:", num++);
                     builder.append (descriptor.to_string ());
-                    builder.append ("],");
+                    builder.append_c (',');
                 }
                 builder.truncate (builder.len-1);
                 builder.append_c (']');
@@ -1855,8 +1853,7 @@ public class Rygel.MP2Descriptor {
     }
 
     public virtual uint64 parse_from_stream () throws Error {
-        // debug ("parse_from_stream()", this.type_code);
-        // Note: This currently assumes the stream is pre-positioned for the PES packet
+        // Note: This currently assumes the stream is pre-positioned for the descriptor
         var instream = this.source_stream;
 
         this.tag = instream.read_byte ();
