@@ -89,7 +89,7 @@ public class Rygel.DTCPCleartextRequest : Rygel.HTTPSeekRequest {
         var range_tokens = range.substring (6).split ("-", 2); // skip "bytes="
         if (range_tokens[0].length == 0) {
             throw new HTTPSeekRequestError.INVALID_RANGE ( "No range start specified: '%s'",
-                                                           DTCP_RANGE_HEADER, range );
+                                                           range );
         }
 
         if (!int64.try_parse (range_tokens[0], out start) || (start < 0)) {
