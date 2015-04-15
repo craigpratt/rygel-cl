@@ -237,6 +237,7 @@ public abstract class Rygel.MediaFileItem : MediaItem {
         return "";
     }
 
+
     /**
      * Subclasses can override this method to augment the MediaObject MediaResource
      * list with secondary MediaResource objects representing derivative resources.
