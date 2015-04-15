@@ -79,7 +79,6 @@ private class Rygel.BaseMediaContainer : MediaContainer {
                                                     throws Error {
         return null;
     }
-
 }
 
 
@@ -506,7 +505,9 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
                                           this.didl_object.title,
                                           this.didl_object.upnp_class);
 
-        if (this.object is MediaFileItem) {
+        this.object.apply_didl_lite (this.didl_object);
+
+        if (this.object is MediaItem) {
             this.extract_item_parameters ();
         }
 
@@ -532,9 +533,7 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
     private void extract_item_parameters () throws Error {
         var item = this.object as MediaFileItem;
 
-        var resources = this.didl_object.get_resources ();
-        if (resources != null && resources.length () > 0) {
-            var resource = resources.nth (0).data;
+        foreach (var resource in this.didl_object.get_resources ()) {
             var info = resource.protocol_info;
 
             if (info != null) {
@@ -586,7 +585,8 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
         var parsed_date = new Soup.Date.from_string (didl_item.date);
         if (parsed_date != null) {
             (this.object as MediaFileItem).date = parsed_date.to_string
-                                                   (Soup.DateFormat.ISO8601);
+                                            (Soup.DateFormat.ISO8601);
+
             return;
         }
 
@@ -610,7 +610,7 @@ internal class Rygel.ObjectCreator: GLib.Object, Rygel.StateMachine {
                                      didl_item.date);
         }
 
-        (this.object as MediaItem).date = didl_item.date + "T00:00:00";
+        (this.object as MediaFileItem).date = didl_item.date + "T00:00:00";
     }
 
     private MediaObject create_object (string            id,
