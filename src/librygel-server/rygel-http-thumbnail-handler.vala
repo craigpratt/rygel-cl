@@ -67,7 +67,8 @@ internal class Rygel.HTTPThumbnailHandler : Rygel.HTTPGetHandler {
         request.msg.response_headers.append ("Content-Type", thumbnail.mime_type);
 
         // Add contentFeatures.dlna.org
-        MediaResource res = this.thumbnail.get_resource (request.http_server.get_protocol ());
+        MediaResource res = this.thumbnail.get_resource
+            (request.http_server.get_protocol (), this.thumbnail_index);
         string protocol_info = res.get_protocol_info ().to_string ();
         var pi_fields = protocol_info.split (":", 4);
         request.msg.response_headers.append ("contentFeatures.dlna.org", pi_fields[3]);

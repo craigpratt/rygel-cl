@@ -72,8 +72,8 @@ public class Rygel.Tracker.VideoItemFactory : ItemFactory {
     }
 
     protected override void set_metadata (MediaFileItem item,
-                                          string    uri,
-                                          Sparql.Cursor  metadata)
+                                          string        uri,
+                                          Sparql.Cursor metadata)
                                           throws GLib.Error {
         base.set_metadata (item, uri, metadata);
 

@@ -133,7 +133,8 @@ public class Rygel.Tracker.CategoryAllContainer : SearchContainer,
         this.get_children_count.begin ();
     }
 
-    private async string create_entry_in_store (MediaFileItem item) throws Error {
+    private async string create_entry_in_store (MediaFileItem item)
+                                                throws Error {
         var category = this.item_factory.category;
         var query = new InsertionQuery (item, category);
 

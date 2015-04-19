@@ -75,7 +75,7 @@ public class Rygel.Tracker.MusicItemFactory : ItemFactory {
                                           string          uri,
                                           SearchContainer parent,
                                           Sparql.Cursor   metadata)
-                                      throws GLib.Error {
+                                          throws GLib.Error {
         var item = new MusicItem (id, parent, "");
 
         this.set_metadata (item, uri, metadata);
@@ -84,7 +84,7 @@ public class Rygel.Tracker.MusicItemFactory : ItemFactory {
     }
 
     protected override void set_metadata (MediaFileItem item,
-                                          string    uri,
+                                          string        uri,
                                           Sparql.Cursor metadata)
                                           throws GLib.Error {
         base.set_metadata (item, uri, metadata);

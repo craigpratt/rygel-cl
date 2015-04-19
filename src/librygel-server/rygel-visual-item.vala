@@ -78,8 +78,9 @@ public interface Rygel.VisualItem : MediaFileItem {
     }
 
     internal void add_thumbnail_resources (HTTPServer http_server) {
-        foreach (var thumbnail in this.thumbnails) {
+        for (var i = 0; i < this.thumbnails.size; i++) {
             if (!this.place_holder) {
+                var thumbnail = this.thumbnails.get (i);
                 // Add the defined thumbnail uri unconditionally
                 //  (it will be filtered out if the request is remote)
                 string protocol;
@@ -90,18 +91,21 @@ public interface Rygel.VisualItem : MediaFileItem {
                     continue;
                 }
 
-                var thumb_res = thumbnail.get_resource (protocol);
+                var thumb_res = thumbnail.get_resource (protocol, i);
+                thumb_res.uri = thumbnail.uri;
                 this.get_resource_list ().add (thumb_res);
                 if (http_server.need_proxy (thumbnail.uri)) {
-                    var http_thumb_res = thumbnail.get_resource (http_server.get_protocol ());
+                    var http_thumb_res = thumbnail.get_resource
+                                        (http_server.get_protocol (), i);
 
                     var index = this.thumbnails.index_of (thumbnail);
                     // Make a http uri for the thumbnail
-                    http_thumb_res.uri = http_server.create_uri_for_item (this,
-                                                                          thumbnail.file_extension,
-                                                                          index,
-                                                                          -1,
-                                                                          null);
+                    http_thumb_res.uri = http_server.create_uri_for_item 
+                                                 (this,
+                                                  thumbnail.file_extension,
+                                                  index,
+                                                  -1,
+                                                  null);
                     this.get_resource_list ().add (http_thumb_res);
                 }
             }

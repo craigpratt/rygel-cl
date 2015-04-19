@@ -130,9 +130,9 @@ public abstract class Rygel.Tracker.ItemFactory {
         if (metadata.is_bound (Metadata.DLNA_PROFILE)) {
             item.dlna_profile = metadata.get_string (Metadata.DLNA_PROFILE);
         }
- 
+
         if (metadata.is_bound (Metadata.MIME)) {
-            item.mime_type = metadata.get_string (Metadata.MIME);  
+            item.mime_type = metadata.get_string (Metadata.MIME);
         }
 
         item.add_uri (uri);

@@ -60,7 +60,7 @@ public class Rygel.Tracker.PictureItemFactory : ItemFactory {
                                           string          uri,
                                           SearchContainer parent,
                                           Sparql.Cursor   metadata)
-                                      throws GLib.Error {
+                                          throws GLib.Error {
         var item = new PhotoItem (id, parent, "");
 
         this.set_metadata (item, uri, metadata);

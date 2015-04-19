@@ -47,5 +47,4 @@ public class Rygel.PlaylistItem : MediaFileItem {
 
         return didl_item;
     }
-
 }

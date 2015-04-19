@@ -1,9 +1,7 @@
 /*
  * Copyright (C) 2008 Zeeshan Ali <zeenix@gmail.com>.
- * Copyright (C) 2013 Cable Television Laboratories, Inc.
  *
  * Author: Zeeshan Ali <zeenix@gmail.com>
- *         Craig Pratt <craig@ecaspia.com>
  *
  * This file is part of Rygel.
  *
@@ -38,8 +36,9 @@ public class Rygel.Thumbnail : Rygel.IconInfo {
         this.dlna_profile = dlna_profile;
     }
 
-    internal virtual MediaResource get_resource (string protocol) {
-        MediaResource res = new MediaResource (protocol + "_thumbnail");
+    internal virtual MediaResource get_resource (string protocol, int index) {
+        var name = "%s_thumbnail_%02d".printf (protocol, index);
+        MediaResource res = new MediaResource (name);
 
         res.size = this.size;
         res.width = this.width;
@@ -55,6 +54,9 @@ public class Rygel.Thumbnail : Rygel.IconInfo {
                           DLNAFlags.DLNA_V15;
         res.dlna_operation = DLNAOperation.RANGE;
         res.dlna_conversion = DLNAConversion.TRANSCODED;
+        res.extension = this.file_extension;
+
+        res.uri = this.uri;
 
         return res;
     }
