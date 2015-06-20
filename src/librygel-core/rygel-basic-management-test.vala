@@ -84,7 +84,8 @@ internal abstract class Rygel.BasicManagementTest : Object, StateMachine {
     /* properties for implementations to access */
     protected uint iterations;
     protected SpawnFlags flags = SpawnFlags.SEARCH_PATH |
-                                 SpawnFlags.LEAVE_DESCRIPTORS_OPEN;
+                                 SpawnFlags.LEAVE_DESCRIPTORS_OPEN |
+                                 SpawnFlags.DO_NOT_REAP_CHILD;
     protected string[] command;
 
     private uint eof_count;
@@ -93,6 +94,10 @@ internal abstract class Rygel.BasicManagementTest : Object, StateMachine {
     private Pid child_pid;
     private SourceFunc async_callback;
     private uint current_iteration;
+    private IOChannel out_channel;
+    private IOChannel err_channel;
+    private uint io_stderr_watch_id;
+    private uint io_stdout_watch_id;
 
     /* These virtual/abstract functions will be called from run ():
      * - For every iteration:
@@ -158,13 +163,50 @@ internal abstract class Rygel.BasicManagementTest : Object, StateMachine {
                                             out this.std_out,
                                             out this.std_err);
 
-            var out_channel = new IOChannel.unix_new (std_out);
-            out_channel.add_watch (IOCondition.OUT | IOCondition.HUP,
-                                   this.out_watch);
+            out_channel = new IOChannel.unix_new (this.std_out);
+            io_stdout_watch_id = out_channel.add_watch (IOCondition.OUT |
+                                                        IOCondition.HUP ,
+                                                         this.out_watch);
 
-            var err_channel = new IOChannel.unix_new (std_err);
-            err_channel.add_watch (IOCondition.OUT | IOCondition.HUP,
-                                   this.err_watch);
+            err_channel = new IOChannel.unix_new (this.std_err);
+            io_stderr_watch_id = err_channel.add_watch (IOCondition.OUT |
+                                                        IOCondition.HUP ,
+                                                        this.err_watch);
+
+            ChildWatch.add (this.child_pid, (pid, status) => {
+                // Triggered when the child indicated by child_pid exits
+                Process.close_pid (pid);
+                debug ("Closing child process.");
+                if (io_stdout_watch_id != -1) {
+                    GLib.Source.remove(this.io_stdout_watch_id);
+                }
+
+                if (io_stderr_watch_id != -1) {
+                    GLib.Source.remove(this.io_stderr_watch_id);
+                }
+
+                try {
+                    if (this.out_channel != null) {
+                        out_channel.shutdown(true);
+                    }
+                } catch (IOChannelError e) {
+                    warning (@"Error $(e.message) during 
+                               shutting down stdout pipe to the child process");
+                }
+
+                try {
+                    if (this.err_channel != null) {
+                        err_channel.shutdown(true);
+                    }
+                } catch (IOChannelError e) {
+                    warning (@"Error $(e.message) during 
+                                shutting down stderr pipe to the child process");
+                }
+
+                out_channel = null;
+                err_channel = null;
+            });
+
         } catch (SpawnError e) {
             /* Let the async function yeild, then let the Test
              * implementation handle this in finish_iteration */
