@@ -72,7 +72,7 @@ case $# in
     1) ;;
     *) echo 1>&2 "Usage: $0 \$srcdir/.tarball-version"; exit 1;;
 esac
-
+cablelabs_version_file=/home/cvp2ri/Projects/rygel/.cablelabs_version
 tarball_version_file=$1
 nl='
 '
@@ -123,7 +123,8 @@ then
     # Remove the "g" in git describe's output string, to save a byte.
     v=`echo "$v" | sed 's/-/./;s/\(.*\)-g/\1-/'`;
 else
-    v=UNKNOWN
+    `git log --pretty=format:'%H' -n 1 > $cablelabs_version_file`;
+    v=`cat $cablelabs_version_file` || exit 1; 
 fi
 
 #v=`echo "$v" |sed 's/^v//'`
@@ -133,13 +134,13 @@ v=`echo "$v" | sed "s/${GNOME_TAG_PATTERN}_//" | tr _ .`
 # Don't declare a version "dirty" merely because a time stamp has changed.
 git status > /dev/null 2>&1
 
-dirty=`sh -c 'git diff-index --name-only HEAD' 2>/dev/null` || dirty=
-case "$dirty" in
+updated=`sh -c 'git diff-index --name-only HEAD' 2>/dev/null` || updated=
+case "$updated" in
     '') ;;
     *) # Append the suffix only if there isn't one already.
 	case $v in
-	  *-dirty) ;;
-	  *) v="$v-dirty" ;;
+	  *-updated) ;;
+	  *) v="$v-updated" ;;
 	esac ;;
 esac
 
