@@ -90,5 +90,4 @@ LIBRYGEL_SERVER_NONVAPI_SOURCE_FILES = \
 	rygel-dtcp-cleartext-request.vala \
 	rygel-dtcp-cleartext-response.vala \
 	rygel-dlna-available-seek-request.vala \
-	rygel-dlna-available-seek-response.vala \
-	libmediaart-1.0.vapi
+	rygel-dlna-available-seek-response.vala
