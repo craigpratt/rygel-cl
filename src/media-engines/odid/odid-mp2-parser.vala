@@ -29,6 +29,8 @@
 
 using Gee;
 
+public static const uint16 INVALID_PID = 0xC000;
+
 public abstract class Rygel.MP2TransportStream {
     public Gee.List<MP2TSPacket> ts_packets = new Gee.ArrayList<MP2TSPacket> ();
     public ExtDataInputStream source_stream;
@@ -228,7 +230,17 @@ public class Rygel.MP2TSRestamper {
             var pat = get_first_pat_table ();
             debug ("  Found PAT:");
             pat.to_printer ((l) =>  {debug (l);}, "   ");
-            var pmt = get_pmt_table (pat.get_programs ().first ().pid);
+            uint16 pmt_pid = INVALID_PID;
+            foreach (var program in pat.get_programs ()) {
+                if (program.program_number != 0) {
+                    pmt_pid = program.pid;
+                    break;
+                }
+            }
+            if (pmt_pid == INVALID_PID) {
+                throw new IOError.FAILED ("No PMT PID found in PAT");
+            }
+            var pmt = get_pmt_table (pmt_pid);
             debug ("  Found PMT:");
             pmt.to_printer ((l) =>  {debug (l);}, "   ");
             foreach (var stream_info in pmt.get_streams ()) {
