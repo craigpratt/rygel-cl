@@ -323,6 +323,10 @@ class Rygel.MP2ParserTest : GLib.Object {
                     pat.to_printer (my_printer, "   ");
                 }
                 foreach (var program in pat.get_programs ()) {
+                    if (program.program_number == 0) {
+                        stdout.printf ("\nSKIPPING NETWORK PID %u:\n", program.pid);
+                        continue;
+                    }
                     try {
                         var pmt = mp2_file.get_first_pmt_table (program.pid);
                         if (print_pat_pmt) {
@@ -353,7 +357,7 @@ class Rygel.MP2ParserTest : GLib.Object {
                             }
                         }
                     } catch (Error err) {
-                        error ("Error getting PMT/video PES: %s", err.message);
+                        warning ("Error getting PMT/video PES: %s", err.message);
                     }
                 }
             }
